@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="bootstrap.min.css">
+
+    <link href="https://fonts.googleapis.com/css?family=Ubuntu&display=swap" rel="stylesheet">
+
+    <title>FPV Sampa Battery pack planner</title>
+
+    <style>
+        .cell {
+            width: 40px;
+            height: 40px;
+            margin: 0;
+            padding: 0;
+            vertical-align: middle;
+            text-align: center;
+            font-family: 'Ubuntu';
+            font-weight: bold;
+            font-size: 15px;
+            display: table-cell;
+        }
+
+        .negative {
+            background-color: black;
+            color: white;
+        }
+
+        .positive {
+            background-color: red;
+            color: black;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <h1>FPV Sampa Battery pack planner</h1>
+            <p>Simple tool to plan battery pack configurations. Just inform the basic pack specs and the tool will suggest the
+                possible shapes of the pack.</p>
+        </div>
+        <form>
+            <div class="row">
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellsInSeries">Cells in series</label>
+                        <input type="number" class="form-control" id="CellsInSeries" aria-describedby="CellsInSeriesHelp" min="1" max="100" step="1"
+                            value="4">
+                        <small id="CellsInSeriesHelp" class="form-text text-muted">The more cells in series, the more voltage of the pack.</small>
+                    </div>
+                </div>
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellsInParallel">Cells in parallel</label>
+                        <input type="number" class="form-control" id="CellsInParallel" aria-describedby="CellsInParallelHelp" min="1" max="100" step="1"
+                            value="4">
+                        <small id="CellsInParallelHelp" class="form-text text-muted">The more cells in parallel, the more capacity of the pack.</small>
+                    </div>
+                </div>
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellsCapacity">Cells capacity</label>
+                        <input type="number" class="form-control" id="CellsCapacity" aria-describedby="CellsCapacitylHelp" min="1" max="100000" step="1"
+                            value="3000">
+                        <small id="CellsCapacitylHelp" class="form-text text-muted">The nominal capacity of each cell in miliampere-hour (mAh).</small>
+                    </div>
+                </div>
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellsDischargeRate">Cells discharge rate</label>
+                        <input type="number" class="form-control" id="CellsDischargeRate" aria-describedby="CellsDischargeRatelHelp" min="1" max="1000"
+                            step="0.1" value="20">
+                        <small id="CellsDischargeRateHelp" class="form-text text-muted">The constant discharge rate of each cell in Amperes (A).</small>
+                    </div>
+                </div>
+
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellWeight">Cell weight</label>
+                        <input type="number" class="form-control" id="CellWeight" aria-describedby="CellWeightHelp" min="1" max="1000" step="11"
+                            value="46">
+                        <small id="CellWeightHelp" class="form-text text-muted">The weight of each cell in grams (g).</small>
+                    </div>
+                </div>
+
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="CellsVoltage">Cell voltage</label>
+                        <input type="number" class="form-control" id="CellsVoltage" aria-describedby="CellsVoltageHelp" min="1" max="100" step="0.01"
+                            value="3.7">
+                        <small id="CellsVoltageHelp" class="form-text text-muted">The nominal voltage of a single cell (V).</small>
+                    </div>
+                </div>
+
+            </div>
+            <div class="row"></div>
+            <div class="col-lg">
+                <div class="form-group">
+                    <input type="button" class="btn btn-primary btn-block" id="btnbuildpack" value="Build pack">
+                </div>
+            </div>
+    </div>
+
+    </form>
+    </div>
+
+    <div class="container" id="divPack">
+        <div class="cellrow">
+            <div class="rounded-circle cell negative" style="">1</div>
+            <div class="rounded-circle cell negative" style="">2</div>
+            <div class="rounded-circle cell negative" style="">3</div>
+            <div class="rounded-circle cell negative" style="">4</div>
+        </div>
+        <div class="cellrow">
+            <div class="rounded-circle cell positive" style="">8</div>
+            <div class="rounded-circle cell positive" style="">7</div>
+            <div class="rounded-circle cell positive" style="">6</div>
+            <div class="rounded-circle cell positive" style="">5</div>
+        </div>
+        <div class="cellrow">
+            <div class="rounded-circle cell negative" style="">9</div>
+            <div class="rounded-circle cell negative" style="">10</div>
+            <div class="rounded-circle cell negative" style="">11</div>
+            <div class="rounded-circle cell negative" style="">12</div>
+        </div>
+        <div class="cellrow">
+            <div class="rounded-circle cell positive" style="">16</div>
+            <div class="rounded-circle cell positive" style="">15</div>
+            <div class="rounded-circle cell positive" style="">14</div>
+            <div class="rounded-circle cell positive" style="">13</div>
+        </div>
+    </div>
+
+    <script src="jquery-3.3.1.slim.min.js"></script>
+    <script src="popper.min.js"></script>
+    <script src="bootstrap.min.js"></script>
+    <script src="batteryplanner.js"></script>
+
+</body>
+
+</html>
