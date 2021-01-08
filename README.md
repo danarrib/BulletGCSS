@@ -3,7 +3,7 @@
 # Bullet GCSS
 Bullet GCSS is a high caliber ground control station system designed for the 21st century lifestyle.
 
-![github-social-media](https://user-images.githubusercontent.com/17026744/103974426-86754d00-5150-11eb-8670-5660a515f58b.png)
+![github-social-media](https://user-images.githubusercontent.com/17026744/103979227-1ff62c00-515c-11eb-922b-a433d89bbf5e.png)
 
 **This is a Work in progress! It's not ready for consistent use. Be advised!**
 
