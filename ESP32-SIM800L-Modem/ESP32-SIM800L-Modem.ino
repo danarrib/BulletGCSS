@@ -29,8 +29,8 @@
 
 #define LED 2
 #define GPS_DEGREES_DIVIDER 10000000.0f
-#define SERIAL_PIN_RX 16
-#define SERIAL_PIN_TX 17
+#define SERIAL_PIN_RX 12
+#define SERIAL_PIN_TX 14
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
@@ -41,7 +41,7 @@
 #include "msp_library.h"
 #include "uav_status.h"
 
-HardwareSerial mspSerial(1);
+HardwareSerial mspSerial(2);
 
 WiFiClient espClient;
 PubSubClient client(espClient);
