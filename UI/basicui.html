@@ -31,6 +31,7 @@
 			height:100%;
 			overflow: hidden;
 			font-family: Ubuntu;
+			font-size: 3.5vmin;
 			background-color: black;
 			color: white;
 
@@ -56,6 +57,11 @@
 			width: 100%;
 		}
 
+		#dataview {
+			display: flex;
+			overflow: auto;
+		}
+
 		.tblDataView {
 			width: 100%;
 			align-self: center;
@@ -72,7 +78,6 @@
 		}
 
 		.rightIcon {
-			/* float: right; */
 			right: 1em;
 			position: absolute;
 		}
@@ -94,7 +99,6 @@
 				height:30%;
 				width:100%;
 				position:absolute;
-				display: flex;
 				bottom:70%;
 			}
 			#mapview {
@@ -139,8 +143,6 @@
 				right:50%;
 				top: 0;
 				height: 50%;
-				overflow: auto;
-				display: flex;
 			}
 			#mapview {
 			   position:absolute;
@@ -164,59 +166,6 @@
 					height: calc(100% - max(0px, env(safe-area-inset-bottom)));
 				}
 			}
-		}
-
-		/* PC and other low density screens*/
-		@media only screen and (min-resolution : 1dppx)
-		{
-			body {
-				font-size: 14pt;
-			}
-
-			h1 {
-				color: red;
-				font-size: 2em;
-			}
-
-		}
-
-		/* Retina 2x (iPhone [6-8], 11, all iPads) */
-		@media
-		only screen and (-webkit-min-device-pixel-ratio: 2),
-		only screen and (   min--moz-device-pixel-ratio: 2),
-		only screen and (     -o-min-device-pixel-ratio: 2/1),
-		only screen and (        min-device-pixel-ratio: 2),
-		only screen and (                min-resolution: 192dpi),
-		only screen and (                min-resolution: 2dppx) { 
-			body {
-				font-size: 28pt;
-			}
-
-			h1 {
-				color: blue;
-				font-size: 2em;
-			}
-
-		}
-
-		/* Retina 3x (iPhone [6-8] Plus, X[s], 11 Pro [Max], 12) */
-		@media
-		only screen and (-webkit-min-device-pixel-ratio: 3),
-		only screen and (   min--moz-device-pixel-ratio: 3),
-		only screen and (     -o-min-device-pixel-ratio: 3/1),
-		only screen and (        min-device-pixel-ratio: 3),
-		only screen and (                min-resolution: 384dpi),
-		only screen and (                min-resolution: 3dppx) 
-		{
-			body {
-				font-size: 42pt;
-			}
-
-			h1 {
-				color: orange;
-				font-size: 2em;
-			}
-
 		}
 
 	</style>
