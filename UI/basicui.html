@@ -44,12 +44,16 @@
 			touch-action: none;
 		}
 
+		.color-normal {
+			color: white;
+		}
+
 		.color-danger {
 			color: red;
 		}
 
 		.color-ok {
-			color: green;
+			color: #0c0;
 		}
 		
 		.map {
@@ -66,6 +70,11 @@
 			width: 100%;
 			align-self: center;
 			margin: 1em;
+		}
+
+		.tblDataViewCellHeader {
+			font-size: 0.6em;
+			color: #bbb;
 		}
 
 		.titleBox {
@@ -178,7 +187,7 @@
 		<div id="dataview">
 			<table class="tblDataView">
 				<tr>
-					<td colspan="2" class="statusIconBar">
+					<td colspan="4" class="statusIconBar">
 						<img class="statusIcon" id="connectionIcon" src="img/connection_broken.png" />
 						<img class="statusIcon" id="cellIcon" src="img/cell_broken.png" />
 						<img class="statusIcon" id="radioIcon" src="img/rx_bad.png" />
@@ -189,32 +198,33 @@
 					</td>
 				</tr>
 				<tr>
-					<td width="50%">Callsign</td>
-					<td width="50%" id="callsignPlaceHolder"></td>
+					<td width="15%" class="tblDataViewCellHeader">Callsign</td>
+					<td width="35%" id="callsignPlaceHolder"></td>
+					<td width="15%" class="tblDataViewCellHeader">Mode</td>
+					<td width="35%" id="activeModePlaceHolder"></td>
 				</tr>
 				<tr>
-					<td width="50%">Active mode</td>
-					<td width="50%" id="activeModePlaceHolder"></td>
-				</tr>
-				<tr>
-					<td>Coordinates</td>
+					<td class="tblDataViewCellHeader">UAV Loc</td>
 					<td id="coordinatesPlaceHolder"></td>
-				</tr>
-				<tr>
-					<td>Home Distance</td>
+					<td class="tblDataViewCellHeader">Home Dist</td>
 					<td id="homeDistancePlaceHolder"></td>
 				</tr>
 				<tr>
-					<td>Waypoint mission</td>
+					<td class="tblDataViewCellHeader">WP Mission</td>
 					<td id="waipointPlaceHolder"></td>
-					<td id="waipointPlaceHolder"></td>
-				</tr>
-				<tr>
-					<td>GPS Info</td>
+					<td class="tblDataViewCellHeader">GPS status</td>
 					<td id="gpsInfoPlaceHolder"></td>
 				</tr>
 				<tr>
-					<td>Azimuth / Elevation</td>
+					<td class="tblDataViewCellHeader">Amp Draw</td>
+					<td id="ampDrawPlaceHolder"></td>
+					<td class="tblDataViewCellHeader">mAh Used</td>
+					<td id="mAhUsedPlaceHolder"></td>
+				</tr>
+				<tr>
+					<td class="tblDataViewCellHeader">Azi/Elev</td>
+					<td id="aziElevPlaceHolder"></td>
+					<td class="tblDataViewCellHeader">Flt Time</td>
 					<td id="aziElevPlaceHolder"></td>
 				</tr>
 			</table>
@@ -230,11 +240,6 @@
 	<script>
 		// Setup viewport
 		var windowOuterWidth = 0;
-
-		var noSleep = new NoSleep();
-		function enableWakeLock() {
-			noSleep.enable();
-		}
 
 		function UpdateViewPortSize(resize=true) {
 			if(windowOuterWidth != window.outerWidth) {
@@ -254,6 +259,11 @@
 			UpdateViewPortSize();
 		}, false);
 
+		// Setup NoSleep
+		var noSleep = new NoSleep();
+		function enableWakeLock() {
+			noSleep.enable();
+		}
 
 		// Setup Map
 		var Map = ol.Map;
@@ -405,6 +415,8 @@
 			callsign: "UNKNOWN",
 			powerTime: 0,
 			flightTime: 0,
+			isFailsafeActive: 0,
+
 		};
 
 		function parseTelemetryData(payload) {
@@ -509,6 +521,9 @@
 					case "flt":
 						data.flightTime = parseInt(arrData[1]);
 						break;
+					case "fs":
+						data.isFailsafeActive = parseInt(arrData[1]);
+						break;
 					default:
 						break;
 
@@ -541,6 +556,9 @@
 			efisCanvas: document.getElementById("cvsEFIS"),
 			DefaultFont: 'Ubuntu',
 		};
+
+		var blinkSlowSwitch = true;
+		var blinkFastSwitch = true;
 
 		function P(x, y) { return {x: x, y: y}; }		
 
@@ -1633,28 +1651,36 @@
 		function updateDataView(data)
 		{
 			var PlusCodeCoordinates = OpenLocationCode.encode(data.gpsLatitude, data.gpsLongitude);
-			var armedText = " (DISARMED)";
+			
+			var armedClass = "color-normal";
 			if(data.uavIsArmed == 1)
-				armedText = " (ARMED)";
+				armedClass = "color-ok";
 
-			var gps3DText = "";
+			var gps3DClass = "color-danger";
 			if(data.gps3DFix == 1)
-				gps3DText = " [3D]";
+				gps3DClass = "color-ok";
 
-			var wpMissionColor = "#FFF";
+			var wpMissionClass = "color-normal";
 			var wpMissionText = "Not loaded";
 			if(data.waypointCount > 0)
 			{
 				wpMissionText = data.currentWaypointNumber + ' / ' + data.waypointCount;
 				if(data.isWaypointMissionValid == 1)
-					wpMissionColor = "#3F3"
+					wpMissionClass = "color-ok";
 				else
-					wpMissionColor = "#F33"
+					wpMissionClass = "color-danger";
 			}
 
+			var activeFlightMode = data.flightMode;
+			if(data.isFailsafeActive == 1)
+				if(blinkSlowSwitch)
+					activeFlightMode = "!FS!";
 
-			document.getElementById("waipointPlaceHolder").style.color = wpMissionColor;
+			if(data.isFailsafeActive == 1 && blinkFastSwitch)
+				activeFlightMode = "";
+
 			document.getElementById("waipointPlaceHolder").innerHTML = wpMissionText;
+			document.getElementById("waipointPlaceHolder").className = wpMissionClass;
 
 			document.getElementById("cellIcon").src = getCellSignalIcon(data.cellSignalStrength);
 			document.getElementById("radioIcon").src = getRadioIcon(data.rssiPercent);
@@ -1662,12 +1688,21 @@
 			document.getElementById("connectionIcon").src = getConnectionIcon();
 			document.getElementById("gpsIcon").src = getGPSIcon(data.gpsSatCount, data.gpsHDOP);
 			document.getElementById("hardwareHealthIcon").src = getHardwareHealthyIcon(data.isHardwareHealthy);
-			document.getElementById("activeModePlaceHolder").innerHTML = data.flightMode + armedText;
+
+			document.getElementById("activeModePlaceHolder").innerHTML = activeFlightMode;
+			document.getElementById("activeModePlaceHolder").className = armedClass;
+
 			document.getElementById("coordinatesPlaceHolder").innerHTML = '<a style="cursor: pointer; color: #00BFFF;" onclick="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');" ontouchstart="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');">' + PlusCodeCoordinates + '</a>';
 			document.getElementById("homeDistancePlaceHolder").innerHTML = centimetersToNiceDistance(data.homeDistance);
-			document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats (' + data.gpsHDOP + ' HDOP)' + gps3DText;
+
+			document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats (' + data.gpsHDOP + ' HDOP)';
+			document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
+
 			document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
 			document.getElementById("callsignPlaceHolder").innerHTML = data.callsign;
+
+			document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
+			document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
 
 			//var onFlightTimeText = data.powerTime + " / " + data.flightTime;
 			//document.getElementById("onFlightTimePlaceHolder").innerHTML = onFlightTimeText;
@@ -1739,10 +1774,14 @@
 				renderEFIS(data);
 			}, 100); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
 
-			var timerMapAndData = setInterval(function(){ 
+			var timerMapAndData = setInterval(function(){
+				// Fast blinker should update as fast as the DataView panel
+				blinkFastSwitch = !blinkFastSwitch;
+
+				// Render stuff
 				drawAircraftOnMap(data);
 				updateDataView(data);
-			}, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
+			}, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
 			var timerCenterMap = setInterval(function(){ 
 				// Set it false so the next time this routine will move the map
@@ -1751,6 +1790,10 @@
 				else
 					centerMap(data);
 			}, 5000);
+
+			var timerBlinkSlow = setInterval(function(){ 
+				blinkSlowSwitch = !blinkSlowSwitch;
+			}, 2000);
 
 		}
 
