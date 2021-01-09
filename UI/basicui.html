@@ -77,6 +77,10 @@
 			color: #bbb;
 		}
 
+		.smalltext {
+			font-size: 0.7em;
+		}
+
 		.titleBox {
 			align-self: center;
 		}
@@ -214,6 +218,12 @@
 					<td id="waipointPlaceHolder"></td>
 					<td class="tblDataViewCellHeader">GPS status</td>
 					<td id="gpsInfoPlaceHolder"></td>
+				</tr>
+				<tr>
+					<td class="tblDataViewCellHeader">Batt Volt</td>
+					<td id="batteryVoltagePlaceHolder"></td>
+					<td class="tblDataViewCellHeader">RSSI</td>
+					<td id="rssiPlaceHolder"></td>
 				</tr>
 				<tr>
 					<td class="tblDataViewCellHeader">Amp Draw</td>
@@ -1695,7 +1705,7 @@
 			document.getElementById("coordinatesPlaceHolder").innerHTML = '<a style="cursor: pointer; color: #00BFFF;" onclick="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');" ontouchstart="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');">' + PlusCodeCoordinates + '</a>';
 			document.getElementById("homeDistancePlaceHolder").innerHTML = centimetersToNiceDistance(data.homeDistance);
 
-			document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats (' + data.gpsHDOP + ' HDOP)';
+			document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP + ' hdop]</font>';
 			document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
 
 			document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
@@ -1703,6 +1713,8 @@
 
 			document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
 			document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
+			document.getElementById("batteryVoltagePlaceHolder").innerHTML = data.batteryVoltage + "V - " + data.battCellVoltage + "V";
+			document.getElementById("rssiPlaceHolder").innerHTML = data.rssiPercent + " %";
 
 			//var onFlightTimeText = data.powerTime + " / " + data.flightTime;
 			//document.getElementById("onFlightTimePlaceHolder").innerHTML = onFlightTimeText;
