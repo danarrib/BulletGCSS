@@ -29,8 +29,8 @@
 
 #define LED 2
 #define GPS_DEGREES_DIVIDER 10000000.0f
-#define SERIAL_PIN_RX 12
-#define SERIAL_PIN_TX 14
+#define SERIAL_PIN_RX 23
+#define SERIAL_PIN_TX 22
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
@@ -424,9 +424,7 @@ void msp_get_activeboxes() {
       bool fmWaypoint = (boxes64 & (1LL << boxIdWaypoint)) != 0;
       bool fmHorizon  = (boxes64 & (1LL << boxIdHorizon)) != 0;
 
-      if(fmFailsafe)
-        uavstatus.flightMode = "!FS!";
-      else if(fmManual)
+      if(fmManual)
         uavstatus.flightMode= "MANU";
       else if(fmRth)
         uavstatus.flightMode = "RTH";
@@ -450,6 +448,7 @@ void msp_get_activeboxes() {
         uavstatus.flightMode = "ACRO";
 
       uavstatus.uavIsArmed = fmArm;
+      uavstatus.isFailsafeActive = fmFailsafe;
 
       lastMspCommunicationTs = millis();
     }
@@ -570,6 +569,9 @@ void buildTelemetryMessage(char* message) {
 
   if(lastStatus.callsign != uavstatus.callsign || msgGroup == 4)
     sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign
+
+  if(lastStatus.isFailsafeActive != uavstatus.isFailsafeActive || msgGroup == 4)
+    sprintf(message, "%sfs:%d,", message, uavstatus.isFailsafeActive); // isFailsafeActive
 
   
   

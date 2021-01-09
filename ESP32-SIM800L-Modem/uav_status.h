@@ -52,6 +52,7 @@ struct uav_status
     uint8_t gps3Dfix;
     uint8_t isHardwareHealthy;
     uint8_t uavIsArmed;
+    uint8_t isFailsafeActive;
     String flightMode;
     uint8_t isWpMissionValid; 
     uint8_t waypointCount;
