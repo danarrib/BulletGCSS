@@ -21,6 +21,7 @@ window.addEventListener("orientationchange", function() {
 
 // Setup NoSleep
 var noSleep = new NoSleep();
+
 function enableWakeLock() {
     noSleep.enable();
     getUserLocation();
@@ -40,8 +41,8 @@ window.onload = function(event) {
     updateDataView(data);
     drawAircraftOnMap(data);
     
-    //getUserLocation();
-    //drawUserOnMap(data);
+    getUserLocation();
+    drawUserOnMap(data);
 
     var timerEFIS = setInterval(function(){ 
         //simulateFlight();

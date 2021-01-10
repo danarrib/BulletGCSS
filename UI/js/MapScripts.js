@@ -151,7 +151,7 @@ var homeIconStyle = new ol.style.Style({
         anchorYUnits: 'fraction',
         opacity: 1.0,
         src: 'img/home.png', 
-        scale: (0.05 * window.devicePixelRatio),
+        scale: (0.04 * window.devicePixelRatio),
         rotateWithView: false,
         })
 });
@@ -333,6 +333,8 @@ function getUserLocation() {
   }
   
   function showUserLocationError(error) {
+    console.log(error);
+
     switch(error.code) {
       case error.PERMISSION_DENIED:
         console.log("User denied the request for Geolocation.");
