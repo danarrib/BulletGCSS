@@ -177,6 +177,12 @@ bool MSPLibrary::request(uint16_t messageID, void *payload, uint16_t maxSize, ui
   return waitFor(messageID, payload, maxSize, recvSize);
 }
 
+bool MSPLibrary::requestWithPayload(uint16_t messageID, void *payload, uint16_t maxSize, uint16_t *recvSize)
+{
+  send(messageID, payload, maxSize);
+  return waitFor(messageID, payload, maxSize, recvSize);
+}
+
 bool MSPLibrary::recvText(uint16_t * messageID, void * dst, uint16_t *recvSize)
 {
   uint32_t t0 = millis();

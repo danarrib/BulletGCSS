@@ -34,6 +34,8 @@
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
+#define WP_MISSION_MESSAGE_INTERVAL 30
+
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "Config.h"
@@ -48,6 +50,7 @@ PubSubClient client(espClient);
 MSPLibrary msp;
 uav_status uavstatus;
 uav_status lastStatus;
+msp_set_wp_t currentWPMission[255];
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastTelemetryPoolTimer = 0; // Used to control the Telemetry pooling task
@@ -68,6 +71,8 @@ uint8_t boxIdHorizon = 0;
  // Flags that prevents some routines to run more than one time
 bool boxIdsFetched = 0;
 bool callsignFetched = 0;
+uint8_t waypointFetchCounter = 0;
+uint8_t waypointMessageCounter = 0;
 
 uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working fine
 
@@ -137,6 +142,8 @@ void getTelemetryData()
   msp_get_wp_getinfo();
   msp_get_nav_status();
   msp_get_callsign();
+  
+  get_all_waypoints();
   
   get_cellSignalStrength();
   
@@ -287,6 +294,53 @@ void msp_get_sensor_status() {
     if (msp.request(MSP_SENSOR_STATUS, &inavdata, sizeof(inavdata)))
     {
       uavstatus.isHardwareHealthy = inavdata.isHardwareHealthy;
+
+      lastMspCommunicationTs = millis();
+    }
+    else
+    {
+      Serial.println("MSP SENSOR STATUS returned false!");
+    }
+}
+
+void get_all_waypoints()
+{
+  // Run this routine only each 10 cycles
+  if(waypointFetchCounter < 10)
+  {
+    waypointFetchCounter++;
+  }
+  else{
+    waypointFetchCounter = 0;
+
+    // Get home point
+    msp_get_wp(0);
+
+    // Get waypoints before the sending the message
+    if(uavstatus.waypointCount > 0) 
+      for(uint8_t i = 1; i <= uavstatus.waypointCount; i++)
+        msp_get_wp(i);
+
+  }
+}
+
+void msp_get_wp(uint8_t wp_no) {
+    msp_set_wp_t inavdata;
+    inavdata.waypointNumber = wp_no;
+    
+    if (msp.requestWithPayload(MSP_WP, &inavdata, sizeof(inavdata)))
+    {
+      // Serial.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
+      // uavstatus.isHardwareHealthy = inavdata.isHardwareHealthy;
+
+      if(wp_no == 0)
+      {
+        uavstatus.homeLatitude = inavdata.lat / GPS_DEGREES_DIVIDER;
+        uavstatus.homeLongitude =  inavdata.lon / GPS_DEGREES_DIVIDER;
+        uavstatus.homeAltitudeSL = inavdata.alt;
+      }
+
+      memcpy(&currentWPMission[wp_no], &inavdata, sizeof(inavdata));
 
       lastMspCommunicationTs = millis();
     }
@@ -473,7 +527,39 @@ void sendMessageTask() {
     Serial.print("Sending message: ");
     Serial.println(message);
     sendMessage(message);
+
+    // Check if there's a Waypoint mission, and send the message
+    if(uavstatus.waypointCount > 0)
+      sendWaypointsMessage();
   }
+}
+
+void sendWaypointsMessage() {
+  if(waypointMessageCounter < WP_MISSION_MESSAGE_INTERVAL)
+  {
+    waypointMessageCounter++;
+    return;
+  }
+  
+  char wpsg[256];
+
+  for(uint8_t i = 0; i <= uavstatus.waypointCount; i++)
+  {
+    sprintf(wpsg, "wpno:%d,", currentWPMission[i].waypointNumber);
+    sprintf(wpsg, "%sla:%.8f,", wpsg, currentWPMission[i].lat / GPS_DEGREES_DIVIDER);
+    sprintf(wpsg, "%slo:%.8f,", wpsg, currentWPMission[i].lon / GPS_DEGREES_DIVIDER);
+    sprintf(wpsg, "%sal:%d,", wpsg, currentWPMission[i].alt);
+    sprintf(wpsg, "%sac:%d,", wpsg, currentWPMission[i].action);
+    sprintf(wpsg, "%sp1:%d,", wpsg, currentWPMission[i].p1);
+    sprintf(wpsg, "%sp2:%d,", wpsg, currentWPMission[i].p2);
+    sprintf(wpsg, "%sp3:%d,", wpsg, currentWPMission[i].p3);
+    sprintf(wpsg, "%sf:%d,", wpsg, currentWPMission[i].flag);
+
+    Serial.println(wpsg);
+    sendMessage(wpsg);
+  }
+
+  waypointMessageCounter = 0;
 }
 
 void buildTelemetryMessage(char* message) {
@@ -573,7 +659,14 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.isFailsafeActive != uavstatus.isFailsafeActive || msgGroup == 4)
     sprintf(message, "%sfs:%d,", message, uavstatus.isFailsafeActive); // isFailsafeActive
 
+  if(lastStatus.homeLatitude != uavstatus.homeLatitude || msgGroup == 5)
+    sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
+
+  if(lastStatus.homeLongitude != uavstatus.homeLongitude || msgGroup == 5)
+    sprintf(message, "%shlo:%.8f,", message,uavstatus.homeLongitude); // homeLongitude
   
+  if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL || msgGroup == 6)
+    sprintf(message, "%shal:%.8f,", message,uavstatus.homeAltitudeSL); // homeAltitudeSL
   
   lastStatus = uavstatus;
 }

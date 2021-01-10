@@ -40,6 +40,7 @@
 #define MSP_ALTITUDE      109
 #define MSP_ACTIVEBOXES   113
 #define MSP_BOXNAMES      116
+#define MSP_WP            118
 #define MSP_NAV_STATUS    121
 #define MSP_SENSOR_STATUS 151
 #define MSP_SET_WP        209
@@ -202,6 +203,7 @@ public:
     bool waitFor(uint16_t messageID, void * payload, uint16_t maxSize, uint16_t * recvSize = NULL);
     bool command(uint16_t messageID, void * payload, uint16_t size, bool waitACK = true);
     bool request(uint16_t messageID, void *payload, uint16_t maxSize, uint16_t *recvSize = NULL);
+    bool requestWithPayload(uint16_t messageID, void *payload, uint16_t maxSize, uint16_t *recvSize = NULL);
 
     bool requestText(uint16_t messageID, void * payload, uint16_t *recvSize);
     bool waitForText(uint16_t messageID, void * payload, uint16_t *recvSize);

@@ -307,7 +307,6 @@
 		map.on('pointerdrag', function (event) {
 			if(user_moved_map == false) {
 				user_moved_map = true;
-				console.log("User moved the map");
 			}
 		});
 
@@ -358,7 +357,6 @@
 				options.userName = username;
 				options.password = password;
 			}
-			console.log("Host="+ host + ", port=" + port + ", path=" + path + " TLS = " + useTLS + " username=" + username + " password=" + password);
 			mqtt.connect(options);
 		}
 
@@ -372,7 +370,7 @@
 
 		function onConnectionLost(response) {
 			setTimeout(MQTTconnect, reconnectTimeout);
-			console.log("connection lost: " + responseObject.errorMessage + ". Reconnecting...");
+			console.log("Connection lost: " + responseObject.errorMessage + ". Reconnecting...");
 			mqttConnected = false;
 		};
 
@@ -426,12 +424,74 @@
 			powerTime: 0,
 			flightTime: 0,
 			isFailsafeActive: 0,
-
+			currentMissionWaypoints: new Array(),
 		};
 
-		function parseTelemetryData(payload) {
+		function parseWaypointMessage(payload) {
+			var wpno = 0;
 			var arrPayload = payload.split(",");
+			
+			var waypoint = {
+				waypointNumber: 0,
+				wpAction: 0,
+				wpLatitude: 0,
+				wpLongitude: 0,
+				wpAltitude: 0,
+				p1: 0,
+				p2: 0,
+				p3: 0,
+				flag: 0,
+			};
+			
+			for(var i=0; i < arrPayload.length; i++) {
+				if(arrPayload[i] == "")
+					continue;
 
+				var arrData = arrPayload[i].split(":");
+				
+				switch(arrData[0]) {
+					case "wpno":
+						waypoint.waypointNumber = parseInt(arrData[1]);
+						wpno = parseInt(arrData[1]);
+						break;
+					case "la":
+						waypoint.wpLatitude = parseFloat(arrData[1]);
+						break;
+					case "lo":
+						waypoint.wpLongitude = parseFloat(arrData[1]);
+						break;
+					case "ac":
+						waypoint.wpAction = parseInt(arrData[1]);
+						break;
+					case "al":
+						waypoint.wpAltitude = parseInt(arrData[1]);
+						break;
+					case "p1":
+						waypoint.p1 = parseInt(arrData[1]);
+						break;
+					case "p2":
+						waypoint.p2 = parseInt(arrData[1]);
+						break;
+					case "p3":
+						waypoint.p3 = parseInt(arrData[1]);
+						break;
+					case "f":
+						waypoint.flag = parseInt(arrData[1]);
+						break;
+					default:
+						break;
+				}
+			}
+			data.currentMissionWaypoints[wpno] = waypoint;
+		}
+
+		function clearCurrentMissionWaypoints() {
+			data.currentMissionWaypoints = new Array();
+		}
+
+		function parseStandardTelemetryMessage(payload)
+		{
+			var arrPayload = payload.split(",");
 			for(var i=0; i < arrPayload.length; i++) {
 				if(arrPayload[i] == "")
 					continue;
@@ -508,6 +568,9 @@
 						data.currentWaypointNumber = parseInt(arrData[1]);
 						break;
 					case "wpc":
+						if(parseInt(arrData[1]) != data.waypointCount)
+							clearCurrentMissionWaypoints();
+
 						data.waypointCount = parseInt(arrData[1]);
 						break;
 					case "3df":
@@ -536,9 +599,22 @@
 						break;
 					default:
 						break;
-
 				}
 			}
+		}
+
+		function parseTelemetryData(payload) {
+			var arrPayload = payload.split(",");
+
+			if(arrPayload.length > 0) {
+				// Check if it's a Waypoint frame or a regular telemetry frame
+				if(payload.startsWith("wpno:"))
+					parseWaypointMessage(payload);
+				else
+					parseStandardTelemetryMessage(payload);
+			}
+
+
 			data.dataTimestamp = new Date();
 		}
 
@@ -1721,7 +1797,8 @@
 
 		}
 
-		var aircraftIconFeatures=[];
+		// Add Aircraft Map Stuff
+		var aircraftIconFeatures = [];
 
 		var aircraftIconStyle = new ol.style.Style({
 			image: new ol.style.Icon({
@@ -1768,6 +1845,106 @@
 			// Set reading
 			aircraftIconStyle.getImage().setRotation(AngleToRadians(data.heading));
 		}
+
+		// Add Waypoints Map Stuff
+		var waypointIconFeatures = [];
+
+		var waypointIconStyle = new ol.style.Style({
+			image: new ol.style.Icon({
+				anchor: [0.5, 0.9],
+				anchorXUnits: 'fraction',
+				anchorYUnits: 'fraction',
+				opacity: 1.0,
+				src: 'img/map_pin_blue.png', 
+				scale: (0.10 * window.devicePixelRatio),
+				rotateWithView: false,
+			})
+		});
+
+		var waypointVectorSource = new ol.source.Vector({
+			features: waypointIconFeatures //add an array of features
+		});
+
+		var waypointVectorLayer = new ol.layer.Vector({
+			source: waypointVectorSource,
+			style: waypointIconStyle,
+		});
+
+		map.addLayer(waypointVectorLayer);
+
+		var linesFeatures = [];
+
+		var linesStyle = new ol.style.Style({
+			stroke: new ol.style.Stroke({
+			color: '#69F',
+			width: 3
+			})
+		});
+
+		var linesVectorSource = new ol.source.Vector({
+			features: linesFeatures //add an array of features
+		});
+
+		var linesVectorLayer = new ol.layer.Vector({
+			source: linesVectorSource,
+			style: linesStyle,
+		});
+
+		map.addLayer(linesVectorLayer);
+
+		function drawMissionOnMap(data) {
+			waypointVectorSource.clear();
+			waypointIconFeatures = [];
+
+			linesVectorSource.clear();
+			linesFeatures = [];
+
+			if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
+				return;
+
+			// Starts at WP 1 since WP0 is home point
+			var previousWp;
+			for(var i = 1; i < data.waypointCount; i++) {
+				var wp = data.currentMissionWaypoints[i];
+
+				// Action 0 = Regular Waypoint
+				if(wp.wpAction == 1) {
+					// Adding the updated aircraft position to the VectorSource
+					var iconGeometry = new ol.geom.Point(
+						ol.proj.transform([wp.wpLongitude, wp.wpLatitude], 'EPSG:4326','EPSG:3857')
+					);
+					
+					var waypointIconFeature = new ol.Feature({
+						geometry: iconGeometry,
+						name: wp.waypointNumber,
+					});
+
+					waypointIconFeatures.push(waypointIconFeature);
+
+					// From the second wp, draw a line to the previous one.
+					if(i > 1) {
+						var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
+						var loc2 = ol.proj.fromLonLat([wp.wpLongitude, wp.wpLatitude]);
+						
+						iconGeometry = new ol.geom.LineString([loc1, loc2]);
+
+						var lineFeature = new ol.Feature({
+							geometry: iconGeometry,
+							name: 'From ' + previousWp.waypointNumber + ' to ' + wp.waypointNumber,
+						});
+
+						linesFeatures.push(lineFeature);
+					}
+
+					previousWp = wp;
+
+				}
+			}
+
+			waypointVectorSource.addFeatures(waypointIconFeatures);
+			linesVectorSource.addFeatures(linesFeatures);
+			
+		}
 		
 		document.addEventListener("touchmove", function(e){
 			e.preventDefault();
@@ -1779,6 +1956,8 @@
 
 		window.onload = function(event) {
 			renderEFIS(data);
+			updateDataView(data);
+			drawAircraftOnMap(data);
 			MQTTconnect();
 
 			var timerEFIS = setInterval(function(){ 
@@ -1793,6 +1972,7 @@
 				// Render stuff
 				drawAircraftOnMap(data);
 				updateDataView(data);
+				drawMissionOnMap(data);
 			}, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
 			var timerCenterMap = setInterval(function(){ 
