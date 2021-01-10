@@ -1,0 +1,156 @@
+html,
+body {
+    margin:0;
+    padding:0;
+    height:100%;
+    overflow: hidden;
+    font-family: Ubuntu;
+    font-size: 3.5vmin;
+    background-color: black;
+    color: white;
+
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: none;
+}
+
+.color-normal {
+    color: white;
+}
+
+.color-danger {
+    color: red;
+}
+
+.color-ok {
+    color: #0c0;
+}
+
+.map {
+    height: 100%;
+    width: 100%;
+}
+
+#dataview {
+    display: flex;
+    overflow: auto;
+}
+
+.tblDataView {
+    width: 100%;
+    align-self: center;
+    margin: 1em;
+}
+
+.tblDataViewCellHeader {
+    font-size: 0.6em;
+    color: #bbb;
+}
+
+.smalltext {
+    font-size: 0.7em;
+}
+
+.titleBox {
+    align-self: center;
+}
+
+.statusIcon {
+    height: 2em;
+    width: 2em;
+}
+
+.rightIcon {
+    right: 1em;
+    position: absolute;
+}
+
+.textIcon {
+    height: 1em;
+    width: 1em;
+}
+
+/* Portrait */
+@media only screen and (orientation : portrait)
+{
+    #container {
+        min-height:100%;
+        position:relative;
+        overflow: hidden;
+    }
+    #dataview {
+        height:30%;
+        width:100%;
+        position:absolute;
+        bottom:70%;
+    }
+    #mapview {
+        height:40%;
+        width:100%;
+        bottom:30%;
+        position:absolute;
+    }
+    #hudview {
+        height:30%;
+        width:100%;
+        bottom:0;
+        position:absolute;
+    }
+    @supports(bottom: max(0px)) {
+        #headerview {
+            bottom: calc(90% + max(0px, env(safe-area-inset-bottom)));
+        }
+        #dataview {
+            bottom: calc(70% + max(0px, env(safe-area-inset-bottom)));
+        }
+        #mapview {
+            bottom: calc(30% + max(0px, env(safe-area-inset-bottom)));
+        }
+        #hudview {
+            bottom: max(0px, env(safe-area-inset-bottom));
+        }
+    }
+}
+
+/* Landscape */
+@media only screen and (orientation : landscape)
+{
+    #container {
+        min-height:100%;
+        position:relative;
+        overflow: hidden;
+    }
+    #dataview {
+        position:absolute;
+        width:50%;
+        right:50%;
+        top: 0;
+        height: 50%;
+    }
+    #mapview {
+        position:absolute;
+        top: 0;
+        width:50%;
+        right:0;
+        height:100%;
+    }
+    #hudview {
+        position:absolute;
+        top:50%;
+        right:50%;
+        width:50%;
+        height:50%;
+    }
+    @supports(bottom: max(0px)) {
+        #dataview {
+            width: calc(50% - env(safe-area-inset-left) - 1em);
+        }
+        #mapview {
+            height: calc(100% - max(0px, env(safe-area-inset-bottom)));
+        }
+    }
+}

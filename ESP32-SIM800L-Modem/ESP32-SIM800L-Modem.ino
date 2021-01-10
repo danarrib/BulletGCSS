@@ -35,6 +35,7 @@
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
 #define WP_MISSION_MESSAGE_INTERVAL 30
+#define HOME_POINT_FETCH_INTERVAL 10
 
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -306,7 +307,7 @@ void msp_get_sensor_status() {
 void get_all_waypoints()
 {
   // Run this routine only each 10 cycles
-  if(waypointFetchCounter < 10)
+  if(waypointFetchCounter < HOME_POINT_FETCH_INTERVAL)
   {
     waypointFetchCounter++;
   }
@@ -316,11 +317,9 @@ void get_all_waypoints()
     // Get home point
     msp_get_wp(0);
 
-    // Get waypoints before the sending the message
-    if(uavstatus.waypointCount > 0) 
-      for(uint8_t i = 1; i <= uavstatus.waypointCount; i++)
-        msp_get_wp(i);
-
+    // Get waypoints
+    for(uint8_t i = 1; i <= uavstatus.waypointCount; i++)
+      msp_get_wp(i);
   }
 }
 
@@ -330,7 +329,7 @@ void msp_get_wp(uint8_t wp_no) {
     
     if (msp.requestWithPayload(MSP_WP, &inavdata, sizeof(inavdata)))
     {
-      // Serial.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
+      Serial.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
       // uavstatus.isHardwareHealthy = inavdata.isHardwareHealthy;
 
       if(wp_no == 0)
@@ -663,11 +662,12 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
 
   if(lastStatus.homeLongitude != uavstatus.homeLongitude || msgGroup == 5)
-    sprintf(message, "%shlo:%.8f,", message,uavstatus.homeLongitude); // homeLongitude
+    sprintf(message, "%shlo:%.8f,", message, uavstatus.homeLongitude); // homeLongitude
   
   if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL || msgGroup == 6)
-    sprintf(message, "%shal:%.8f,", message,uavstatus.homeAltitudeSL); // homeAltitudeSL
+    sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
   
+
   lastStatus = uavstatus;
 }
 

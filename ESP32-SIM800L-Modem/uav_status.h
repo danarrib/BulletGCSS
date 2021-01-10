@@ -58,7 +58,6 @@ struct uav_status
     uint8_t waypointCount;
     uint8_t currentWaypointNumber;
     String callsign;
-
     double homeLatitude;
     double homeLongitude;
     int16_t homeAltitudeSL;
