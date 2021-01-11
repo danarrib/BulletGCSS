@@ -192,8 +192,22 @@ function updateDataView(data)
 
     document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
     document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
-    document.getElementById("batteryVoltagePlaceHolder").innerHTML = data.batteryVoltage + "V - " + data.battCellVoltage + "V";
+
     document.getElementById("rssiPlaceHolder").innerHTML = data.rssiPercent + " %";
+    if(data.rssiPercent <= 20)
+        document.getElementById("rssiPlaceHolder").className = "color-danger";
+    else if(data.rssiPercent <= 60)
+        document.getElementById("rssiPlaceHolder").className = "color-warning";
+    else
+        document.getElementById("rssiPlaceHolder").className = "color-ok";
+
+    document.getElementById("batteryVoltagePlaceHolder").innerHTML = data.batteryVoltage + "V - " + data.battCellVoltage + "V";
+    if(data.fuelPercent <= 20)
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-danger";
+    else if(data.fuelPercent <= 60)
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-warning";
+    else
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-ok";
 
     //var onFlightTimeText = data.powerTime + " / " + data.flightTime;
     //document.getElementById("onFlightTimePlaceHolder").innerHTML = onFlightTimeText;

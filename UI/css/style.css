@@ -26,6 +26,10 @@ body {
     color: red;
 }
 
+.color-warning {
+    color: #fc0;
+}
+
 .color-ok {
     color: #0c0;
 }
