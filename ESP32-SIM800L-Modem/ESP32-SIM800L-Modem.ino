@@ -549,10 +549,14 @@ void sendWaypointsMessage() {
     sprintf(wpsg, "%slo:%.8f,", wpsg, currentWPMission[i].lon / GPS_DEGREES_DIVIDER);
     sprintf(wpsg, "%sal:%d,", wpsg, currentWPMission[i].alt);
     sprintf(wpsg, "%sac:%d,", wpsg, currentWPMission[i].action);
-    sprintf(wpsg, "%sp1:%d,", wpsg, currentWPMission[i].p1);
-    sprintf(wpsg, "%sp2:%d,", wpsg, currentWPMission[i].p2);
-    sprintf(wpsg, "%sp3:%d,", wpsg, currentWPMission[i].p3);
-    sprintf(wpsg, "%sf:%d,", wpsg, currentWPMission[i].flag);
+    if(currentWPMission[i].p1 != 0)
+      sprintf(wpsg, "%sp1:%d,", wpsg, currentWPMission[i].p1);
+    if(currentWPMission[i].p2 != 0)
+      sprintf(wpsg, "%sp2:%d,", wpsg, currentWPMission[i].p2);
+    if(currentWPMission[i].p3 != 0)
+      sprintf(wpsg, "%sp3:%d,", wpsg, currentWPMission[i].p3);
+    if(currentWPMission[i].flag != 0)
+      sprintf(wpsg, "%sf:%d,", wpsg, currentWPMission[i].flag);
 
     Serial.println(wpsg);
     sendMessage(wpsg);
@@ -563,7 +567,7 @@ void sendWaypointsMessage() {
 
 void buildTelemetryMessage(char* message) {
   msgCounter++;
-  sprintf(message, "id:%d,", msgCounter); // messageCounter
+  sprintf(message, ""); // messageCounter
 
   // Make 10 groups of messages, to force the values of this groups to be sent even if they didn't change.
   uint8_t msgGroup = (msgCounter % 10);

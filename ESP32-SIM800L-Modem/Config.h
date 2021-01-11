@@ -27,5 +27,5 @@ const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
 const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change
-const uint32_t messageSendInterval = 1000;
-const uint32_t poolTelemetryInterval = 500;
+const uint32_t messageSendInterval = 2000;
+const uint32_t poolTelemetryInterval = 2000;
