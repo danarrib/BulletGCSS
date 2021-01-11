@@ -27,27 +27,75 @@
  * Core Debug Level: None
  */
 
-#define LED 2
+#define TINY_GSM_MODEM_SIM800 // Modem is SIM800L
+
+// Set serial for debug console (to the Serial Monitor, default speed 115200)
+#define SerialMon Serial
+// Set serial for AT commands
+#define SerialAT Serial1
+
+// Define the serial console for debug prints, if needed
+#define TINY_GSM_DEBUG SerialMon
+
+// Define the serial console for debug prints, if needed
+// #define DUMP_AT_COMMANDS
+
+#include <PubSubClient.h>
+
+#include <HardwareSerial.h>
+
+#include "Config.h"
+#include "msp_library.h"
+#include "uav_status.h"
+
+HardwareSerial mspSerial(2);
+
+#ifdef USE_WIFI
+  #include <WiFi.h>
+  WiFiClient espClient;
+  PubSubClient client(espClient);
+#else
+  #include <Wire.h>
+  #include <TinyGsmClient.h>
+  #ifdef DUMP_AT_COMMANDS
+    #include <StreamDebugger.h>
+    StreamDebugger debugger(SerialAT, SerialMon);
+    TinyGsm modem(debugger);
+  #else
+    TinyGsm modem(SerialAT);
+  #endif
+  TinyGsmClient gsmClient(modem);
+  PubSubClient client(gsmClient);
+#endif
+
+// TTGO T-Call pins
+#define MODEM_RST            5
+#define MODEM_PWKEY          4
+#define MODEM_POWER_ON       23
+#define MODEM_TX             27
+#define MODEM_RX             26
+#define I2C_SDA              21
+#define I2C_SCL              22
+
+// Pins that will used for the MSP UART.
+#define SERIAL_PIN_RX 19
+#define SERIAL_PIN_TX 18
+
 #define GPS_DEGREES_DIVIDER 10000000.0f
-#define SERIAL_PIN_RX 23
-#define SERIAL_PIN_TX 22
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
 #define WP_MISSION_MESSAGE_INTERVAL 30
 #define HOME_POINT_FETCH_INTERVAL 10
 
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include "Config.h"
-#include <HardwareSerial.h>
-#include "msp_library.h"
-#include "uav_status.h"
+#ifndef USE_WIFI
+  // I2C for SIM800 (to keep it running when powered from battery)
+  TwoWire I2CPower = TwoWire(0);
+#endif
 
-HardwareSerial mspSerial(2);
+#define IP5306_ADDR          0x75
+#define IP5306_REG_SYS_CTL0  0x00
 
-WiFiClient espClient;
-PubSubClient client(espClient);
 MSPLibrary msp;
 uav_status uavstatus;
 uav_status lastStatus;
@@ -79,38 +127,113 @@ uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working
 
 void connectToTheInternet() {
 
-  // Connect to WiFi network. This code will probably be changed sometime
-  connectToWifiNetwork();
-  
+  #ifdef USE_WIFI
+    // Connect to WiFi network.
+    connectToWifiNetwork();
+  #else
+    // Connect to Gprs network.
+    connectToGprsNetwork();
+  #endif
 }
 
-void connectToWifiNetwork() {
-  // If WiFi is not connected, then try to connect
-  if(WiFi.status() != WL_CONNECTED) {
-    digitalWrite(LED, LOW); // Set the led off so we can know that there's no connection
-    WiFi.begin(ssid, password);
-  }
+#ifdef USE_WIFI
+  // Add only functions that works with WiFi
+  void connectToWifiNetwork() {
+    if(WiFi.status() == WL_CONNECTED)
+      return; // Wifi Already connected, skipping...
+    else    
+      WiFi.begin(ssid, password);
+    
+    // Wait for WiFi to connect
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(500); // Give WiFi some time to connect
+      SerialMon.println("Connecting WiFi..");
+    }
   
-  // Wait for WiFi to connect
-  while (WiFi.status() != WL_CONNECTED)
+    SerialMon.println("WiFi connected!");
+  }
+#else
+  // Add only functions that works with GPRS
+  bool setPowerBoostKeepOn(int en){
+    I2CPower.beginTransmission(IP5306_ADDR);
+    I2CPower.write(IP5306_REG_SYS_CTL0);
+    if (en) {
+      I2CPower.write(0x37); // Set bit1: 1 enable 0 disable boost keep on
+    } else {
+      I2CPower.write(0x35); // 0x37 is default reg value
+    }
+    return I2CPower.endTransmission() == 0;
+  }
+
+  void connectToGprsNetwork()
   {
-    delay(500); // Give WiFi some time to connect
-    Serial.println("Connecting WiFi..");
-  }
+    if (modem.isGprsConnected())
+      return; // Gprs already connected. Skipping
 
-  // WiFi connected - Turn the led ON
-  Serial.println("WiFi connected!");
-  digitalWrite(LED, HIGH);
-}
+    // Start I2C communication
+    I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
+    
+    // Keep power when running from battery
+    bool isOk = setPowerBoostKeepOn(1);
+    SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
+  
+    // Set modem reset, enable, power pins
+    pinMode(MODEM_PWKEY, OUTPUT);
+    pinMode(MODEM_RST, OUTPUT);
+    pinMode(MODEM_POWER_ON, OUTPUT);
+    digitalWrite(MODEM_PWKEY, LOW);
+    digitalWrite(MODEM_RST, HIGH);
+    digitalWrite(MODEM_POWER_ON, HIGH);
+    
+    SerialMon.println("Wait...");
+  
+    // Set GSM module baud rate and UART pins
+    SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+    delay(6000);
+  
+    // Restart takes quite some time
+    // To skip it, call init() instead of restart()
+    SerialMon.println("Initializing modem...");
+    modem.restart();
+    //modem.init();
+  
+    String modemInfo = modem.getModemInfo();
+    SerialMon.print("Modem Info: ");
+    SerialMon.println(modemInfo);
+  
+    // Unlock your SIM card with a PIN if needed
+    if ( GSM_PIN && modem.getSimStatus() != 3 ) {
+      modem.simUnlock(GSM_PIN);
+    }
+  
+    SerialMon.print("Connecting to APN: ");
+    SerialMon.print(apn);
+    if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
+      SerialMon.println(" fail");
+      ESP.restart();
+    }
+    else {
+      SerialMon.println(" OK");
+    }
+    
+    if (modem.isGprsConnected()) {
+      SerialMon.println("GPRS connected");
+    }    
+  }
+#endif
 
 void setup()
 {
-  pinMode(LED, OUTPUT); // Set the LED Pin to Output
+  SerialMon.begin(115200);
+  delay(100);
+
+  #ifndef USE_WIFI
+    connectToGprsNetwork();
+  #endif
   
   msp.begin(mspSerial, 750);
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
-
-  Serial.begin(115200);
 
 }
 
@@ -152,7 +275,7 @@ void getTelemetryData()
   if (millis() - lastMspCommunicationTs > MSP_PORT_RECOVERY_THRESHOLD)
   {
       msp.reset();
-      Serial.println("MSP reset!");
+      SerialMon.println("MSP reset!");
   }
 }
 
@@ -187,7 +310,7 @@ void msp_get_gps()
     }
     else
     {
-      Serial.println("GPS RAW returned false!");
+      SerialMon.println("GPS RAW returned false!");
     }
 }
 
@@ -202,7 +325,7 @@ void msp_get_gps_comp() {
     }
     else
     {
-      Serial.println("GPS COMP returned false!");
+      SerialMon.println("GPS COMP returned false!");
     }
 }
 
@@ -217,7 +340,7 @@ void msp_get_attitude() {
     }
     else
     {
-      Serial.println("ATTITUDE returned false!");
+      SerialMon.println("ATTITUDE returned false!");
     }
 }
 
@@ -232,7 +355,7 @@ void msp_get_altitude() {
     }
     else
     {
-      Serial.println("ALTITUDE returned false!");
+      SerialMon.println("ALTITUDE returned false!");
     }
 }
 
@@ -247,7 +370,7 @@ void msp_get_wp_getinfo() {
     }
     else
     {
-      Serial.println("ALTITUDE returned false!");
+      SerialMon.println("ALTITUDE returned false!");
     }
 }
 
@@ -255,7 +378,7 @@ void msp_get_nav_status() {
     MSP_NAV_STATUS_t inavdata;
     if (msp.request(MSP_NAV_STATUS, &inavdata, sizeof(inavdata)))
     {
-      //Serial.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
+      //SerialMon.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
 
       uavstatus.currentWaypointNumber = inavdata.activeWpNumber;
       //uavstatus.waypointCount = inavdata.waypointCount;
@@ -264,7 +387,7 @@ void msp_get_nav_status() {
     }
     else
     {
-      Serial.println("ALTITUDE returned false!");
+      SerialMon.println("ALTITUDE returned false!");
     }
 }
 
@@ -286,7 +409,7 @@ void msp2_get_inav_analog() {
     }
     else
     {
-      Serial.println("MSP2 ANALOG returned false!");
+      SerialMon.println("MSP2 ANALOG returned false!");
     }
 }
 
@@ -300,7 +423,7 @@ void msp_get_sensor_status() {
     }
     else
     {
-      Serial.println("MSP SENSOR STATUS returned false!");
+      SerialMon.println("MSP SENSOR STATUS returned false!");
     }
 }
 
@@ -329,7 +452,7 @@ void msp_get_wp(uint8_t wp_no) {
     
     if (msp.requestWithPayload(MSP_WP, &inavdata, sizeof(inavdata)))
     {
-      Serial.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
+      // SerialMon.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
       // uavstatus.isHardwareHealthy = inavdata.isHardwareHealthy;
 
       if(wp_no == 0)
@@ -345,7 +468,7 @@ void msp_get_wp(uint8_t wp_no) {
     }
     else
     {
-      Serial.println("MSP SENSOR STATUS returned false!");
+      SerialMon.println("MSP SENSOR STATUS returned false!");
     }
 }
 
@@ -396,7 +519,7 @@ void msp_get_boxnames() {
     }
     else
     {
-      Serial.println("MSP BOXNAMES returned false!");
+      SerialMon.println("MSP BOXNAMES returned false!");
     }
 }
 
@@ -436,7 +559,7 @@ void msp_get_callsign() {
     }
     else
     {
-      Serial.println("MSP BOXNAMES returned false!");
+      SerialMon.println("MSP BOXNAMES returned false!");
     }
 }
 
@@ -455,11 +578,11 @@ void msp_get_activeboxes() {
       {
         for(int j = 7; j >= 0; j--) {
           bool bfm = (boxes[k] & (1 << j)) != 0;
-          Serial.printf("%d", bfm);
+          SerialMon.printf("%d", bfm);
         }
-        Serial.printf(" ");
+        SerialMon.printf(" ");
       }
-      Serial.println("");
+      SerialMon.println("");
       */
       
       uint64_t boxes64 = 0;
@@ -507,7 +630,7 @@ void msp_get_activeboxes() {
     }
     else
     {
-      Serial.println("MSP ACTIVEBOXES returned false!");
+      SerialMon.println("MSP ACTIVEBOXES returned false!");
     }
 }
 
@@ -523,8 +646,8 @@ void sendMessageTask() {
     char message[512];
     buildTelemetryMessage(message);
   
-    Serial.print("Sending message: ");
-    Serial.println(message);
+    SerialMon.print("Sending message: ");
+    SerialMon.println(message);
     sendMessage(message);
 
     // Check if there's a Waypoint mission, and send the message
@@ -558,7 +681,8 @@ void sendWaypointsMessage() {
     if(currentWPMission[i].flag != 0)
       sprintf(wpsg, "%sf:%d,", wpsg, currentWPMission[i].flag);
 
-    Serial.println(wpsg);
+    SerialMon.print("Sending message: ");
+    SerialMon.println(wpsg);
     sendMessage(wpsg);
   }
 
@@ -677,7 +801,7 @@ void buildTelemetryMessage(char* message) {
 
 void sendMessage(char* message) {
   client.publish(mqttTopic, message);
-  Serial.println("Message sent sucessfully...");
+  SerialMon.println("Message sent sucessfully...");
 }
 
 void connectToTheBroker()
@@ -685,15 +809,15 @@ void connectToTheBroker()
   client.setServer(mqttServer, mqttPort);
   while (!client.connected())
   {
-    Serial.println("Connecting to the broker MQTT...");
+    SerialMon.println("Connecting to the broker MQTT...");
     if (client.connect("ESP32Client", mqttUser, mqttPassword ))
     {
-      Serial.println("Connected to the broker!");
+      SerialMon.println("Connected to the broker!");
     }
     else
     {
-      Serial.print("Error connecting to the broker - State: ");
-      Serial.print(client.state());
+      SerialMon.print("Error connecting to the broker - State: ");
+      SerialMon.println(client.state());
       delay(2000);
     }
   }

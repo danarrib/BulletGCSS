@@ -19,13 +19,31 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+// COMMENT NEXT LINE IF YOU WANT TO USE GPRS, UNCOMMENT IF YOU WANT TO USE WIFI
+#define USE_WIFI
+
+// WiFi details
 const char* ssid = ""; // WiFi Network Name (SSID)
 const char* password =  ""; // WiFi Network Password
-//const char* mqttServer = "test.mosquitto.org";
+
+// MQTT Broker Details
 const char* mqttServer = "broker.emqx.io";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
 const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change
+
+// Pooling settings
 const uint32_t messageSendInterval = 2000;
 const uint32_t poolTelemetryInterval = 2000;
+
+// set GSM PIN, if any
+#define GSM_PIN ""
+
+// Your GPRS credentials, if any
+const char apn[] = "claro.com.br";
+const char gprsUser[] = "claro";
+const char gprsPass[] = "claro";
+
+// SIM card PIN (leave empty, if not defined)
+const char simPIN[]   = ""; 

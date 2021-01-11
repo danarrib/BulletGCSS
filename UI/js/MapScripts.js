@@ -239,11 +239,17 @@ function drawMissionOnMap(data) {
     if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
         return;
 
+    if(data.waypointCount != (data.currentMissionWaypoints.length - 1))
+    {
+        console.log("Waypoint count (" + data.waypointCount + ") is different than current mission WP count (" + data.currentMissionWaypoints.length + ").");
+        return;
+    }
+
     // Starts at WP 1 since WP0 is home point
     var previousWp;
     for(var i = 1; i <= data.waypointCount; i++) {
         var wp = data.currentMissionWaypoints[i];
-
+        
         // Action 0 = Regular Waypoint
         if(wp.wpAction == 1) {
             // Adding the updated aircraft position to the VectorSource

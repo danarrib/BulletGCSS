@@ -154,3 +154,13 @@ body {
         }
     }
 }
+
+/* Font Stuff */
+@font-face {
+  font-family: 'Ubuntu';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/css/Ubuntu-Regular.woff2) format('woff2'),
+       url(/css/Ubuntu-Regular.ttf) format('ttf');
+}
