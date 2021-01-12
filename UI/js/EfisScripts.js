@@ -676,6 +676,10 @@ function AngleToRadians(angle) {
     return angle * Math.PI / 180;
 }
 
+function RadiansToAngle(radians) {
+    return radians * 180 / Math.PI;
+}
+
 function drawEfisBankAngle() {
     var elementWidth = (efis.efisWidth / 3);
     var elementHeight = (efis.efisHeight / 6);

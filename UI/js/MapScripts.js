@@ -171,6 +171,9 @@ function drawHomeOnMap(data)
     // Removing Previous Aircraft from the VectorSource
     homeVectorSource.clear();
 
+    if(data.homeLongitude == 0 && data.homeLatitude == 0)
+        return;
+
     // Adding the updated aircraft position to the VectorSource
     var iconGeometry = new ol.geom.Point(
         ol.proj.transform([data.homeLongitude, data.homeLatitude], 'EPSG:4326','EPSG:3857')
@@ -281,7 +284,7 @@ function drawMissionOnMap(data) {
 
             previousWp = wp;
         }
-        else if(wp.wpAction == 4) {
+        else if(wp.wpAction == 4 && data.homeLatitude != 0 && data.homeLatitude != 0) {
             var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
             var loc2 = ol.proj.fromLonLat([data.homeLongitude, data.homeLatitude]);
             
@@ -332,10 +335,12 @@ function getUserLocation() {
   }
   
   function getUserPosition(position) {
-      data.userLatitude = position.coords.latitude;
-      data.userLongitude = position.coords.longitude;
-      data.userHeading = position.coords.heading;
-      hasUserLocation = true;
+    data.userLatitude = position.coords.latitude;
+    data.userLongitude = position.coords.longitude;
+    data.userHeading = position.coords.heading;
+    data.userAltitudeSL = position.coords.altitude;
+      
+    hasUserLocation = true;
   }
   
   function showUserLocationError(error) {

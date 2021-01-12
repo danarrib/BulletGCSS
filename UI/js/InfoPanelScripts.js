@@ -43,6 +43,82 @@ function secondsToNiceTime(seconds)
     return ret;
 }
 
+function bearing(startLat, startLng, destLat, destLng){
+    startLat = AngleToRadians(startLat);
+    startLng = AngleToRadians(startLng);
+    destLat = AngleToRadians(destLat);
+    destLng = AngleToRadians(destLng);
+
+    y = Math.sin(destLng - startLng) * Math.cos(destLat);
+    x = Math.cos(startLat) * Math.sin(destLat) -
+            Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+    brng = Math.atan2(y, x);
+    brng = RadiansToAngle(brng);
+    return (brng + 360) % 360;
+}
+
+// Horizon is 0 degree, Up is 90 degree
+function getVerticalBearing(fromLat, fromLon, fromAlt, toLat, toLon, toAlt, currentElevation) {
+    fromLat = AngleToRadians(fromLat);
+    fromLon = AngleToRadians(fromLon);
+    toLat = AngleToRadians(toLat);
+    toLon = AngleToRadians(toLon);
+
+    let fromECEF = getECEF(fromLat, fromLon, fromAlt);
+    let toECEF = getECEF(toLat, toLon, toAlt);
+    let deltaECEF = getDeltaECEF(fromECEF, toECEF);
+
+    let d = (fromECEF[0] * deltaECEF[0] + fromECEF[1] * deltaECEF[1] + fromECEF[2] * deltaECEF[2]);
+    let a = ((fromECEF[0] * fromECEF[0]) + (fromECEF[1] * fromECEF[1]) + (fromECEF[2] * fromECEF[2]));
+    let b = ((deltaECEF[0] * deltaECEF[0]) + (deltaECEF[2] * deltaECEF[2]) + (deltaECEF[2] * deltaECEF[2]));
+    let elevation = RadiansToAngle(Math.acos(d / Math.sqrt(a * b)));
+    elevation = 90 - elevation;
+
+    return elevation - currentElevation;
+}
+
+function getDeltaECEF(from, to) {
+    let X = to[0] - from[0];
+    let Y = to[1] - from[1];
+    let Z = to[2] - from[2];
+
+    return [X, Y, Z];
+}
+
+function getECEF(lat, lon, alt) {
+    let radius = 6378137;
+    let flatteningDenom = 298.257223563;
+    let flattening = 0.003352811;
+    let polarRadius = 6356752.312106893;
+
+    let asqr = radius * radius;
+    let bsqr = polarRadius * polarRadius;
+    let e = Math.sqrt((asqr-bsqr)/asqr);
+    // let eprime = Math.sqrt((asqr-bsqr)/bsqr);
+
+    let N = getN(radius, e, lat);
+    let ratio = (bsqr / asqr);
+
+    let X = (N + alt) * Math.cos(lat) * Math.cos(lon);
+    let Y = (N + alt) * Math.cos(lat) * Math.sin(lon);
+    let Z = (ratio * N + alt) * Math.sin(lat);
+
+    return [X, Y, Z];
+}
+
+function getN(a, e, latitude) {
+    let sinlatitude = Math.sin(latitude);
+    let denom = Math.sqrt(1 - e * e * sinlatitude * sinlatitude);
+    return a / denom;
+}
+
+
+
+
+
+
+
+
 function centimetersToNiceDistance(centimeters)
 {
     var meters = parseInt(centimeters / 100);
@@ -168,6 +244,33 @@ function updateDataView(data)
     if(data.isFailsafeActive == 1 && blinkFastSwitch)
         activeFlightMode = "";
 
+    // Calculate Azimuth and Elevation using User Location. If it's not available, use Home location
+    if(hasUserLocation) 
+    {
+        data.azimuth = bearing(data.userLatitude, data.userLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+        document.getElementById("aziElevPlaceHolder").className = "color-ok";
+        if(data.userAltitudeSL !== null)
+        {
+            document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
+            data.elevation = getVerticalBearing(data.userLatitude, data.userLongitude, data.userAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+        }
+        else
+            document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / N/A';
+    }
+    else if(data.homeLatitude != 0 && data.homeLongitude != 0)
+    {
+        data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+        data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.userAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+        document.getElementById("aziElevPlaceHolder").className = "color-normal";
+        document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
+    }
+    else
+    {
+        data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+        document.getElementById("aziElevPlaceHolder").className = "color-normal";
+        document.getElementById("aziElevPlaceHolder").innerHTML = "";
+    }
+
     document.getElementById("waipointPlaceHolder").innerHTML = wpMissionText;
     document.getElementById("waipointPlaceHolder").className = wpMissionClass;
 
@@ -187,7 +290,6 @@ function updateDataView(data)
     document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP + ' hdop]</font>';
     document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
 
-    document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
     document.getElementById("callsignPlaceHolder").innerHTML = data.callsign;
 
     document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";

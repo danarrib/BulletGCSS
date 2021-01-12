@@ -121,6 +121,7 @@ var data = {
     userLatitude: 0,
     userLongitude: 0,
     userHeading: 0,
+    userAltitudeSL: 0,
 };
 
 function parseWaypointMessage(payload) {
