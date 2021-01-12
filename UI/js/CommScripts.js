@@ -1,16 +1,24 @@
 // Setup MQTT
-/*
-host = 'test.mosquitto.org';	// hostname or IP address
-port = 8080;
-*/
-host = 'broker.emqx.io';	// hostname or IP address
-//port = 8083;
-//useTLS = false;
-port = 8084;
-useTLS = true;
-topic = 'revspace/sensors/dnrbtelem';		// topic to subscribe to
-username = null;
-password = null;
+
+// If there's no saved settings, save a default one
+if (localStorage.getItem("mqttHost") === null)
+    localStorage.setItem("mqttHost", "broker.emqx.io");
+
+if (localStorage.getItem("mqttPort") === null)
+    localStorage.setItem("mqttPort", "8084");
+
+if (localStorage.getItem("mqttTopic") === null)
+    localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+
+if (localStorage.getItem("mqttUseTLS") === null)
+    localStorage.setItem("mqttUseTLS", "true");
+
+host = localStorage.getItem("mqttHost");	// hostname or IP address
+port = parseInt(localStorage.getItem("mqttPort"));
+useTLS = (localStorage.getItem("mqttUseTLS") == "true");
+topic = localStorage.getItem("mqttTopic");		// topic to subscribe to
+username = localStorage.getItem("mqttUser");
+password = localStorage.getItem("mqttPass");
 cleansession = true;
 
 var mqtt;
@@ -20,15 +28,25 @@ var mqttConnected = false;
 var lastMessageDate = new Date(2000, 1, 1);
 
 function MQTTconnect() {
-if (typeof path == "undefined") {
-    path = '/mqtt';
-}
-mqtt = new Paho.MQTT.Client(
-        host,
-        port,
-        path,
-        "web_" + parseInt(Math.random() * 100, 10)
-);
+    host = localStorage.getItem("mqttHost");	// hostname or IP address
+    port = parseInt(localStorage.getItem("mqttPort"));
+    useTLS = (localStorage.getItem("mqttUseTLS") == "true");
+    topic = localStorage.getItem("mqttTopic");		// topic to subscribe to
+    username = localStorage.getItem("mqttUser");
+    password = localStorage.getItem("mqttPass");
+    cleansession = true;
+
+    if (typeof path == "undefined") {
+        path = '/mqtt';
+    }
+
+    mqtt = new Paho.MQTT.Client(
+            host,
+            port,
+            path,
+            "web_" + parseInt(Math.random() * 100, 10)
+    );
+
     var options = {
         timeout: 3,
         useSSL: useTLS,
@@ -60,7 +78,8 @@ function onConnect() {
 
 function onConnectionLost(response) {
     setTimeout(MQTTconnect, reconnectTimeout);
-    console.log("Connection lost: " + responseObject.errorMessage + ". Reconnecting...");
+    if(typeof responseObject !== 'undefined')
+        console.log("Connection lost: " + responseObject.errorMessage + ". Reconnecting...");
     mqttConnected = false;
 };
 

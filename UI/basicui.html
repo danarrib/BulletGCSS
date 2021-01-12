@@ -41,7 +41,7 @@
 						<img class="statusIcon" id="batteryIcon" src="img/battery_0.png" />
 						<img class="statusIcon" id="gpsIcon" src="img/gps_bad.png" />
 						<img class="statusIcon" id="hardwareHealthIcon" src="img/health_error.png" />
-						<img class="statusIcon rightIcon" id="gearIcon" src="img/whitegear.png" onclick="enableWakeLock();" />
+						<img class="statusIcon rightIcon" id="gearIcon" src="img/whitegear.png" onclick="openNav();" />
 					</td>
 				</tr>
 				<tr>
@@ -90,6 +90,34 @@
 		</div>
 		<div id="hudview">
 			<canvas id="cvsEFIS"></canvas>
+		</div>
+	</div>
+
+	<div id="sideMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" onclick="closeNav();">&times;</a>
+		<a href="javascript:void(0)" onclick="openBrokerSettings();">Broker settings...</a>
+		<a href="javascript:void(0)" onclick="keepScreenAwake();">Keep screen awake</a>
+		<a href="#">Mission planner</a>
+		<a href="#">Send command to UAV</a>
+		<a href="javascript:void(0)" onclick="reloadApplication();">Refresh App</a>
+		<a href="#">Install on home screen</a>
+	</div>
+
+	<div id="brokerSettings">
+		<a href="javascript:void(0)" class="closebtn" onclick="closeBrokerSettings();">&times;</a>
+		<h3>MQTT Broker settings</h3>
+		<div class="settingsRow">
+			<div class="settingsColumn">
+				<p>Host<br /><input type="text" id="brokerHost" /></p>
+				<p>Port<br /><input type="text" id="brokerPort" /></p>
+				<p>Username<br /><input type="text" id="brokerUser" /></p>
+				<p>Password<br /><input type="password" id="brokerPass" /></p>
+			</div>
+			<div class="settingsColumn">
+				<p>Topic<br /><input type="text" id="brokerTopic" /></p>
+				<p><input type="checkbox" id="brokerUseTLS" value="1" /><label class="checkboxtext" for="brokerUseTLS">Use TLS?</label></p>
+				<p><input type="button" id="btSaveBrokerSettings" onclick="saveBrokerSettings();" value="Save" /></p>
+			</div>
 		</div>
 	</div>
 

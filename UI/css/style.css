@@ -168,3 +168,127 @@ body {
   src: url(/css/Ubuntu-Regular.woff2) format('woff2'),
        url(/css/Ubuntu-Regular.ttf) format('ttf');
 }
+
+
+/* The sidebar menu */
+.sidebar {
+    height: 100%;
+    width: 0;
+    position: fixed;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    background-color: #333;
+    overflow-x: hidden;
+    padding-top: 5vmin;
+    transition: 0.5s;
+  }
+  
+  /* The sidebar links */
+  .sidebar a,
+  #brokerSettings a
+  {
+    padding: 2vmin 2vmin 2vmin 4vmin;
+    text-decoration: none;
+    font-size: 1.5em;
+    color: #CCC;
+    display: block;
+    transition: 0.3s;
+  }
+  
+  /* When you mouse over the navigation links, change their color */
+  .sidebar a:hover,
+  #brokerSettings a:hover
+  {
+    color: #FFF;
+  }
+
+  .sidebar a:focus,
+  #brokerSettings a:focus
+  {
+    color: #3F3;
+  }
+
+  /* Position and style the close button (top right corner) */
+  .sidebar .closebtn,
+  #brokerSettings .closebtn
+  {
+    position: absolute;
+    top: 0;
+    right: 2vmin;
+    font-size: 3em;
+    margin-left: 2vmin;
+  }
+  
+#brokerSettings
+{
+    height: 100%;
+    width: 0;
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    left: 0;
+    background-color: #666;
+    overflow-x: auto;
+    padding-top: 4vmin;
+    transition: 0.5s;
+}
+
+#brokerSettings p
+{
+    margin-left: 5vmin;
+    font-size: 1.5em;
+}
+
+#brokerSettings h3
+{
+    margin-left: 5vmin;
+    font-size: 1.5em;
+}
+
+#brokerSettings input[type=text],
+#brokerSettings input[type=button],
+#brokerSettings input[type=password]
+{
+    font-size: 1em;
+    width: 90%;
+}
+
+#brokerSettings input[type=button]
+{
+    font-size: 1em;
+    width: 90%;
+    height: 2em;
+}
+
+#brokerSettings input[type=checkbox]
+{
+    transform: scale(2.5);
+    margin-left: 1em;
+    margin-right: 1em;
+}
+
+.checkboxtext
+{
+    display: inline;
+}
+
+.settingsColumn {
+    flex: 50%;
+}
+
+.settingsRow {
+    display: flex;
+}
+
+@media only screen and (orientation : portrait)
+{
+    .settingsColumn {
+        flex: inherit;
+    }
+    
+    .settingsRow {
+        display: inherit;
+    }
+    
+}

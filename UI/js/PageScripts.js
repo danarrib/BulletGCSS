@@ -22,9 +22,64 @@ window.addEventListener("orientationchange", function() {
 // Setup NoSleep
 var noSleep = new NoSleep();
 
-function enableWakeLock() {
+function keepScreenAwake()
+{
+    closeNav();
     noSleep.enable();
-    getUserLocation();
+}
+
+// Setup Sidebar
+function openNav() {
+    document.getElementById("sideMenu").style.width = "100%";
+}
+
+function closeNav() {
+    document.getElementById("sideMenu").style.width = "0";
+}
+
+function openBrokerSettings() {
+    document.getElementById("brokerHost").value = localStorage.getItem("mqttHost");
+    document.getElementById("brokerPort").value = localStorage.getItem("mqttPort");
+    document.getElementById("brokerUser").value = localStorage.getItem("mqttUser");
+    document.getElementById("brokerPass").value = localStorage.getItem("mqttPass");
+    document.getElementById("brokerTopic").value = localStorage.getItem("mqttTopic");
+    document.getElementById("brokerUseTLS").checked = (localStorage.getItem("mqttUseTLS") == "true");
+
+    document.getElementById("brokerSettings").style.width = "100%";
+}
+
+function saveBrokerSettings()
+{
+    localStorage.setItem("mqttHost", document.getElementById("brokerHost").value);
+    localStorage.setItem("mqttPort", document.getElementById("brokerPort").value);
+    
+    if(document.getElementById("brokerUser").value.length > 0)
+        localStorage.setItem("mqttUser", document.getElementById("brokerUser").value);
+    else
+        localStorage.removeItem("mqttUser");
+
+    if(document.getElementById("brokerUser").value.length > 0)
+        localStorage.setItem("mqttPass", document.getElementById("brokerPass").value);
+    else
+        localStorage.removeItem("mqttPass");
+
+    localStorage.setItem("mqttTopic", document.getElementById("brokerTopic").value);
+    localStorage.setItem("mqttUseTLS", document.getElementById("brokerUseTLS").checked ? "true" : "false");
+
+    if(mqttConnected )
+        mqtt.disconnect();
+
+    closeBrokerSettings();
+    closeNav();
+}
+
+function closeBrokerSettings() {
+    document.getElementById("brokerSettings").style.width = "0";
+}
+
+function reloadApplication()
+{
+    window.location.reload();
 }
 
 document.addEventListener("touchmove", function(e){
