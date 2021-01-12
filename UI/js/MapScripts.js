@@ -218,8 +218,8 @@ var linesFeatures = [];
 
 var linesStyle = new ol.style.Style({
     stroke: new ol.style.Stroke({
-    color: '#69F',
-    width: 3
+        color: '#69F',
+        width: 3 * window.devicePixelRatio
     })
 });
 
