@@ -87,7 +87,7 @@ var data = {
     airSpeed: 1350, // int centimeters per second
     verticalSpeed: 125, // int centimeters per second
     homeDirection: 35, // decimal deg from -180.0 to 180.0
-    homeDistance: 60000, // centimeters
+    homeDistance: 600, // meters
     fuelPercent: 50,
     battCellVoltage: 3.67,
     batteryVoltage: 14.0,
@@ -122,6 +122,8 @@ var data = {
     userLongitude: 0,
     userHeading: 0,
     userAltitudeSL: 0,
+    currentFlightWaypoints: new Array(),
+
 };
 
 function parseWaypointMessage(payload) {

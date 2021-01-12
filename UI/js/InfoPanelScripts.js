@@ -119,10 +119,9 @@ function getN(a, e, latitude) {
 
 
 
-function centimetersToNiceDistance(centimeters)
+function metersToNiceDistance(meters)
 {
-    var meters = parseInt(centimeters / 100);
-    if(meters > 999)
+    if(meters > 9999)
         return (meters / 1000).toFixed(1) + " km";
     else
         return meters + "m";
@@ -285,7 +284,7 @@ function updateDataView(data)
     document.getElementById("activeModePlaceHolder").className = armedClass;
 
     document.getElementById("coordinatesPlaceHolder").innerHTML = '<a style="cursor: pointer; color: #00BFFF;" onclick="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');" ontouchstart="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');">' + PlusCodeCoordinates + '</a>';
-    document.getElementById("homeDistancePlaceHolder").innerHTML = centimetersToNiceDistance(data.homeDistance);
+    document.getElementById("homeDistancePlaceHolder").innerHTML = metersToNiceDistance(data.homeDistance);
 
     document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP + ' hdop]</font>';
     document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;

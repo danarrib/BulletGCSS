@@ -308,6 +308,78 @@ function drawMissionOnMap(data) {
     
 }
 
+var flightLineFeatures = [];
+
+var flightLineStyle = new ol.style.Style({
+    stroke: new ol.style.Stroke({
+        color: '#F96',
+        width: 3 * window.devicePixelRatio
+    })
+});
+
+var flightLineVectorSource = new ol.source.Vector({
+    features: flightLineFeatures //add an array of features
+});
+
+var flightLineVectorLayer = new ol.layer.Vector({
+    source: flightLineVectorSource,
+    style: flightLineStyle,
+});
+
+function drawAircraftPathOnMap(data)
+{
+    // First, add the waypoint to the Array if the aircraft is armed
+    if(data.uavIsArmed)
+    {
+        var wpCount = data.currentFlightWaypoints.length;
+
+        var waypoint = {
+            wpLatitude: data.gpsLatitude,
+            wpLongitude: data.gpsLongitude,
+        };
+
+        data.currentFlightWaypoints[wpCount] = waypoint;
+    }
+
+    // Now, render the flight line
+    flightLineVectorSource.clear();
+    flightLineFeatures = [];
+    if(data.currentFlightWaypoints.length > 0) {
+        var loc1;
+        var loc2;
+        var flightLineFeature;
+
+        for(i = 1; i < data.currentFlightWaypoints.length; i++)
+        {
+            loc1 = ol.proj.fromLonLat([data.currentFlightWaypoints[i-1].wpLongitude, data.currentFlightWaypoints[i-1].wpLatitude]);
+            loc2 = ol.proj.fromLonLat([data.currentFlightWaypoints[i].wpLongitude, data.currentFlightWaypoints[i].wpLatitude]);
+            
+            iconGeometry = new ol.geom.LineString([loc1, loc2]);
+
+            flightLineFeature = new ol.Feature({
+                geometry: iconGeometry
+            });
+
+            flightLineFeatures.push(flightLineFeature);
+        }
+
+        // Add another one from the last waypoint to the aircraft
+        loc1 = loc2;
+        loc2 = ol.proj.fromLonLat([data.gpsLongitude, data.gpsLatitude]);
+        
+        iconGeometry = new ol.geom.LineString([loc1, loc2]);
+
+        flightLineFeature = new ol.Feature({
+            geometry: iconGeometry
+        });
+
+        flightLineFeatures.push(flightLineFeature);
+    }
+    
+
+    flightLineVectorSource.addFeatures(flightLineFeatures);
+}
+
 function centerMap(data) {
     // Center the map
     var oldCenter = map.getView().getCenter();
@@ -366,6 +438,7 @@ function getUserLocation() {
 
 // Adding Map Layers
 map.addLayer(linesVectorLayer);
+map.addLayer(flightLineVectorLayer);
 map.addLayer(waypointVectorLayer);
 map.addLayer(userVectorLayer);
 map.addLayer(homeVectorLayer);

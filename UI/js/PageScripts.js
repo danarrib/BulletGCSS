@@ -65,6 +65,7 @@ window.onload = function(event) {
         drawMissionOnMap(data);
         drawHomeOnMap(data);
         drawUserOnMap(data);
+        drawAircraftPathOnMap(data);
 
         // Center map
         if(user_moved_map == true)
