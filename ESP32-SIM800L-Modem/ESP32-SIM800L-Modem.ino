@@ -402,6 +402,8 @@ void msp2_get_inav_analog() {
       uavstatus.fuelPercent = inavdata.batteryPercentage;
 
       uint8_t cellCount = inavdata.batteryStats >> 4;
+      if(cellCount==0)
+        cellCount = 1;
       uavstatus.batteryCellCount = cellCount;
       uavstatus.averageCellVoltage = uavstatus.batteryVoltage / cellCount;
 

@@ -238,12 +238,16 @@ body {
 {
     margin-left: 5vmin;
     font-size: 1.5em;
+    margin-bottom: 0.5em;
+    margin-top: 0.5em;
 }
 
 #brokerSettings h3
 {
     margin-left: 5vmin;
     font-size: 1.5em;
+    margin-bottom: 0.5em;
+    margin-top: 0.5em;
 }
 
 #brokerSettings input[type=text],
