@@ -5,8 +5,6 @@ Bullet GCSS is a high caliber ground control station system designed for the 21s
 
 ![github-social-media](https://user-images.githubusercontent.com/17026744/104504015-9a8dd400-55c0-11eb-863f-1a054d97905b.png)
 
-**This is a Work in progress! It's not ready for consistent use. Be advised!**
-
 Bullet GCSS allows an UAV pilot/operator to get the most important telemetry data right on his/her SmartPhone or computer screen. Information such as aircraft location, distance, altitude, battery status, navigation status are always available.
 
 The main differences between Bullet GCSS and other traditional ground station systems are:
