@@ -85,8 +85,6 @@ HardwareSerial mspSerial(2);
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 
-#define WP_MISSION_MESSAGE_INTERVAL 30
-#define HOME_POINT_FETCH_INTERVAL 10
 
 #ifndef USE_WIFI
   // I2C for SIM800 (to keep it running when powered from battery)

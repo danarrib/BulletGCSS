@@ -34,8 +34,10 @@ const char* mqttPassword = "";
 const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change
 
 // Pooling settings
-const uint32_t messageSendInterval = 2000;
-const uint32_t poolTelemetryInterval = 2000;
+const uint32_t messageSendInterval = 1000;
+const uint32_t poolTelemetryInterval = 1000;
+#define WP_MISSION_MESSAGE_INTERVAL 30
+#define HOME_POINT_FETCH_INTERVAL 10
 
 // set GSM PIN, if any
 #define GSM_PIN ""
