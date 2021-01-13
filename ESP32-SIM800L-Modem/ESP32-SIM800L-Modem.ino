@@ -1,7 +1,7 @@
 /*
   ESP32-SIM800L-Modem.ino
 
-  This is a MSPv2 Library, made for Bullet Ground Control Station System
+  This is part of Bullet Ground Control Station System
   https://github.com/danarrib/BulletGCSS
   
   Written by Daniel Ribeiro - https://github.com/danarrib
