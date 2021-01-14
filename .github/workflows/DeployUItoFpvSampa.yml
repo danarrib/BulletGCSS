@@ -1,0 +1,21 @@
+name: Deploy BulletGCSS UI on FPV Sampa
+
+on: [push] # tells github to run this on any push to the repository
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' # we tell Github to only execute this step if we're on our master branch (so we don't put unfinished branches in production)
+    steps:
+      - name: Deploying UI to FPV Sampa 
+        uses: appleboy/ssh-action@master # An action made to control Linux servers
+        with: # We set all our secrets here for the action, these won't be shown in the action logs
+          host: ${{ secrets.HOST }} 
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd /home/bulletgcss/ci/BulletGCSS/ # we move into our app's folder
+            git pull # we pull any changes from git
+            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/
