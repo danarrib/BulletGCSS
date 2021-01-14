@@ -244,7 +244,7 @@ void loop()
 void getTelemetryDataTask() {
   uint32_t timer = millis();
   
-  if(timer >= lastTelemetryPoolTimer + poolTelemetryInterval) {
+  if(timer >= lastTelemetryPoolTimer + MESSAGE_SEND_INTERVAL) {
     lastTelemetryPoolTimer = timer;
 
     getTelemetryData();
@@ -279,15 +279,31 @@ void getTelemetryData()
 
 void get_cellSignalStrength()
 {
-    // Simulate Cellular network strength (for now)
-    long rnum = random(1, 10);
-    if(rnum >= 1 && rnum <= 2 )
-      uavstatus.cellSignalStrength = 1;
-    else if(rnum >= 3 && rnum <= 5 )
-      uavstatus.cellSignalStrength = 2;
-    else
-      uavstatus.cellSignalStrength = 3;
+    #ifdef USE_WIFI
+      long rssi = abs(WiFi.RSSI());
 
+      if(rssi < 50)
+        uavstatus.cellSignalStrength = 3;
+      else if(rssi < 60)
+        uavstatus.cellSignalStrength = 2;
+      else if(rssi < 70)
+        uavstatus.cellSignalStrength = 1;
+      else
+        uavstatus.cellSignalStrength = 0;
+    #else
+      int rssi = modem.getSignalQuality();
+
+      if(rssi == 99)
+        uavstatus.cellSignalStrength = 0;
+      else if(rssi >= 20)
+        uavstatus.cellSignalStrength = 3;
+      else if(rssi >= 15)
+        uavstatus.cellSignalStrength = 2;
+      else if(rssi >= 10)
+        uavstatus.cellSignalStrength = 1;
+      else
+        uavstatus.cellSignalStrength = 0;
+    #endif
 }
 
 void msp_get_gps() 
@@ -637,7 +653,7 @@ void msp_get_activeboxes() {
 void sendMessageTask() {
   uint32_t timer = millis();
   
-  if(timer >= lastMessageTimer + messageSendInterval) {
+  if(timer >= lastMessageTimer + MESSAGE_SEND_INTERVAL) {
     lastMessageTimer = timer;
     
     connectToTheInternet();
