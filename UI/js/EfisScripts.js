@@ -833,7 +833,7 @@ function renderEFIS(data) {
     var endTime = performance.now();
     var elapsedTime = (endTime - startTime).toFixed(1);
 
-    if(1==1) {
+    if(0==1) {
         var debugFont = (efis.fontSize / 1.5) + 'px ' + efis.DefaultFont
         var debugText = efis.efisWidth + 'x' + efis.efisHeight + 'px, ' + elapsedTime + 'ms';
         

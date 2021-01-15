@@ -113,8 +113,13 @@ window.onload = function(event) {
         updateDataView(data);
     }, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
-    var timerCenterMap = setInterval(function(){ 
-    }, 5000);
+    var timerOneSecond = setInterval(function(){ 
+        // Update Flight Time and Power Time
+        data.powerTime++;
+        if(data.uavIsArmed)
+            data.flightTime++;
+            
+    }, 1000);
 
     var timerLowPriorityTasks = setInterval(function(){ 
         drawMissionOnMap(data);

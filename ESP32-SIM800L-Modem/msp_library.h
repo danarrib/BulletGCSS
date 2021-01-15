@@ -45,6 +45,7 @@
 #define MSP_SENSOR_STATUS 151
 #define MSP_SET_WP        209
 #define MSP2_INAV_ANALOG  0x2002
+#define MSP2_INAV_MISC2   0x203A
 
 // This enum is a copy from INAV one in "src/main/fc/rc_modes.h"
 typedef enum {
@@ -142,6 +143,14 @@ struct MSP2_INAV_ANALOG_t
     uint32_t remainingCapacity;
     uint8_t batteryPercentage; 
     uint16_t rssi; 
+} __attribute__((packed));
+
+struct MSP2_INAV_MISC2_t
+{
+    uint32_t onTime; 
+    uint32_t flightTime; 
+    uint8_t throttlePercent;
+    uint8_t autoThrottle; 
 } __attribute__((packed));
 
 struct MSP_COMP_GPS_t

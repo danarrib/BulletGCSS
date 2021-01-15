@@ -61,6 +61,10 @@ struct uav_status
     double homeLatitude;
     double homeLongitude;
     int16_t homeAltitudeSL;
+    uint32_t onTime; 
+    uint32_t flightTime; 
+    uint8_t throttlePercent;
+    uint8_t autoThrottle; 
     
 } __attribute__((packed));
 

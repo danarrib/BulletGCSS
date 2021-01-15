@@ -142,7 +142,8 @@ var data = {
     userHeading: 0,
     userAltitudeSL: 0,
     currentFlightWaypoints: new Array(),
-
+    throttlePercent: 0,
+    isAutoThrottleActive: 0,
 };
 
 function parseWaypointMessage(payload) {
@@ -324,7 +325,19 @@ function parseStandardTelemetryMessage(payload)
             case "hal":
                 data.homeAltitudeSL = parseInt(arrData[1]);
                 break;
-            default:
+            case "ont":
+                data.powerTime = parseInt(arrData[1]);
+                break;
+            case "flt":
+                data.flightTime = parseInt(arrData[1]);
+                break;
+            case "trp":
+                data.throttlePercent = parseInt(arrData[1]);
+                break;
+            case "att":
+                data.isAutoThrottleActive = parseInt(arrData[1]);
+                break;
+                                                    default:
                 break;
         }
     }

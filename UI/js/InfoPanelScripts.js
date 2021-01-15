@@ -294,6 +294,19 @@ function updateDataView(data)
     document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
     document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
 
+    document.getElementById("throttlePlaceHolder").innerHTML = data.throttlePercent + " %";
+    if(data.isAutoThrottleActive)
+        document.getElementById("throttlePlaceHolder").className = "color-warning";
+    else
+        document.getElementById("throttlePlaceHolder").className = "color-normal";
+
+
+    var mAhPerKm = 0;
+    if(data.groundSpeed > 0 && data.currentDraw > 0)
+        mAhPerKm = ((data.currentDraw / 60) * 1000 ) / ( (data.groundSpeed * efis.SpeedUnitFactor) / 60);
+
+    document.getElementById("efficiencyPlaceHolder").innerHTML = mAhPerKm.toFixed(0) + " mAh/Km";
+
     document.getElementById("rssiPlaceHolder").innerHTML = data.rssiPercent + " %";
     if(data.rssiPercent <= 20)
         document.getElementById("rssiPlaceHolder").className = "color-danger";
@@ -310,7 +323,17 @@ function updateDataView(data)
     else
         document.getElementById("batteryVoltagePlaceHolder").className = "color-ok";
 
-    //var onFlightTimeText = data.powerTime + " / " + data.flightTime;
-    //document.getElementById("onFlightTimePlaceHolder").innerHTML = onFlightTimeText;
+    if(blinkSlowSwitch || data.uavIsArmed)
+    {
+        document.getElementById("flightTimeLabel").innerHTML = "Flight time";
+        document.getElementById("flightTimePlaceHolder").innerHTML = secondsToNiceTime(data.flightTime);
+    }
+    else
+    {
+        document.getElementById("flightTimeLabel").innerHTML = "Uptime";
+        document.getElementById("flightTimePlaceHolder").innerHTML = secondsToNiceTime(data.powerTime);
+    }
+
+
 
 }

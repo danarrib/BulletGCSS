@@ -100,6 +100,7 @@ uav_status lastStatus;
 msp_set_wp_t currentWPMission[255];
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
+uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t lastTelemetryPoolTimer = 0; // Used to control the Telemetry pooling task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
 
@@ -260,10 +261,12 @@ void getTelemetryData()
   msp_get_altitude();
   msp_get_sensor_status();
   msp_get_activeboxes();
+  msp2_get_misc2();
   msp2_get_inav_analog();
   msp_get_wp_getinfo();
   msp_get_nav_status();
   msp_get_callsign();
+  
   
   get_all_waypoints();
   
@@ -440,6 +443,24 @@ void msp_get_sensor_status() {
     else
     {
       SerialMon.println("MSP SENSOR STATUS returned false!");
+    }
+}
+
+void msp2_get_misc2() {
+    MSP2_INAV_MISC2_t inavdata;
+    if (msp.request(MSP2_INAV_MISC2, &inavdata, sizeof(inavdata)))
+    {
+      //SerialMon.printf("onTime: %d, flightTime: %d, throttlePercent: %d, autoThrottle: %d\n", inavdata.onTime, inavdata.flightTime, inavdata.throttlePercent, inavdata.autoThrottle);
+      uavstatus.onTime = inavdata.onTime;
+      uavstatus.flightTime = inavdata.flightTime;
+      uavstatus.throttlePercent = inavdata.throttlePercent;
+      uavstatus.autoThrottle = inavdata.autoThrottle;
+
+      lastMspCommunicationTs = millis();
+    }
+    else
+    {
+      SerialMon.println("MSP2 MISC2 returned false!");
     }
 }
 
@@ -653,7 +674,8 @@ void msp_get_activeboxes() {
 void sendMessageTask() {
   uint32_t timer = millis();
   
-  if(timer >= lastMessageTimer + MESSAGE_SEND_INTERVAL) {
+  if(timer >= lastMessageTimer + MESSAGE_SEND_INTERVAL)
+  {
     lastMessageTimer = timer;
     
     connectToTheInternet();
@@ -665,10 +687,21 @@ void sendMessageTask() {
     SerialMon.print("Sending message: ");
     SerialMon.println(message);
     sendMessage(message);
-
+    
+    if(timer >= lastLowPriorityMessageTimer + (LOW_PRIORITY_MESSAGE_INTERVAL * 1000) )
+    {
+      lastLowPriorityMessageTimer = timer;
+      buildLowPriorityMessage(message);
+    
+      SerialMon.print("Sending Low priority message: ");
+      SerialMon.println(message);
+      sendMessage(message);
+    }
+    
     // Check if there's a Waypoint mission, and send the message
     if(uavstatus.waypointCount > 0)
       sendWaypointsMessage();
+      
   }
 }
 
@@ -718,101 +751,123 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.pitchAngle != uavstatus.pitchAngle || msgGroup == 0)
     sprintf(message, "%span:%d,", message, uavstatus.pitchAngle); // pitchAngle
 
-  if(lastStatus.heading != uavstatus.heading || msgGroup == 1)
+  if(lastStatus.heading != uavstatus.heading || msgGroup == 0)
     sprintf(message, "%shea:%d,", message, uavstatus.heading); // heading
 
   if(lastStatus.altitudeSeaLevel != uavstatus.altitudeSeaLevel || msgGroup == 1)
     sprintf(message, "%sasl:%d,", message, uavstatus.altitudeSeaLevel); // altitudeSeaLevel
 
-  if(lastStatus.altitude != uavstatus.altitude || msgGroup == 2)
+  if(lastStatus.altitude != uavstatus.altitude || msgGroup == 1)
     sprintf(message, "%salt:%d,", message, uavstatus.altitude); // relative altitude
 
-  if(lastStatus.groundSpeed != uavstatus.groundSpeed || msgGroup == 2)
+  if(lastStatus.groundSpeed != uavstatus.groundSpeed || msgGroup == 1)
     sprintf(message, "%sgsp:%d,", message, uavstatus.groundSpeed); // groundSpeed
 
-  if(lastStatus.verticalSpeed != uavstatus.verticalSpeed || msgGroup == 3)
+  if(lastStatus.verticalSpeed != uavstatus.verticalSpeed || msgGroup == 2)
     sprintf(message, "%svsp:%d,", message, uavstatus.verticalSpeed); // verticalSpeed
 
-  if(lastStatus.homeDirection != uavstatus.homeDirection || msgGroup == 3)
+  if(lastStatus.homeDirection != uavstatus.homeDirection || msgGroup == 2)
     sprintf(message, "%shdr:%d,", message, uavstatus.homeDirection); // homeDirection
 
-  if(lastStatus.homeDistance != uavstatus.homeDistance || msgGroup == 4)
+  if(lastStatus.homeDistance != uavstatus.homeDistance || msgGroup == 2)
     sprintf(message, "%shds:%d,", message, uavstatus.homeDistance); // homeDistance
 
-  if(lastStatus.averageCellVoltage != uavstatus.averageCellVoltage || msgGroup == 4)
+  if(lastStatus.averageCellVoltage != uavstatus.averageCellVoltage || msgGroup == 3)
     sprintf(message, "%sacv:%.2f,", message, uavstatus.averageCellVoltage); // batteryVoltage
 
-  if(lastStatus.batteryVoltage != uavstatus.batteryVoltage || msgGroup == 5)
+  if(lastStatus.batteryVoltage != uavstatus.batteryVoltage || msgGroup == 3)
     sprintf(message, "%sbpv:%.2f,", message, uavstatus.batteryVoltage); // batteryVoltage
 
-  if(lastStatus.batteryCellCount != uavstatus.batteryCellCount || msgGroup == 5)
-    sprintf(message, "%sbcc:%d,", message, uavstatus.batteryCellCount); // batteryVoltage
-
-  if(lastStatus.fuelPercent != uavstatus.fuelPercent || msgGroup == 6)
+  if(lastStatus.fuelPercent != uavstatus.fuelPercent || msgGroup == 3)
     sprintf(message, "%sbfp:%d,", message, uavstatus.fuelPercent); // fuelPercent
 
-  if(lastStatus.currentDraw != uavstatus.currentDraw || msgGroup == 6)
+  if(lastStatus.currentDraw != uavstatus.currentDraw || msgGroup == 4)
     sprintf(message, "%scud:%.2f,", message, uavstatus.currentDraw); // currentDraw
 
-  if(lastStatus.capacityDraw != uavstatus.capacityDraw || msgGroup == 7)
+  if(lastStatus.capacityDraw != uavstatus.capacityDraw || msgGroup == 4)
     sprintf(message, "%scad:%d,", message, uavstatus.capacityDraw); // capacityDraw
 
-  if(lastStatus.rssiPercent != uavstatus.rssiPercent || msgGroup == 7)
+  if(lastStatus.rssiPercent != uavstatus.rssiPercent || msgGroup == 4)
     sprintf(message, "%srsi:%d,", message, uavstatus.rssiPercent); // rssiPercent
 
-  if(lastStatus.gpsLatitude != uavstatus.gpsLatitude || msgGroup == 8)
+  if(lastStatus.gpsLatitude != uavstatus.gpsLatitude || msgGroup == 5)
     sprintf(message, "%sgla:%.8f,", message, uavstatus.gpsLatitude); // gpsLatitude
 
-  if(lastStatus.gpsLongitude != uavstatus.gpsLongitude || msgGroup == 8)
+  if(lastStatus.gpsLongitude != uavstatus.gpsLongitude || msgGroup == 5)
     sprintf(message, "%sglo:%.8f,", message,uavstatus.gpsLongitude); // gpsLongitude
 
-  if(lastStatus.gpsSatCount != uavstatus.gpsSatCount || msgGroup == 9)
+  if(lastStatus.gpsSatCount != uavstatus.gpsSatCount || msgGroup == 5)
     sprintf(message, "%sgsc:%d,", message, uavstatus.gpsSatCount); // gpsSatCount
 
-  if(lastStatus.gpsHDOP != uavstatus.gpsHDOP || msgGroup == 9)
+  if(lastStatus.gpsHDOP != uavstatus.gpsHDOP || msgGroup == 6)
     sprintf(message, "%sghp:%.1f,", message, uavstatus.gpsHDOP); // gpsHDOP
 
-  if(lastStatus.cellSignalStrength != uavstatus.cellSignalStrength || msgGroup == 0)
+  if(lastStatus.cellSignalStrength != uavstatus.cellSignalStrength || msgGroup == 6)
     sprintf(message, "%scss:%d,", message, uavstatus.cellSignalStrength); // cellSignalStrength
 
-  if(lastStatus.gps3Dfix != uavstatus.gps3Dfix || msgGroup == 0)
+  if(lastStatus.gps3Dfix != uavstatus.gps3Dfix || msgGroup == 6)
     sprintf(message, "%s3df:%d,", message, uavstatus.gps3Dfix); // gps3Dfix
 
-  if(lastStatus.isHardwareHealthy != uavstatus.isHardwareHealthy || msgGroup == 1)
+  if(lastStatus.isHardwareHealthy != uavstatus.isHardwareHealthy || msgGroup == 7)
     sprintf(message, "%shwh:%d,", message, uavstatus.isHardwareHealthy); // isHardwareHealthy
 
-  if(lastStatus.flightMode != uavstatus.flightMode || msgGroup == 1)
-    sprintf(message, "%sftm:%s,", message, uavstatus.flightMode); // flightMode
-
-  if(lastStatus.uavIsArmed != uavstatus.uavIsArmed || msgGroup == 2)
+  if(lastStatus.uavIsArmed != uavstatus.uavIsArmed || msgGroup == 7)
     sprintf(message, "%sarm:%d,", message, uavstatus.uavIsArmed); // uavIsArmed
 
-  if(lastStatus.waypointCount != uavstatus.waypointCount || msgGroup == 2)
+  if(lastStatus.waypointCount != uavstatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, uavstatus.waypointCount); // waypointCount
 
-  if(lastStatus.currentWaypointNumber != uavstatus.currentWaypointNumber || msgGroup == 3)
+  if(lastStatus.currentWaypointNumber != uavstatus.currentWaypointNumber || msgGroup == 8)
     sprintf(message, "%scwn:%d,", message, uavstatus.currentWaypointNumber); // currentWaypointNumber
 
-  if(lastStatus.isWpMissionValid != uavstatus.isWpMissionValid || msgGroup == 3)
+  if(lastStatus.isWpMissionValid != uavstatus.isWpMissionValid || msgGroup == 8)
     sprintf(message, "%swpv:%d,", message, uavstatus.isWpMissionValid); // isWpMissionValid
 
-  if(lastStatus.callsign != uavstatus.callsign || msgGroup == 4)
-    sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign
-
-  if(lastStatus.isFailsafeActive != uavstatus.isFailsafeActive || msgGroup == 4)
+  if(lastStatus.isFailsafeActive != uavstatus.isFailsafeActive || msgGroup == 9)
     sprintf(message, "%sfs:%d,", message, uavstatus.isFailsafeActive); // isFailsafeActive
 
-  if(lastStatus.homeLatitude != uavstatus.homeLatitude || msgGroup == 5)
+  if(lastStatus.throttlePercent != uavstatus.throttlePercent || msgGroup == 9)
+    sprintf(message, "%strp:%d,", message, uavstatus.throttlePercent); // throttlePercent
+
+  if(lastStatus.autoThrottle != uavstatus.autoThrottle || msgGroup == 9)
+    sprintf(message, "%satt:%d,", message, uavstatus.autoThrottle); // autoThrottle
+
+
+  // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message
+  if(lastStatus.homeLatitude != uavstatus.homeLatitude)
     sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
 
-  if(lastStatus.homeLongitude != uavstatus.homeLongitude || msgGroup == 5)
+  if(lastStatus.homeLongitude != uavstatus.homeLongitude)
     sprintf(message, "%shlo:%.8f,", message, uavstatus.homeLongitude); // homeLongitude
   
-  if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL || msgGroup == 6)
+  if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL)
     sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
   
+  if(lastStatus.flightMode != uavstatus.flightMode)
+    sprintf(message, "%sftm:%s,", message, uavstatus.flightMode); // flightMode
 
   lastStatus = uavstatus;
+}
+
+void buildLowPriorityMessage(char* message) {
+  sprintf(message, ""); // messageCounter
+
+  sprintf(message, "%sbcc:%d,", message, uavstatus.batteryCellCount); // batteryCellCount
+
+  sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign
+
+  sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
+
+  sprintf(message, "%shlo:%.8f,", message, uavstatus.homeLongitude); // homeLongitude
+
+  sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
+
+  sprintf(message, "%sont:%d,", message, uavstatus.onTime); // onTime
+
+  sprintf(message, "%sflt:%d,", message, uavstatus.flightTime); // flightTime
+
+  sprintf(message, "%sftm:%s,", message, uavstatus.flightMode); // flightMode
+  
 }
 
 void sendMessage(char* message) {
