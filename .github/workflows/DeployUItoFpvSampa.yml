@@ -6,6 +6,9 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.sha }}
+      RUNID: ${{ github.run_id }}
     if: github.ref == 'refs/heads/master' # we tell Github to only execute this step if we're on our master branch (so we don't put unfinished branches in production)
     steps:
       - name: Deploying UI to FPV Sampa 
@@ -16,6 +19,8 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           port: ${{ secrets.PORT }}
           script: |
-            cd /home/bulletgcss/ci/BulletGCSS/ # we move into our app's folder
-            git pull # we pull any changes from git
+            cd /home/bulletgcss/ci/BulletGCSS/
+            git pull
             rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
+            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
