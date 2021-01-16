@@ -19,3 +19,5 @@ jobs:
             cd /home/bulletgcss/ci/BulletGCSS/ # we move into our app's folder
             git pull # we pull any changes from git
             rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/
+            sed -i 's/(UNIQUEID)/$GITHUB_RUN_ID/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
+            sed -i 's/(VERSION)/$GITHUB_SHA/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
