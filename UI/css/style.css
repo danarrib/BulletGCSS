@@ -200,11 +200,11 @@ body {
   {
     padding: 2vmin 2vmin 2vmin 4vmin;
     text-decoration: none;
-    font-size: 0.6em;
+    font-size: 0.8em;
     color: #AAA;
     display: block;
     transition: 0.3s;
-    bottom: 1em;
+    bottom: 2em;
     position: absolute;
   }
 
