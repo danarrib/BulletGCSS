@@ -30,6 +30,9 @@ function keepScreenAwake()
 
 // Setup Sidebar
 function openNav() {
+    // If App is running standalone, then don't show the option to install
+    document.getElementById("installhomelink").style.display = isRunningStandalone() ? "none" : "";
+
     document.getElementById("sideMenu").style.width = "100%";
 }
 
@@ -80,6 +83,14 @@ function closeBrokerSettings() {
 function reloadApplication()
 {
     window.location.reload();
+}
+
+function isRunningStandalone()
+{
+    isInWebAppiOS = (window.navigator.standalone === true);
+    isInWebAppChrome = (window.matchMedia('(display-mode: standalone)').matches);
+
+    return isInWebAppiOS || isInWebAppChrome;
 }
 
 document.addEventListener("touchmove", function(e){
