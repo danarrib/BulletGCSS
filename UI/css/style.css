@@ -311,11 +311,16 @@ body {
         #mapview {
             height: calc(100% - max(0px, env(safe-area-inset-bottom)));
         }
-        .sidebar {
-            left: max(0, env(safe-area-inset-left));
+        
+        .sidebar a,
+        #brokerSettings a
+        {
+            padding-left: calc(4vmin + max(0px, env(safe-area-inset-left)));
         }
-        #brokerSettings {
-            left: max(0, env(safe-area-inset-left));
+
+        #brokerSettings p
+        {
+            margin-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
     }
 }
