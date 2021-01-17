@@ -33,6 +33,14 @@ function openNav() {
     // If App is running standalone, then don't show the option to install
     document.getElementById("installhomelink").style.display = isRunningStandalone() ? "none" : "";
 
+    // Not implemented yet
+    document.getElementById("uisettingslink").style.display = "none";
+    document.getElementById("missionplannerlink").style.display = "none";
+    document.getElementById("senduavcommandlink").style.display = "none";
+    document.getElementById("inavsettingslink").style.display = "none";
+    document.getElementById("installhomelink").style.display = "none";
+
+    // Open menu
     document.getElementById("sideMenu").style.width = "100%";
 }
 

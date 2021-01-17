@@ -315,10 +315,11 @@ body {
         .sidebar a,
         #brokerSettings a
         {
-            padding-left: calc(4vmin + max(0px, env(safe-area-inset-left)));
+            padding-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
 
-        #brokerSettings p
+        #brokerSettings p,
+        #brokerSettings h3
         {
             margin-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
