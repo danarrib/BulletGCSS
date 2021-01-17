@@ -306,7 +306,8 @@ body {
     }
     @supports(bottom: max(0px)) {
         #dataview {
-            width: calc(50% - env(safe-area-inset-left) - 1em);
+            width: calc(50% - max(0px, env(safe-area-inset-left)));
+            right: calc(50% + max(0px, env(safe-area-inset-left)));
         }
         #mapview {
             height: calc(100% - max(0px, env(safe-area-inset-bottom)));
