@@ -144,6 +144,7 @@ var data = {
     currentFlightWaypoints: new Array(),
     throttlePercent: 0,
     isAutoThrottleActive: 0,
+    navState: 0,
 };
 
 function parseWaypointMessage(payload) {
@@ -337,7 +338,10 @@ function parseStandardTelemetryMessage(payload)
             case "att":
                 data.isAutoThrottleActive = parseInt(arrData[1]);
                 break;
-                                                    default:
+            case "nvs":
+                data.navState = parseInt(arrData[1]);
+                break;
+            default:
                 break;
         }
     }

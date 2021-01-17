@@ -334,6 +334,52 @@ function updateDataView(data)
         document.getElementById("flightTimePlaceHolder").innerHTML = secondsToNiceTime(data.powerTime);
     }
 
+    // Status Text - When Slowblink is true, show UI messages. When it's false, show aircraft messages
+    if(blinkSlowSwitch)
+    {
+        // UI messages
+        if(blinkFastSwitch)
+        {
+            var dtNow = new Date();
+            var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);
+
+            if(!mqttConnected)
+                document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
+            else if(timeSinceLastMessage >= 5)
+                document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
+            else
+                document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
+        }
+        else
+        {
+            document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
+        }
+    }
+    else
+    {
+        // Aircraft messages
+        if(blinkFastSwitch)
+        {
+            if(data.navState == 2)
+                document.getElementById("statusPlaceHolder").innerHTML = "En route to home";
+            else if(data.navState == 5)
+                document.getElementById("statusPlaceHolder").innerHTML = "En route to WP " + data.currentWaypointNumber + "/" + data.waypointCount;
+            else if(data.navState == 9)
+                document.getElementById("statusPlaceHolder").innerHTML = "Landing";
+            else if(data.navState == 14)
+                document.getElementById("statusPlaceHolder").innerHTML = "Emergency landing";
+            else
+                document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
+        }
+        else
+        {
+            if(data.isFailsafeActive)
+                document.getElementById("statusPlaceHolder").innerHTML = "!RX RC Link lost!";
+            else
+                document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
+        }
+    }
+
 
 
 }

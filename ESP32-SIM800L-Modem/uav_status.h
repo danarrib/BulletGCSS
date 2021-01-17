@@ -66,6 +66,7 @@ struct uav_status
     uint32_t flightTime; 
     uint8_t throttlePercent;
     uint8_t autoThrottle; 
+    uint8_t navState;
     
 } __attribute__((packed));
 

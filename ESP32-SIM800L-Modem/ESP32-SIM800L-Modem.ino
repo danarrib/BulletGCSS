@@ -396,9 +396,10 @@ void msp_get_nav_status() {
     MSP_NAV_STATUS_t inavdata;
     if (msp.request(MSP_NAV_STATUS, &inavdata, sizeof(inavdata)))
     {
-      //SerialMon.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
+      SerialMon.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
 
       uavstatus.currentWaypointNumber = inavdata.activeWpNumber;
+      uavstatus.navState = inavdata.state;
       //uavstatus.waypointCount = inavdata.waypointCount;
 
       lastMspCommunicationTs = millis();
@@ -836,6 +837,8 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.gpsGroundCourse != uavstatus.gpsGroundCourse || msgGroup == 0)
     sprintf(message, "%sggc:%d,", message, uavstatus.gpsGroundCourse); // gpsGroundCourse
 
+  if(lastStatus.navState != uavstatus.navState || msgGroup == 0)
+    sprintf(message, "%snvs:%d,", message, uavstatus.navState); // navState
 
 
   // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message
