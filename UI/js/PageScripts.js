@@ -121,6 +121,7 @@ window.onload = function(event) {
 
         // Render stuff
         drawAircraftOnMap(data);
+        drawAircraftPathOnMap(data);
         updateDataView(data);
     }, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
@@ -136,7 +137,6 @@ window.onload = function(event) {
         drawMissionOnMap(data);
         drawHomeOnMap(data);
         drawUserOnMap(data);
-        drawAircraftPathOnMap(data);
 
         // Center map
         if(user_moved_map == true)

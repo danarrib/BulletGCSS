@@ -187,14 +187,17 @@ function drawEfisHeadingIndicator() {
     var lineY1 = numberY + (efis.fontSize);
     var lineY2 = numberY + (efis.fontSize * 0.1);
 
-    for(i=0; i<=359; i+=efis.AHIStepsDeg) {
+    for(i=0; i <= (359 + efis.horizontalFOV); i+=efis.AHIStepsDeg) {
         var startingPosX = (efis.efisWidth / 2) - (data.heading * (efis.efisWidth / efis.horizontalFOV));
         var numberX = startingPosX + (i * (efis.efisWidth / efis.horizontalFOV) );
         var numberXNeg = startingPosX + (-i * (efis.efisWidth / efis.horizontalFOV) );
-        var txtAngle = pad(i, 3);
+        var nAngle = i;
+        if(nAngle > 359)
+            nAngle = nAngle - 360;
+        var txtAngle = pad(nAngle, 3);
         var txtAngleNeg = pad(360 - i, 3);
 
-        if(i==0) {
+        if(i==0 || i== 360) {
             txtAngle = "N";
             txtAngleNeg = "N";
         }

@@ -52,7 +52,7 @@ var aircraftIconStyle = new ol.style.Style({
         anchorYUnits: 'fraction',
         opacity: 1.0,
         src: 'img/aircraft.png', 
-        scale: (0.05 * window.devicePixelRatio),
+        scale: (0.04 * window.devicePixelRatio),
         rotateWithView: true
         })
 });
@@ -90,7 +90,7 @@ function drawAircraftOnMap(data)
     aircraftIconStyle.getImage().setRotation(AngleToRadians(data.heading));
 }
 
-// Add Aircraft Map Stuff
+// Add User Map Stuff
 var userIconFeatures = [];
 
 var userIconStyle = new ol.style.Style({
@@ -99,8 +99,8 @@ var userIconStyle = new ol.style.Style({
         anchorXUnits: 'fraction',
         anchorYUnits: 'fraction',
         opacity: 1.0,
-        src: 'img/cellphone.png', 
-        scale: (0.04 * window.devicePixelRatio),
+        src: 'img/user.png', 
+        scale: (0.06 * window.devicePixelRatio),
         rotateWithView: true
         })
 });
@@ -193,25 +193,51 @@ function drawHomeOnMap(data)
 // Add Waypoints Map Stuff
 var waypointIconFeatures = [];
 
-var waypointIconStyle = new ol.style.Style({
-    image: new ol.style.Icon({
-        anchor: [0.5, 0.9],
-        anchorXUnits: 'fraction',
-        anchorYUnits: 'fraction',
-        opacity: 1.0,
-        src: 'img/map_pin_blue.png', 
-        scale: (0.10 * window.devicePixelRatio),
-        rotateWithView: false,
-    })
-});
-
 var waypointVectorSource = new ol.source.Vector({
     features: waypointIconFeatures //add an array of features
 });
 
+function fn_waypointIconStyle(feature)
+{
+    var wp_number = parseInt(feature.get("name"));
+    var icon = 'img/map_pin_gray.png'
+    if(data.currentWaypointNumber ==  wp_number)
+        icon = 'img/map_pin_green.png'
+    else if(data.currentWaypointNumber < wp_number)
+        icon = 'img/map_pin_blue.png'
+
+    var wp_iconStyle = new ol.style.Style({
+        image: new ol.style.Icon({
+            anchor: [0.5, 0.9],
+            anchorXUnits: 'fraction',
+            anchorYUnits: 'fraction',
+            opacity: 1.0,
+            src: icon, 
+            scale: (0.10 * window.devicePixelRatio),
+            rotateWithView: false,
+        }),
+        text: new ol.style.Text({
+			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
+			fill: new ol.style.Fill({ color: '#000' }),
+			stroke: new ol.style.Stroke({
+              color: '#fff', 
+              width: (2 * window.devicePixelRatio)
+			}),
+            // get the text from the feature - `this` is ol.Feature
+            // and show only under certain resolution
+            text: wp_number.toString(),
+            offsetX: 0,
+            offsetY: (-24 * window.devicePixelRatio)
+		})
+    });
+
+    return wp_iconStyle;
+}
+
 var waypointVectorLayer = new ol.layer.Vector({
     source: waypointVectorSource,
-    style: waypointIconStyle,
+    //style: waypointIconStyle,
+    style: fn_waypointIconStyle,
 });
 
 var linesFeatures = [];
@@ -331,6 +357,12 @@ function drawAircraftPathOnMap(data)
     // First, add the waypoint to the Array if the aircraft is armed
     if(data.uavIsArmed)
     {
+        if(data.currentFlightWaypoints.length > 3600) // 7200 Waypoints means 30 minutes of flight, two waypoints per second.
+        {
+            // Remove the oldest waypoint
+            data.currentFlightWaypoints.shift();
+        }
+
         var wpCount = data.currentFlightWaypoints.length;
 
         var waypoint = {

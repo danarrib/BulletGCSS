@@ -224,7 +224,7 @@ function parseStandardTelemetryMessage(payload)
                 data.pitchAngle = parseFloat(arrData[1] / 10.0);
                 break;
             case "hea":
-                data.heading = parseFloat(arrData[1] / 10.0);
+                data.heading = parseFloat(arrData[1]);
                 break;
             case "alt":
                 data.altitude = parseInt(arrData[1]);

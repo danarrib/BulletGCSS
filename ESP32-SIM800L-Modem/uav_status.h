@@ -36,6 +36,7 @@ struct uav_status
     int16_t altitude;
     int16_t groundSpeed;
     int16_t heading;
+    int16_t gpsGroundCourse;
     int16_t homeDistance;
     int16_t homeDirection;
     int16_t rollAngle;

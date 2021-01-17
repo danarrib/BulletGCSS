@@ -320,7 +320,7 @@ void msp_get_gps()
       uavstatus.gpsLongitude = gpsdata.lon / GPS_DEGREES_DIVIDER;
       uavstatus.altitudeSeaLevel = gpsdata.alt;
       uavstatus.groundSpeed = gpsdata.groundSpeed;
-      uavstatus.heading = gpsdata.groundCourse / 10.0f;
+      uavstatus.gpsGroundCourse = gpsdata.groundCourse / 10.0f;
       uavstatus.gps3Dfix = gpsdata.fixType == 2 ? 1 : 0;
 
       lastMspCommunicationTs = millis();
@@ -352,6 +352,7 @@ void msp_get_attitude() {
     {
       uavstatus.rollAngle = inavdata.roll;
       uavstatus.pitchAngle = inavdata.pitch;
+      uavstatus.heading = inavdata.yaw;
 
       lastMspCommunicationTs = millis();
     }
@@ -831,6 +832,10 @@ void buildTelemetryMessage(char* message) {
 
   if(lastStatus.autoThrottle != uavstatus.autoThrottle || msgGroup == 9)
     sprintf(message, "%satt:%d,", message, uavstatus.autoThrottle); // autoThrottle
+
+  if(lastStatus.gpsGroundCourse != uavstatus.gpsGroundCourse || msgGroup == 0)
+    sprintf(message, "%sggc:%d,", message, uavstatus.gpsGroundCourse); // gpsGroundCourse
+
 
 
   // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message
