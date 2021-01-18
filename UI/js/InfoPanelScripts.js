@@ -121,10 +121,26 @@ function getN(a, e, latitude) {
 
 function metersToNiceDistance(meters)
 {
-    if(meters > 9999)
-        return (meters / 1000).toFixed(1) + " km";
-    else
-        return meters + "m";
+    if(uiElementsUnits.distanceUnit == "km")
+    {
+        if(meters > 9999)
+            return (meters / 1000).toFixed(1) + " km";
+        else
+            return meters + " m";
+    }
+    else if(uiElementsUnits.distanceUnit == "mi")
+    {
+        var miles = meters * uiElementsUnits.distanceMetersToMilesFactor;
+        if(miles < 0.25)
+            return (meters * uiElementsUnits.distanceMetersToFeetFactor).toFixed(0) + " ft";
+        else
+            return miles.toFixed(1) + " mi";
+    }
+    else if(uiElementsUnits.distanceUnit == "nm")
+    {
+        var nMiles = meters * uiElementsUnits.distanceMetersToNauticalMilesFactor;
+        return nMiles.toFixed(1) + " Nm";
+    }
 }
 
 function getConnectionIcon()
@@ -284,15 +300,44 @@ function updateDataView(data)
     document.getElementById("activeModePlaceHolder").className = armedClass;
 
     document.getElementById("coordinatesPlaceHolder").innerHTML = '<a style="cursor: pointer; color: #00BFFF;" onclick="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');" ontouchstart="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');">' + PlusCodeCoordinates + '</a>';
+    
+    
     document.getElementById("homeDistancePlaceHolder").innerHTML = metersToNiceDistance(data.homeDistance);
 
     document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP + ' hdop]</font>';
     document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
 
-    document.getElementById("callsignPlaceHolder").innerHTML = data.callsign;
+    document.getElementById("callsignPlaceHolder").innerHTML = data.callsign.length > 0 ? data.callsign : "&nbsp;";
 
-    document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
-    document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
+    if(uiElementsUnits.currentUnit == "a")
+    {
+        document.getElementById("ampDrawPlaceHolder").innerHTML = data.currentDraw + " A";
+        document.getElementById("ampDrawLabel").innerHTML = "Curr Draw";
+        
+    }
+    else if(uiElementsUnits.currentUnit == "w")
+    {
+        document.getElementById("ampDrawPlaceHolder").innerHTML = (data.currentDraw * data.batteryVoltage).toFixed(0) + " W";
+        document.getElementById("ampDrawLabel").innerHTML = "Pwr Draw";
+    }
+
+    if(uiElementsUnits.capacityUnit == "mah")
+    {
+        document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
+        document.getElementById("capacityLabel").innerHTML = "mAh used";
+    }
+    else if(uiElementsUnits.capacityUnit == "mwh")
+    {
+        if(data.mWhDraw < 1000) {
+            document.getElementById("mAhUsedPlaceHolder").innerHTML = data.mWhDraw + " mWh";
+            document.getElementById("capacityLabel").innerHTML = "mWh used";
+        }
+        else
+        {
+            document.getElementById("mAhUsedPlaceHolder").innerHTML = (data.mWhDraw / 1000).toFixed(1) + " Wh";
+            document.getElementById("capacityLabel").innerHTML = "Wh used";
+        }
+    }
 
     document.getElementById("throttlePlaceHolder").innerHTML = data.throttlePercent + " %";
     if(data.isAutoThrottleActive)
@@ -302,10 +347,33 @@ function updateDataView(data)
 
 
     var mAhPerKm = 0;
-    if(data.groundSpeed > 0 && data.currentDraw > 0)
+    if(data.groundSpeed > 0 && data.currentDraw > 0) 
+    {
         mAhPerKm = ((data.currentDraw / 60) * 1000 ) / ( (data.groundSpeed * efis.SpeedUnitFactor) / 60);
+        var mAhPerMi = mAhPerKm * 1.60934;
 
-    document.getElementById("efficiencyPlaceHolder").innerHTML = mAhPerKm.toFixed(0) + " mAh/Km";
+        if(uiElementsUnits.efficiencyUnit == "mahkm")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = mAhPerKm.toFixed(0) + " mAh/Km";
+        }
+        else if(uiElementsUnits.efficiencyUnit == "mwhkm")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = (mAhPerKm * data.batteryVoltage).toFixed(0) + " mWh/Km";
+        }
+        else if(uiElementsUnits.efficiencyUnit == "mahmi")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = mAhPerMi.toFixed(0) + " mAh/mi";
+        }
+        else if(uiElementsUnits.efficiencyUnit == "mwhmi")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = (mAhPerMi * data.batteryVoltage).toFixed(0) + " mWh/mi";
+        }
+    }
+    else
+    {
+        document.getElementById("efficiencyPlaceHolder").innerHTML = "--";
+    }
+
 
     document.getElementById("rssiPlaceHolder").innerHTML = data.rssiPercent + " %";
     if(data.rssiPercent <= 20)
@@ -325,7 +393,7 @@ function updateDataView(data)
 
     if(blinkSlowSwitch || data.uavIsArmed)
     {
-        document.getElementById("flightTimeLabel").innerHTML = "Flight time";
+        document.getElementById("flightTimeLabel").innerHTML = "Flt time";
         document.getElementById("flightTimePlaceHolder").innerHTML = secondsToNiceTime(data.flightTime);
     }
     else
@@ -338,7 +406,7 @@ function updateDataView(data)
     if(blinkSlowSwitch)
     {
         // UI messages
-        if(blinkFastSwitch)
+        if(blinkFastSwitch || 1==1)
         {
             var dtNow = new Date();
             var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);

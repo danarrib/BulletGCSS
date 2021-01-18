@@ -354,25 +354,6 @@ var flightLineVectorLayer = new ol.layer.Vector({
 
 function drawAircraftPathOnMap(data)
 {
-    // First, add the waypoint to the Array if the aircraft is armed
-    if(data.uavIsArmed)
-    {
-        if(data.currentFlightWaypoints.length > 3600) // 7200 Waypoints means 30 minutes of flight, two waypoints per second.
-        {
-            // Remove the oldest waypoint
-            data.currentFlightWaypoints.shift();
-        }
-
-        var wpCount = data.currentFlightWaypoints.length;
-
-        var waypoint = {
-            wpLatitude: data.gpsLatitude,
-            wpLongitude: data.gpsLongitude,
-        };
-
-        data.currentFlightWaypoints[wpCount] = waypoint;
-    }
-
     // Now, render the flight line
     flightLineVectorSource.clear();
     flightLineFeatures = [];
@@ -431,6 +412,9 @@ var geoOptions = {
 var watchPositionId;
 
 function getUserLocation() {
+    if(window.location.protocol === 'file:')
+        return;
+        
     if (navigator.geolocation) {
         watchPositionId = navigator.geolocation.watchPosition(getUserPosition, showUserLocationError, geoOptions);
     } else { 

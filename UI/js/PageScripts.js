@@ -34,7 +34,7 @@ function openNav() {
     document.getElementById("installhomelink").style.display = isRunningStandalone() ? "none" : "";
 
     // Not implemented yet
-    document.getElementById("uisettingslink").style.display = "none";
+    //document.getElementById("uisettingslink").style.display = "none";
     document.getElementById("missionplannerlink").style.display = "none";
     document.getElementById("senduavcommandlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
@@ -88,6 +88,156 @@ function closeBrokerSettings() {
     document.getElementById("brokerSettings").style.width = "0";
 }
 
+
+
+
+
+function openUISettings() 
+{
+    setRadioValue("ui_speed", localStorage.getItem("ui_speed"))
+    setRadioValue("ui_distance", localStorage.getItem("ui_distance"))
+    setRadioValue("ui_altitude", localStorage.getItem("ui_altitude"))
+    setRadioValue("ui_current", localStorage.getItem("ui_current"))
+    setRadioValue("ui_capacity", localStorage.getItem("ui_capacity"))
+    setRadioValue("ui_efficiency", localStorage.getItem("ui_efficiency"))
+
+    document.getElementById("uiSettings").style.width = "100%";
+}
+
+function saveUISettings()
+{
+    localStorage.setItem("ui_speed", getRadioValue("ui_speed") );
+    localStorage.setItem("ui_distance", getRadioValue("ui_distance") );
+    localStorage.setItem("ui_altitude", getRadioValue("ui_altitude") );
+    localStorage.setItem("ui_current", getRadioValue("ui_current") );
+    localStorage.setItem("ui_capacity", getRadioValue("ui_capacity") );
+    localStorage.setItem("ui_efficiency", getRadioValue("ui_efficiency") );
+
+    setUIUnits();
+    closeUISettings();
+    closeNav();
+}
+
+var uiElementsUnits = {
+    distanceUnit: "km",
+    distanceMetersToYardsFactor: 1.09361,
+    distanceMetersToMilesFactor: 0.000621371,
+    distanceMetersToFeetFactor: 3.28084,
+    distanceMetersToNauticalMilesFactor: 0.000539957,
+    speedUnit: "kmh",
+    speedCmsToKmhFactor: 0.036,
+    speedCmsToMphFactor: 0.0223694,
+    speedCmsToKtFactor: 0.0194384,
+    speedCmsToMsFactor: 0.01,
+    altitudeUnit: "km",
+    altitudeCmToFeetFactor: 30.48,
+    altitudeCmToMFactor: 100,
+    currentUnit: "a",
+    capacityUnit: "mah",
+};
+
+function setUIUnits()
+{
+    // Check if there's parameters set and set it now
+    if(localStorage.getItem("ui_speed") === null)
+        localStorage.setItem("ui_speed", "kmh" );
+
+    if(localStorage.getItem("ui_distance") === null)
+        localStorage.setItem("ui_distance", "km" );
+
+    if(localStorage.getItem("ui_altitude") === null)
+        localStorage.setItem("ui_altitude", "m" );
+
+    if(localStorage.getItem("ui_current") === null)
+        localStorage.setItem("ui_current", "a" );
+
+    if(localStorage.getItem("ui_capacity") === null)
+        localStorage.setItem("ui_capacity", "mah" );
+
+    if(localStorage.getItem("ui_efficiency") === null)
+        localStorage.setItem("ui_efficiency", "mahkm" );
+
+    // Set the UI elements
+    uiElementsUnits.distanceUnit = localStorage.getItem("ui_distance");
+    uiElementsUnits.speedUnit = localStorage.getItem("ui_speed");
+    uiElementsUnits.altitudeUnit = localStorage.getItem("ui_altitude");
+    uiElementsUnits.currentUnit = localStorage.getItem("ui_current");
+    uiElementsUnits.capacityUnit = localStorage.getItem("ui_capacity");
+    uiElementsUnits.efficiencyUnit = localStorage.getItem("ui_efficiency");
+
+    if(uiElementsUnits.speedUnit == "kmh")
+    {
+        efis.SpeedUnitLabel = "Km/h";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKmhFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "mph")
+    {
+        efis.SpeedUnitLabel = "Mph";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMphFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "kt")
+    {
+        efis.SpeedUnitLabel = "Kt";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKtFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "ms")
+    {
+        efis.SpeedUnitLabel = "M/s";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMsFactor;
+    }
+
+    if(uiElementsUnits.altitudeUnit == "m")
+    {
+        efis.AltitudeUnitLabel = "m";
+        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToMFactor;
+        efis.AltitudeSmallTextNumber = 2;
+    }
+    else if(uiElementsUnits.altitudeUnit == "ft")
+    {
+        efis.AltitudeUnitLabel = "ft";
+        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToFeetFactor;
+        efis.AltitudeSmallTextNumber = 3;
+    }
+
+
+}
+
+setUIUnits();
+
+function getRadioValue(radioName) {
+    var ret = "";
+
+    var radios = document.getElementsByName(radioName);
+
+    for (i=0; i < radios.length; i++)
+    {
+        if(radios[i].checked)
+        {
+            ret = radios[i].value;
+            break;
+        }
+    }
+    return ret;
+}
+
+function setRadioValue(radioName, value) {
+    var radios = document.getElementsByName(radioName);
+
+    for (i=0; i < radios.length; i++)
+    {
+        if(radios[i].value == value)
+        {
+            radios[i].checked = true;
+            break;
+        }
+    }
+}
+
+function closeUISettings() {
+    document.getElementById("uiSettings").style.width = "0";
+}
+
+
 function reloadApplication()
 {
     window.location.reload();
@@ -131,13 +281,29 @@ window.onload = function(event) {
         drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
         updateDataView(data);
-    }, 500); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
+    }, 250); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
     var timerOneSecond = setInterval(function(){ 
         // Update Flight Time and Power Time
         data.powerTime++;
         if(data.uavIsArmed)
+        {
             data.flightTime++;
+
+            // Remove the oldest waypoint if there are too many waypoints
+            if(data.currentFlightWaypoints.length > 3600) // 3600 Waypoints means 1 hour of flight with 1 waypoint per second
+                data.currentFlightWaypoints.shift();
+    
+            var wpCount = data.currentFlightWaypoints.length;
+    
+            var waypoint = {
+                wpLatitude: data.gpsLatitude,
+                wpLongitude: data.gpsLongitude,
+            };
+    
+            data.currentFlightWaypoints[wpCount] = waypoint;
+    
+        }
             
     }, 1000);
 
@@ -154,7 +320,6 @@ window.onload = function(event) {
 
     }, 5000);
     
-
     var timerBlinkSlow = setInterval(function(){ 
         blinkSlowSwitch = !blinkSlowSwitch;
     }, 2000);

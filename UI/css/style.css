@@ -47,7 +47,10 @@ body {
 .tblDataView {
     width: 100%;
     align-self: center;
-    margin: 1em;
+    margin-left: 1em;
+    margin-right: 1em;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 .tblDataViewCellHeader {
@@ -147,7 +150,8 @@ body {
 
   /* The sidebar links */
   .sidebar a,
-  #brokerSettings a
+  #brokerSettings a,
+  #uiSettings a
   {
     padding: 2vmin 2vmin 2vmin 4vmin;
     text-decoration: none;
@@ -171,20 +175,23 @@ body {
 
   /* When you mouse over the navigation links, change their color */
   .sidebar a:hover,
-  #brokerSettings a:hover
+  #brokerSettings a:hover,
+  #uiSettings a:hover
   {
     color: #FFF;
   }
 
   .sidebar a:focus,
-  #brokerSettings a:focus
+  #brokerSettings a:focus,
+  #uiSettings a:focus
   {
     color: #3F3;
   }
 
   /* Position and style the close button (top right corner) */
   .sidebar .closebtn,
-  #brokerSettings .closebtn
+  #brokerSettings .closebtn,
+  #uiSettings .closebtn
   {
     position: absolute;
     top: 0;
@@ -193,7 +200,8 @@ body {
     margin-left: 2vmin;
   }
   
-#brokerSettings
+#brokerSettings,
+#uiSettings
 {
     height: 100%;
     width: 0;
@@ -205,9 +213,11 @@ body {
     overflow-x: auto;
     padding-top: 4vmin;
     transition: 0.5s;
+    font-size: 0.75em;
 }
 
-#brokerSettings p
+#brokerSettings p,
+#uiSettings p
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -215,7 +225,8 @@ body {
     margin-top: 0.5em;
 }
 
-#brokerSettings h3
+#brokerSettings h3,
+#uiSettings h3
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -225,29 +236,21 @@ body {
 
 #brokerSettings input[type=text],
 #brokerSettings input[type=button],
-#brokerSettings input[type=password]
+#brokerSettings input[type=password],
+#uiSettings input[type=text],
+#uiSettings input[type=button],
+#uiSettings input[type=password]
 {
     font-size: 1em;
     width: 90%;
 }
 
-#brokerSettings input[type=button]
+#brokerSettings input[type=button],
+#uiSettings input[type=button]
 {
     font-size: 1em;
     width: 90%;
     height: 2em;
-}
-
-#brokerSettings input[type=checkbox]
-{
-    transform: scale(2.5);
-    margin-left: 1em;
-    margin-right: 1em;
-}
-
-.checkboxtext
-{
-    display: inline;
 }
 
 .settingsColumn {
@@ -326,3 +329,144 @@ body {
         }
     }
 }
+
+
+
+/* Customize the label (the container) */
+.checkboxtext {
+    display: block;
+    position: relative;
+    padding-left: 1.2em;
+    margin-bottom: 0.5em;
+    cursor: pointer;
+    font-size: 1em;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Hide the browser's default checkbox */
+  .checkboxtext input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+  }
+  
+  /* Create a custom checkbox */
+  .checkmark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 1em;
+    width: 1em;
+    background-color: #eee;
+  }
+  
+  /* On mouse-over, add a grey background color */
+  .checkboxtext:hover input ~ .checkmark {
+    background-color: #ccc;
+  }
+  
+  /* When the checkbox is checked, add a blue background */
+  .checkboxtext input:checked ~ .checkmark {
+    background-color: #2196F3;
+  }
+  
+  /* Create the checkmark/indicator (hidden when not checked) */
+  .checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+  }
+  
+  /* Show the checkmark when checked */
+  .checkboxtext input:checked ~ .checkmark:after {
+    display: block;
+  }
+  
+  /* Style the checkmark/indicator */
+  .checkboxtext .checkmark:after {
+    left: 0.25em;
+    top: 0;
+    width: 0.3em;
+    height: 0.6em;
+    border: solid white;
+    border-width: 0 0.2em 0.2em 0;
+    -webkit-transform: rotate(45deg);
+    -ms-transform: rotate(45deg);
+    transform: rotate(45deg);
+  }
+
+
+
+
+
+  /* Customize the label (the container) */
+.radiobuttontext {
+    /* display: block; */
+    position: relative;
+    padding-left: 1.2em;
+    padding-right: 0.8em;
+    margin-bottom: 0.5em;
+    cursor: pointer;
+    font-size: 1em;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Hide the browser's default radio button */
+  .radiobuttontext input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+  }
+  
+  /* Create a custom radio button */
+  .radiomark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 1em;
+    width: 1em;
+    background-color: #eee;
+    border-radius: 50%;
+  }
+  
+  /* On mouse-over, add a grey background color */
+  .radiobuttontext:hover input ~ .radiomark {
+    background-color: #ccc;
+  }
+  
+  /* When the radio button is checked, add a blue background */
+  .radiobuttontext input:checked ~ .radiomark {
+    background-color: #2196F3;
+  }
+  
+  /* Create the indicator (the dot/circle - hidden when not checked) */
+  .radiomark:after {
+    content: "";
+    position: absolute;
+    display: none;
+  }
+  
+  /* Show the indicator (dot/circle) when checked */
+  .radiobuttontext input:checked ~ .radiomark:after {
+    display: block;
+  }
+  
+  /* Style the indicator (dot/circle) */
+  .radiobuttontext .radiomark:after {
+    top: 0.25em;
+    left: 0.25em;
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    background: white;
+  }

@@ -44,7 +44,8 @@ struct uav_status
     int16_t verticalSpeed;
     double batteryVoltage;
     double currentDraw;
-    int16_t capacityDraw;
+    int32_t capacityDraw;
+    int32_t mWhDraw;
     uint8_t rssiPercent;
     uint8_t fuelPercent;
     double averageCellVoltage;

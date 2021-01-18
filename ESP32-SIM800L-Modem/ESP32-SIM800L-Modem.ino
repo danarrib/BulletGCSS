@@ -396,7 +396,7 @@ void msp_get_nav_status() {
     MSP_NAV_STATUS_t inavdata;
     if (msp.request(MSP_NAV_STATUS, &inavdata, sizeof(inavdata)))
     {
-      SerialMon.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
+      // SerialMon.printf("mode: %d | state: %d | activeWpAction: %d | activeWpNumber: %d | error: %d| HeadingHoldTarget: %d\n", inavdata.mode, inavdata.state, inavdata.activeWpAction, inavdata.activeWpNumber, inavdata.error, inavdata.HeadingHoldTarget);
 
       uavstatus.currentWaypointNumber = inavdata.activeWpNumber;
       uavstatus.navState = inavdata.state;
@@ -416,6 +416,7 @@ void msp2_get_inav_analog() {
     {
       uavstatus.batteryVoltage = inavdata.batteryVoltage / 100.0f;
       uavstatus.capacityDraw = inavdata.mAhDraw;
+      uavstatus.mWhDraw = inavdata.mWhDraw;
       uavstatus.currentDraw = inavdata.currentDraw / 100.0f;
       uavstatus.rssiPercent = inavdata.rssi / 10.0f;
       uavstatus.fuelPercent = inavdata.batteryPercentage;
@@ -839,6 +840,10 @@ void buildTelemetryMessage(char* message) {
 
   if(lastStatus.navState != uavstatus.navState || msgGroup == 0)
     sprintf(message, "%snvs:%d,", message, uavstatus.navState); // navState
+
+  if(lastStatus.mWhDraw != uavstatus.mWhDraw || msgGroup == 0)
+    sprintf(message, "%swhd:%d,", message, uavstatus.mWhDraw); // mWhDraw
+
 
 
   // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message

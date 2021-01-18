@@ -145,6 +145,7 @@ var data = {
     throttlePercent: 0,
     isAutoThrottleActive: 0,
     navState: 0,
+    mWhDraw: 0,
 };
 
 function parseWaypointMessage(payload) {
@@ -340,6 +341,9 @@ function parseStandardTelemetryMessage(payload)
                 break;
             case "nvs":
                 data.navState = parseInt(arrData[1]);
+                break;
+            case "whd":
+                data.mWhDraw = parseInt(arrData[1]);
                 break;
             default:
                 break;
