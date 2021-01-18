@@ -213,7 +213,7 @@ body {
     overflow-x: auto;
     padding-top: 4vmin;
     transition: 0.5s;
-    font-size: 0.75em;
+    font-size: 0.9em;
 }
 
 #brokerSettings p,
@@ -317,20 +317,21 @@ body {
         }
         
         .sidebar a,
-        #brokerSettings a
+        #brokerSettings a,
+        #uiSettings a
         {
             padding-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
 
         #brokerSettings p,
-        #brokerSettings h3
+        #brokerSettings h3,
+        #uiSettings p,
+        #uiSettings h3
         {
             margin-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
     }
 }
-
-
 
 /* Customize the label (the container) */
 .checkboxtext {
@@ -399,10 +400,6 @@ body {
     -ms-transform: rotate(45deg);
     transform: rotate(45deg);
   }
-
-
-
-
 
   /* Customize the label (the container) */
 .radiobuttontext {
