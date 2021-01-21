@@ -68,6 +68,9 @@
 	<script src="ol/ol.js?uid=(UNIQUEID)"></script>
 	<script src="js/olc.min.js?uid=(UNIQUEID)"></script>
 	<script src="js/NoSleep.min.js?uid=(UNIQUEID)"></script>
+	<script type="text/javascript">
+		    var currentVersion = "(UNIQUEID)";
+	</script>
   </head>
   <body>
     <div id="container">
@@ -81,7 +84,10 @@
 						<img alt="Battery remaining capacity icon" class="statusIcon" id="batteryIcon" src="img/battery_0.png" />
 						<img alt="Aircraft GPS status icon" class="statusIcon" id="gpsIcon" src="img/gps_bad.png" />
 						<img alt="Aircraft Hardware health status icon" class="statusIcon" id="hardwareHealthIcon" src="img/health_error.png" />
-						<img alt="Side menu button" class="statusIcon rightIcon" id="gearIcon" src="img/whitegear.png" onclick="openNav();" />
+						<span class="rightIcon">
+							<img alt="Side menu button" class="statusIcon" id="gearIcon" src="img/whitegear.png" onclick="openNav();" />
+							<span class="badge" id="gearIconBadge">&nbsp;</span>
+						</span>
 					</td>
 				</tr>
 				<tr>
@@ -148,7 +154,10 @@
 		<a href="#" id="senduavcommandlink">Send command to UAV</a>
 		<a href="#" id="inavsettingslink">INAV settings...</a>
 		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help - Online manual</a>
-		<a href="javascript:void(0)" onclick="reloadApplication();">Refresh App</a>
+		<a href="javascript:void(0)" onclick="reloadApplication();" class="notification">
+			Refresh App
+			<span class="badge" id="refreshMenuBadge" style="top:0.2em;">&nbsp;</span>
+		</a>
 		<a href="#" id="installhomelink">Install on home screen</a>
 
 		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</a>
@@ -174,6 +183,9 @@
 				</p>
 				<p>
 					<input type="button" id="btSaveBrokerSettings" onclick="saveBrokerSettings();" value="Save" />
+				</p>
+				<p>
+					<input type="button" id="btResetBrokerSettings" onclick="resetBrokerSettings();" value="Reset to default" />
 				</p>
 			</div>
 		</div>

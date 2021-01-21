@@ -1,17 +1,19 @@
 // Setup MQTT
 
+function MQTTSetDefaultSettings() 
+{
+    localStorage.setItem("mqttHost", "broker.emqx.io");
+    localStorage.setItem("mqttPort", "8084");
+    localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+    localStorage.setItem("mqttUseTLS", "true");
+    localStorage.removeItem("mqttUser");
+    localStorage.removeItem("mqttPass");
+
+}
+
 // If there's no saved settings, save a default one
 if (localStorage.getItem("mqttHost") === null)
-    localStorage.setItem("mqttHost", "broker.emqx.io");
-
-if (localStorage.getItem("mqttPort") === null)
-    localStorage.setItem("mqttPort", "8084");
-
-if (localStorage.getItem("mqttTopic") === null)
-    localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
-
-if (localStorage.getItem("mqttUseTLS") === null)
-    localStorage.setItem("mqttUseTLS", "true");
+    MQTTSetDefaultSettings() 
 
 host = localStorage.getItem("mqttHost");	// hostname or IP address
 port = parseInt(localStorage.getItem("mqttPort"));

@@ -84,6 +84,17 @@ function saveBrokerSettings()
     closeNav();
 }
 
+function resetBrokerSettings()
+{
+    MQTTSetDefaultSettings();
+
+    if(mqttConnected )
+        mqtt.disconnect();
+
+    closeBrokerSettings();
+    closeNav();
+}
+
 function closeBrokerSettings() {
     document.getElementById("brokerSettings").style.width = "0";
 }
@@ -251,6 +262,41 @@ function isRunningStandalone()
     return isInWebAppiOS || isInWebAppChrome;
 }
 
+var newUIVersionAvailable = false;
+
+function checkforNewUIVersion() {
+    var xmlhttp = new XMLHttpRequest();
+
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState == XMLHttpRequest.DONE) 
+        {
+            if (xmlhttp.status == 200) 
+            {
+                console.log(xmlhttp.responseText);
+                var jsonResponse = JSON.parse(xmlhttp.responseText);
+                console.log(jsonResponse);
+                
+                if(jsonResponse.lastVersion != currentVersion)
+                {
+                    newUIVersionAvailable = true;
+                    console.log("New UI version available!");
+                    document.getElementById("refreshMenuBadge").style.display = "inline";
+                    document.getElementById("gearIconBadge").style.display = "inline";
+                }
+
+            }
+            else 
+            {
+                console.log("Error checking for newer UI version. Status: " + xmlhttp.status);
+                console.log("Response text: " + xmlhttp.responseText);
+            }
+        }
+    };
+    var uiversionurl = "uiversion.json?t=" + new Date().getTime();
+    xmlhttp.open("GET", uiversionurl, true);
+    xmlhttp.send();
+}
+
 document.addEventListener("touchmove", function(e){
     e.preventDefault();
 },{passive: false});
@@ -307,6 +353,9 @@ window.onload = function(event) {
             
     }, 1000);
 
+    var lastTimeUIwasOpen = new Date().getTime();
+    checkforNewUIVersion();
+
     var timerLowPriorityTasks = setInterval(function(){ 
         drawMissionOnMap(data);
         drawHomeOnMap(data);
@@ -318,6 +367,15 @@ window.onload = function(event) {
         else
             centerMap(data);
 
+        // Check for ui update
+        var uiUpdateNow = new Date().getTime();
+        if(uiUpdateNow - lastTimeUIwasOpen > 15000) 
+        {
+            checkforNewUIVersion();
+        }
+        lastTimeUIwasOpen = uiUpdateNow;
+
+            
     }, 5000);
     
     var timerBlinkSlow = setInterval(function(){ 
