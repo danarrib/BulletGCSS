@@ -24,3 +24,4 @@ jobs:
             rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/
             sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
             sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/uiversion.json
