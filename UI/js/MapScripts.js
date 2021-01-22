@@ -200,6 +200,21 @@ var waypointVectorSource = new ol.source.Vector({
 function fn_waypointIconStyle(feature)
 {
     var wp_number = parseInt(feature.get("name"));
+    var wp_elevation = parseInt(feature.get("groundAltitude"));
+    var wp_action = parseInt(feature.get("wpAction"));
+    var wp_altitude = parseInt(feature.get("wpAltitude")) / 100;
+    var hp_altitudeSL = data.homeAltitudeSL;
+    var wp_groundAltitude = (hp_altitudeSL + wp_altitude) - wp_elevation;
+    var txtElevation = "";
+
+    if(wp_action == 1 && data.isCurrentMissionElevationSet)
+    {
+        txtElevation = "Elev: "  + wp_elevation.toFixed(0) + " m\n" +
+        "WP Alt: " + wp_altitude.toFixed(0) + " m\n" +
+        "GR Alt: " + wp_groundAltitude.toFixed(0) + " m";
+
+    }
+
     var icon = 'img/map_pin_gray.png'
     if(data.currentWaypointNumber ==  wp_number)
         icon = 'img/map_pin_green.png'
@@ -231,7 +246,23 @@ function fn_waypointIconStyle(feature)
 		})
     });
 
-    return wp_iconStyle;
+    var wp_textStyle = new ol.style.Style({
+        text: new ol.style.Text({
+			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
+			fill: new ol.style.Fill({ color: '#000' }),
+			stroke: new ol.style.Stroke({
+              color: '#fff', 
+              width: (2 * window.devicePixelRatio)
+            }),
+            textAlign: 'left',
+            // get the text from the feature - `this` is ol.Feature
+            // and show only under certain resolution
+            text: txtElevation,
+            offsetX: (20 * window.devicePixelRatio),
+            offsetY: (-20 * window.devicePixelRatio)
+		})
+    });
+    return [wp_iconStyle, wp_textStyle];
 }
 
 var waypointVectorLayer = new ol.layer.Vector({
@@ -289,6 +320,9 @@ function drawMissionOnMap(data) {
             var waypointIconFeature = new ol.Feature({
                 geometry: iconGeometry,
                 name: wp.waypointNumber,
+                groundAltitude: wp.elevation,
+                wpAltitude: wp.wpAltitude,
+                wpAction: wp.wpAction,
             });
 
             waypointIconFeatures.push(waypointIconFeature);
@@ -449,6 +483,81 @@ function getUserLocation() {
         break;
     }
   }
+
+function updateElevationData(elevData)
+{
+    for(i=0; i<elevData.results.length; i++)
+    {
+        // Find the WP with same coordinates
+        for(j=0; j< data.currentMissionWaypoints.length; j++)
+        {
+            if(data.currentMissionWaypoints[j].wpLatitude == elevData.results[i].latitude
+                && data.currentMissionWaypoints[j].wpLongitude == elevData.results[i].longitude)
+                {
+                    data.currentMissionWaypoints[j].elevation = elevData.results[i].elevation;
+                }
+        }
+    }
+    data.isCurrentMissionElevationSet = true;
+}
+
+var updatingWpAltitudes = false;
+
+function getMissionWaypointsAltitude()
+{
+    // If mission is not loaded, there's no need to process
+    if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
+        return;
+
+    if(data.waypointCount != (data.currentMissionWaypoints.length - 1))
+        return;
+
+    // First, build an object with all Waypoint coodinates
+    var arrWPs = { locations: [] };
+
+    for(i=1; i < data.currentMissionWaypoints.length; i++)
+    {
+        if(data.currentMissionWaypoints[i].wpLatitude == 0 && data.currentMissionWaypoints[i].wpLongitude == 0)
+            continue;
+            
+        arrWPs.locations.push({
+            latitude: data.currentMissionWaypoints[i].wpLatitude,
+            longitude: data.currentMissionWaypoints[i].wpLongitude,
+        });
+
+    }
+
+    // Now get the altitudes from API
+    var xmlhttp = new XMLHttpRequest();
+
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState == XMLHttpRequest.DONE) 
+        {
+            if (xmlhttp.status == 200) 
+            {
+                var jsonResponse = JSON.parse(xmlhttp.responseText);
+                console.log("Elevation Reply:")
+                console.log(jsonResponse);
+
+                updateElevationData(jsonResponse);
+            }
+            else 
+            {
+                console.log("Error getting waypoint altitudes from API. Status: " + xmlhttp.status);
+                console.log("Response text: " + xmlhttp.responseText);
+            }
+            updatingWpAltitudes = false;
+        }
+    };
+    updatingWpAltitudes = true;
+    var apiURL = "https://api.open-elevation.com/api/v1/lookup";
+    xmlhttp.open("POST", "proxy.php", true);
+    xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+    xmlhttp.setRequestHeader('Accept', '*/*');
+    xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
+    xmlhttp.send(JSON.stringify(arrWPs));
+}
+
 
 
 

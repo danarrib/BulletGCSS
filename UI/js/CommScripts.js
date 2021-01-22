@@ -148,9 +148,14 @@ var data = {
     isAutoThrottleActive: 0,
     navState: 0,
     mWhDraw: 0,
+    isCurrentMissionElevationSet: false,
 };
 
 function parseWaypointMessage(payload) {
+    // Don't update mission while fetching elevation data from server.
+    if(updatingWpAltitudes)
+        return;
+
     var wpno = 0;
     var arrPayload = payload.split(",");
     
@@ -164,6 +169,7 @@ function parseWaypointMessage(payload) {
         p2: 0,
         p3: 0,
         flag: 0,
+        elevation: 0,
     };
     
     for(var i=0; i < arrPayload.length; i++) {
@@ -201,15 +207,37 @@ function parseWaypointMessage(payload) {
             case "f":
                 waypoint.flag = parseInt(arrData[1]);
                 break;
+            case "el":
+                waypoint.elevation = parseInt(arrData[1]);
+                break;
             default:
                 break;
         }
     }
-    data.currentMissionWaypoints[wpno] = waypoint;
+
+    // Check if the loaded waypoint has the same coordinates as the previous one, and change only if it's different
+    if(data.currentMissionWaypoints.length <= wpno)
+    {
+        data.currentMissionWaypoints[wpno] = waypoint;
+        if(wpno > 0)
+            data.isCurrentMissionElevationSet = false;
+        return;
+    }
+    else if(data.currentMissionWaypoints[wpno].wpLatitude != waypoint.wpLatitude 
+    || data.currentMissionWaypoints[wpno].wpLongitude != waypoint.wpLongitude 
+    || data.currentMissionWaypoints[wpno].wpAltitude != waypoint.wpAltitude 
+    )
+    {
+        data.currentMissionWaypoints[wpno] = waypoint;
+        if(wpno > 0)
+            data.isCurrentMissionElevationSet = false;
+        return;
+    }
 }
 
 function clearCurrentMissionWaypoints() {
     data.currentMissionWaypoints = new Array();
+    data.isCurrentMissionElevationSet = false;
 }
 
 function parseStandardTelemetryMessage(payload)

@@ -272,9 +272,7 @@ function checkforNewUIVersion() {
         {
             if (xmlhttp.status == 200) 
             {
-                console.log(xmlhttp.responseText);
                 var jsonResponse = JSON.parse(xmlhttp.responseText);
-                console.log(jsonResponse);
                 
                 if(jsonResponse.lastVersion != currentVersion)
                 {
@@ -366,6 +364,14 @@ window.onload = function(event) {
             user_moved_map = false; // Set it false so the next time this routine will move the map
         else
             centerMap(data);
+
+        // Update Mission WP Elevation data
+        if(data.waypointCount > 0 && data.isCurrentMissionElevationSet == false
+        && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false)
+        {
+            console.log("Trying to get WP Elevation data");
+            getMissionWaypointsAltitude();
+        }
 
         // Check for ui update
         var uiUpdateNow = new Date().getTime();
