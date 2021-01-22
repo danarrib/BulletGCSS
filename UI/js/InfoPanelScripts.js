@@ -415,6 +415,8 @@ function updateDataView(data)
                 document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
             else if(timeSinceLastMessage >= 5)
                 document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
+            else if(updatingWpAltitudes)
+                document.getElementById("statusPlaceHolder").innerHTML = "Updating mission elevation";
             else
                 document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
         }
