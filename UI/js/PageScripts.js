@@ -367,7 +367,8 @@ window.onload = function(event) {
 
         // Update Mission WP Elevation data
         if(data.waypointCount > 0 && data.isCurrentMissionElevationSet == false
-        && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false)
+        && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false
+        && data.waypointCount == (data.currentMissionWaypoints.length - 1))
         {
             console.log("Trying to get WP Elevation data");
             getMissionWaypointsAltitude();

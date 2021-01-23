@@ -416,7 +416,7 @@ function updateDataView(data)
             else if(timeSinceLastMessage >= 5)
                 document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
             else if(updatingWpAltitudes)
-                document.getElementById("statusPlaceHolder").innerHTML = "Updating mission elevation";
+                document.getElementById("statusPlaceHolder").innerHTML = "Fetching WP elevation data...";
             else
                 document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
         }
