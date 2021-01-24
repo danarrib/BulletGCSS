@@ -103,6 +103,7 @@ uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t lastTelemetryPoolTimer = 0; // Used to control the Telemetry pooling task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
+uint16_t failureCounter = 0; // Count how many times it fails sending the messages
 
 // Box IDs (used to determine which flight modes are active)
 uint8_t boxIdArm = 0;
@@ -146,8 +147,17 @@ void connectToTheInternet() {
     // Wait for WiFi to connect
     while (WiFi.status() != WL_CONNECTED)
     {
-      delay(500); // Give WiFi some time to connect
       SerialMon.println("Connecting WiFi..");
+      delay(5000); // Give WiFi some time to connect
+      if(WiFi.status() != WL_CONNECTED)
+      {
+        failureCounter++;
+        if(failureCounter>=20)
+        {
+          SerialMon.println("Too many fails connecting to WiFi. Restarting...");
+          ESP.restart();
+        }
+      }
     }
   
     SerialMon.println("WiFi connected!");
@@ -240,6 +250,13 @@ void loop()
 {
   getTelemetryDataTask();
   sendMessageTask();
+
+  // Check the failure counter and reset everything if it's above 20.
+  if(failureCounter >= 20)  
+  {
+    SerialMon.println("Failure count is too high. Restarting everything...");
+    ESP.restart();
+  }
 }
 
 void getTelemetryDataTask() {
@@ -884,8 +901,15 @@ void buildLowPriorityMessage(char* message) {
 }
 
 void sendMessage(char* message) {
-  client.publish(mqttTopic, message);
-  SerialMon.println("Message sent sucessfully...");
+  if(client.publish(mqttTopic, message))
+  {
+      SerialMon.println("Message sent sucessfully...");
+  }
+  else
+  {
+    failureCounter++;
+    SerialMon.println("Message was NOT sent sucessfully.");
+  }
 }
 
 void connectToTheBroker()
@@ -902,7 +926,13 @@ void connectToTheBroker()
     {
       SerialMon.print("Error connecting to the broker - State: ");
       SerialMon.println(client.state());
-      delay(2000);
+      failureCounter++;
+      if(failureCounter>=20)
+      {
+        SerialMon.println("Too many fails connecting to Broker. Restarting...");
+        ESP.restart();
+      }
+      delay(5000);
     }
   }
 }

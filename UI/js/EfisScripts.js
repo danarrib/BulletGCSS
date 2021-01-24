@@ -109,7 +109,7 @@ function correctPitchAngle(data, line, pitchDegPixels) {
     // On INAV, nose down means positive number and nose up negative. Fix it now.
     correctedPitchAngle = correctedPitchAngle * -1;
     
-    var rollAngleRad = data.rollAngle * (Math.PI / 180);
+    var rollAngleRad = data.rollAngle * (Math.PI / 180) * -1;
     var pitchAngleRad = correctedPitchAngle * (Math.PI / 180);
     var cosRoll = Math.cos(rollAngleRad);
     var sinRoll = Math.sin(rollAngleRad);
@@ -254,7 +254,7 @@ function drawEfisHorizonGroundSky() {
     // Make the horizon line angle
     efis.horizonX1 = (efis.efisWidth / 2);
     efis.horizonY1 = (efis.efisHeight / 2);
-    efis.rollAngleRad = data.rollAngle * (Math.PI / 180);
+    efis.rollAngleRad = (data.rollAngle * (Math.PI / 180)) * -1;
     efis.horizonX2 = parseInt(efis.horizonX1 + (efis.lineLength * Math.cos(efis.rollAngleRad)));
     efis.horizonY2 = parseInt(efis.horizonY1 + (efis.lineLength * Math.sin(efis.rollAngleRad)));
     efis.horizonX1 = efis.efisWidth - efis.horizonX2;

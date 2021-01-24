@@ -197,110 +197,60 @@
 		<div class="settingsRow">
 			<div class="settingsColumn">
 				<p>Speed Unit<br />
-					<label for="ui_speed_kmh" class="radiobuttontext">km/h
-						<input type="radio" id="ui_speed_kmh" name="ui_speed" value="kmh" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_speed_mph" class="radiobuttontext">mph
-						<input type="radio" id="ui_speed_mph" name="ui_speed" value="mph" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_speed_knt" class="radiobuttontext">kt
-						<input type="radio" id="ui_speed_knt" name="ui_speed" value="kt" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_speed_mps" class="radiobuttontext">m/s
-						<input type="radio" id="ui_speed_mps" name="ui_speed" value="ms" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_speed">
+						<option value="kmh">Km/h (Kilometers per hour)</option>
+						<option value="mph">mph (Miles per hour)</option>
+						<option value="kt">kt (Knots)</option>
+						<option value="ms">m/s (meters per second)</option>
+					</select>
 				</p>
 
 				<p>Distance Unit<br />
-					<label for="ui_distance_km" class="radiobuttontext">m / km
-						<input type="radio" id="ui_distance_km" name="ui_distance" value="km" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_distance_miles" class="radiobuttontext">ft / mi
-						<input type="radio" id="ui_distance_miles" name="ui_distance" value="mi" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_distance_nm" class="radiobuttontext">Nm
-						<input type="radio" id="ui_distance_nm" name="ui_distance" value="nm" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_distance">
+						<option value="km">m / km (Meters or Kilometers)</option>
+						<option value="mi">ft / mi (Feet or Miles)</option>
+						<option value="nm">Nm (Nautical Miles)</option>
+					</select>
 				</p>
 
 				<p>Altitude Unit<br />
-					<label for="ui_altitude_km" class="radiobuttontext">m
-						<input type="radio" id="ui_altitude_km" name="ui_altitude" value="m" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_altitude_feet" class="radiobuttontext">ft
-						<input type="radio" id="ui_altitude_feet" name="ui_altitude" value="ft" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_altitude">
+						<option value="m">m (Meters)</option>
+						<option value="ft">ft (Feet)</option>
+					</select>
 				</p>
 
 				<p>Current Unit<br />
-					<label for="ui_current_amps" class="radiobuttontext">amps
-						<input type="radio" id="ui_current_amps" name="ui_current" value="a" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_current_watts" class="radiobuttontext">watts
-						<input type="radio" id="ui_current_watts" name="ui_current" value="w" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_current">
+						<option value="a">Ampere</option>
+						<option value="w">Watt</option>
+					</select>
 				</p>
-
 			</div>
 			<div class="settingsColumn">
 				<p>Capacity Unit<br />
-					<label for="ui_capacity_mah" class="radiobuttontext">mAh
-						<input type="radio" id="ui_capacity_mah" name="ui_capacity" value="mah" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_capacity_mwh" class="radiobuttontext">mWh
-						<input type="radio" id="ui_capacity_mwh" name="ui_capacity" value="mwh" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_capacity">
+						<option value="mah">mAh (miliampere hour)</option>
+						<option value="mwh">mWh (miliwatt hour)</option>
+					</select>
 				</p>
 
 				<p>Efficiency Unit<br />
-					<label for="ui_efficiency_mahkm" class="radiobuttontext">mAh/km
-						<input type="radio" id="ui_efficiency_mahkm" name="ui_efficiency" value="mahkm" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_efficiency_mwhkm" class="radiobuttontext">mWh/km
-						<input type="radio" id="ui_efficiency_mwhkm" name="ui_efficiency" value="mwhkm" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_efficiency_mahmi" class="radiobuttontext">mAh/mi
-						<input type="radio" id="ui_efficiency_mahmi" name="ui_efficiency" value="mahmi" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_efficiency_mwhmi" class="radiobuttontext">mWh/mi
-						<input type="radio" id="ui_efficiency_mwhmi" name="ui_efficiency" value="mwhmi" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_efficiency_mahnm" class="radiobuttontext">mAh/Nm
-						<input type="radio" id="ui_efficiency_mahnm" name="ui_efficiency" value="mahnm" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_efficiency_mwhnm" class="radiobuttontext">mWh/Nm
-						<input type="radio" id="ui_efficiency_mwhnm" name="ui_efficiency" value="mwhnm" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_efficiency">
+						<option value="mahkm">mAh per Kilometer</option>
+						<option value="mwhkm">mWh per Kilometer</option>
+						<option value="mahmi">mAh per Mile</option>
+						<option value="mwhmi">mWh per Mile</option>
+						<option value="mahnm">mAh per Nautical Mile</option>
+						<option value="mwhnm">mWh per Nautical Mile</option>
+					</select>
 				</p>
 
 				<p>Elevation Provider<br />
-					<label for="ui_elevation_provider_otp" class="radiobuttontext">Open Topo Data
-						<input type="radio" id="ui_elevation_provider_otp" name="ui_elevation_provider" value="OpenTopoData" />
-						<span class="radiomark"></span>
-					</label>
-					<label for="ui_elevation_provider_oe" class="radiobuttontext">Open Elevation
-						<input type="radio" id="ui_elevation_provider_oe" name="ui_elevation_provider" value="OpenElevation" />
-						<span class="radiomark"></span>
-					</label>
+					<select id="ui_elevation_provider">
+						<option value="OpenTopoData">Open Topo Data</option>
+						<option value="OpenElevation">Open Elevation</option>
+					</select>
 				</p>
 
 				<p><input type="button" id="btSaveUISettings" onclick="saveUISettings();" value="Save" /></p>

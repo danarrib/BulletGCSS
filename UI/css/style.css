@@ -239,7 +239,8 @@ body {
 #brokerSettings input[type=password],
 #uiSettings input[type=text],
 #uiSettings input[type=button],
-#uiSettings input[type=password]
+#uiSettings input[type=password],
+select
 {
     font-size: 1em;
     width: 90%;

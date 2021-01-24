@@ -142,26 +142,26 @@ function closeBrokerSettings() {
 
 function openUISettings() 
 {
-    setRadioValue("ui_speed", localStorage.getItem("ui_speed"))
-    setRadioValue("ui_distance", localStorage.getItem("ui_distance"))
-    setRadioValue("ui_altitude", localStorage.getItem("ui_altitude"))
-    setRadioValue("ui_current", localStorage.getItem("ui_current"))
-    setRadioValue("ui_capacity", localStorage.getItem("ui_capacity"))
-    setRadioValue("ui_efficiency", localStorage.getItem("ui_efficiency"))
-    setRadioValue("ui_elevation_provider", localStorage.getItem("ui_elevation_provider"))
+    document.getElementById("ui_speed").value = localStorage.getItem("ui_speed");
+    document.getElementById("ui_distance").value = localStorage.getItem("ui_distance");
+    document.getElementById("ui_altitude").value = localStorage.getItem("ui_altitude");
+    document.getElementById("ui_current").value = localStorage.getItem("ui_current");
+    document.getElementById("ui_capacity").value = localStorage.getItem("ui_capacity");
+    document.getElementById("ui_efficiency").value = localStorage.getItem("ui_efficiency");
+    document.getElementById("ui_elevation_provider").value = localStorage.getItem("ui_elevation_provider");
 
     document.getElementById("uiSettings").style.width = "100%";
 }
 
 function saveUISettings()
 {
-    localStorage.setItem("ui_speed", getRadioValue("ui_speed") );
-    localStorage.setItem("ui_distance", getRadioValue("ui_distance") );
-    localStorage.setItem("ui_altitude", getRadioValue("ui_altitude") );
-    localStorage.setItem("ui_current", getRadioValue("ui_current") );
-    localStorage.setItem("ui_capacity", getRadioValue("ui_capacity") );
-    localStorage.setItem("ui_efficiency", getRadioValue("ui_efficiency") );
-    localStorage.setItem("ui_elevation_provider", getRadioValue("ui_elevation_provider") );
+    localStorage.setItem("ui_speed", document.getElementById("ui_speed").value );
+    localStorage.setItem("ui_distance", document.getElementById("ui_distance").value );
+    localStorage.setItem("ui_altitude", document.getElementById("ui_altitude").value );
+    localStorage.setItem("ui_current", document.getElementById("ui_current").value );
+    localStorage.setItem("ui_capacity", document.getElementById("ui_capacity").value );
+    localStorage.setItem("ui_efficiency", document.getElementById("ui_efficiency").value );
+    localStorage.setItem("ui_elevation_provider", document.getElementById("ui_elevation_provider").value );
 
     setUIUnits();
     closeUISettings();
