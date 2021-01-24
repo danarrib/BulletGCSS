@@ -275,7 +275,7 @@ function updateDataView(data)
     else if(data.homeLatitude != 0 && data.homeLongitude != 0)
     {
         data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
-        data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.userAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+        data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
         document.getElementById("aziElevPlaceHolder").className = "color-normal";
         document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
     }
@@ -351,6 +351,7 @@ function updateDataView(data)
     {
         mAhPerKm = ((data.currentDraw / 60) * 1000 ) / ( (data.groundSpeed * efis.SpeedUnitFactor) / 60);
         var mAhPerMi = mAhPerKm * 1.60934;
+        var mAhPerNm = mAhPerKm * 1.852;
 
         if(uiElementsUnits.efficiencyUnit == "mahkm")
         {
@@ -367,6 +368,14 @@ function updateDataView(data)
         else if(uiElementsUnits.efficiencyUnit == "mwhmi")
         {
             document.getElementById("efficiencyPlaceHolder").innerHTML = (mAhPerMi * data.batteryVoltage).toFixed(0) + " mWh/mi";
+        }
+        else if(uiElementsUnits.efficiencyUnit == "mahnm")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = mAhPerNm.toFixed(0) + " mAh/Nm";
+        }
+        else if(uiElementsUnits.efficiencyUnit == "mwhnm")
+        {
+            document.getElementById("efficiencyPlaceHolder").innerHTML = (mAhPerNm * data.batteryVoltage).toFixed(0) + " mWh/Nm";
         }
     }
     else
@@ -405,25 +414,18 @@ function updateDataView(data)
     // Status Text - When Slowblink is true, show UI messages. When it's false, show aircraft messages
     if(blinkSlowSwitch)
     {
-        // UI messages
-        if(blinkFastSwitch || 1==1)
-        {
-            var dtNow = new Date();
-            var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);
+        // UI messages (most important messages should be set first)
+        var dtNow = new Date();
+        var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);
 
-            if(!mqttConnected)
-                document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
-            else if(timeSinceLastMessage >= 5)
-                document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
-            else if(updatingWpAltitudes)
-                document.getElementById("statusPlaceHolder").innerHTML = "Fetching WP elevation data...";
-            else
-                document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
-        }
+        if(!mqttConnected)
+            document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
+        else if(timeSinceLastMessage >= 5)
+            document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
+        else if(updatingWpAltitudes)
+            document.getElementById("statusPlaceHolder").innerHTML = "Fetching WP elevation data...";
         else
-        {
             document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
-        }
     }
     else
     {

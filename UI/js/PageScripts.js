@@ -28,6 +28,43 @@ function keepScreenAwake()
     noSleep.enable();
 }
 
+function checkForDefaultSettings()
+{
+    // MQTT
+    if(localStorage.getItem("mqttHost") === null)
+        localStorage.setItem("mqttHost", "broker.emqx.io");
+    if(localStorage.getItem("mqttPort") === null)
+        localStorage.setItem("mqttPort", "8084");
+    if(localStorage.getItem("mqttTopic") === null)
+        localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+    if(localStorage.getItem("mqttUseTLS") === null)
+        localStorage.setItem("mqttUseTLS", "true");
+    
+    // UI
+    if(localStorage.getItem("ui_speed") === null)
+        localStorage.setItem("ui_speed", "kmh" );
+
+    if(localStorage.getItem("ui_distance") === null)
+        localStorage.setItem("ui_distance", "km" );
+
+    if(localStorage.getItem("ui_altitude") === null)
+        localStorage.setItem("ui_altitude", "m" );
+
+    if(localStorage.getItem("ui_current") === null)
+        localStorage.setItem("ui_current", "a" );
+
+    if(localStorage.getItem("ui_capacity") === null)
+        localStorage.setItem("ui_capacity", "mah" );
+
+    if(localStorage.getItem("ui_efficiency") === null)
+        localStorage.setItem("ui_efficiency", "mahkm" );
+
+    if(localStorage.getItem("ui_elevation_provider") === null)
+        localStorage.setItem("ui_elevation_provider", "OpenTopoData" );
+}
+
+checkForDefaultSettings();
+
 // Setup Sidebar
 function openNav() {
     // If App is running standalone, then don't show the option to install
@@ -111,6 +148,7 @@ function openUISettings()
     setRadioValue("ui_current", localStorage.getItem("ui_current"))
     setRadioValue("ui_capacity", localStorage.getItem("ui_capacity"))
     setRadioValue("ui_efficiency", localStorage.getItem("ui_efficiency"))
+    setRadioValue("ui_elevation_provider", localStorage.getItem("ui_elevation_provider"))
 
     document.getElementById("uiSettings").style.width = "100%";
 }
@@ -123,6 +161,7 @@ function saveUISettings()
     localStorage.setItem("ui_current", getRadioValue("ui_current") );
     localStorage.setItem("ui_capacity", getRadioValue("ui_capacity") );
     localStorage.setItem("ui_efficiency", getRadioValue("ui_efficiency") );
+    localStorage.setItem("ui_elevation_provider", getRadioValue("ui_elevation_provider") );
 
     setUIUnits();
     closeUISettings();
@@ -149,25 +188,6 @@ var uiElementsUnits = {
 
 function setUIUnits()
 {
-    // Check if there's parameters set and set it now
-    if(localStorage.getItem("ui_speed") === null)
-        localStorage.setItem("ui_speed", "kmh" );
-
-    if(localStorage.getItem("ui_distance") === null)
-        localStorage.setItem("ui_distance", "km" );
-
-    if(localStorage.getItem("ui_altitude") === null)
-        localStorage.setItem("ui_altitude", "m" );
-
-    if(localStorage.getItem("ui_current") === null)
-        localStorage.setItem("ui_current", "a" );
-
-    if(localStorage.getItem("ui_capacity") === null)
-        localStorage.setItem("ui_capacity", "mah" );
-
-    if(localStorage.getItem("ui_efficiency") === null)
-        localStorage.setItem("ui_efficiency", "mahkm" );
-
     // Set the UI elements
     uiElementsUnits.distanceUnit = localStorage.getItem("ui_distance");
     uiElementsUnits.speedUnit = localStorage.getItem("ui_speed");
@@ -370,7 +390,7 @@ window.onload = function(event) {
         && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false
         && data.waypointCount == (data.currentMissionWaypoints.length - 1))
         {
-            console.log("Trying to get WP Elevation data");
+            console.log("Trying to get WP Elevation data...");
             getMissionWaypointsAltitude();
         }
 
@@ -388,5 +408,6 @@ window.onload = function(event) {
     var timerBlinkSlow = setInterval(function(){ 
         blinkSlowSwitch = !blinkSlowSwitch;
     }, 2000);
+
 
 }

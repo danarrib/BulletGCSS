@@ -486,13 +486,35 @@ function getUserLocation() {
 
 function updateElevationData(elevData)
 {
+    var elevationProvider = localStorage.getItem("ui_elevation_provider");
+    var latitude;
+    var longitude;
+
+    if(elevationProvider == "OpenTopoData")
+    {
+        // Check if it's not a valid result
+        if(elevData.status != "OK")
+            return;
+    }
+
     for(i=0; i<elevData.results.length; i++)
     {
+        if(elevationProvider == "OpenElevation")
+        {
+            latitude = elevData.results[i].latitude;
+            longitude = elevData.results[i].longitude;
+        }
+        else if(elevationProvider == "OpenTopoData")
+        {
+            latitude = elevData.results[i].location.lat;
+            longitude = elevData.results[i].location.lng;
+        }
+
         // Find the WP with same coordinates
         for(j=0; j< data.currentMissionWaypoints.length; j++)
         {
-            if(data.currentMissionWaypoints[j].wpLatitude == elevData.results[i].latitude
-                && data.currentMissionWaypoints[j].wpLongitude == elevData.results[i].longitude)
+            if(data.currentMissionWaypoints[j].wpLatitude == latitude
+                && data.currentMissionWaypoints[j].wpLongitude == longitude)
                 {
                     data.currentMissionWaypoints[j].elevation = elevData.results[i].elevation;
                 }
@@ -505,6 +527,8 @@ var updatingWpAltitudes = false;
 
 function getMissionWaypointsAltitude()
 {
+    var elevationProvider = localStorage.getItem("ui_elevation_provider");
+
     // If mission is not loaded, there's no need to process
     if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
         return;
@@ -514,17 +538,28 @@ function getMissionWaypointsAltitude()
 
     // First, build an object with all Waypoint coodinates
     var arrWPs = { locations: [] };
+    var locations = "";
+    var apiURL = "";
 
     for(i=1; i < data.currentMissionWaypoints.length; i++)
     {
         if(data.currentMissionWaypoints[i].wpLatitude == 0 && data.currentMissionWaypoints[i].wpLongitude == 0)
             continue;
             
-        arrWPs.locations.push({
-            latitude: data.currentMissionWaypoints[i].wpLatitude,
-            longitude: data.currentMissionWaypoints[i].wpLongitude,
-        });
+        if(elevationProvider == "OpenElevation")
+        {
+            arrWPs.locations.push({
+                latitude: data.currentMissionWaypoints[i].wpLatitude,
+                longitude: data.currentMissionWaypoints[i].wpLongitude,
+            });
+        }
+        else if(elevationProvider == "OpenTopoData")
+        {
+            if(locations.length > 0)
+                locations = locations + "|"
 
+            locations = locations + data.currentMissionWaypoints[i].wpLatitude + "," + data.currentMissionWaypoints[i].wpLongitude;
+        }
     }
 
     // Now get the altitudes from API
@@ -550,16 +585,26 @@ function getMissionWaypointsAltitude()
         }
     };
     updatingWpAltitudes = true;
-    var apiURL = "https://api.open-elevation.com/api/v1/lookup";
-    xmlhttp.open("POST", "proxy.php", true);
-    xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-    xmlhttp.setRequestHeader('Accept', '*/*');
-    xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
-    xmlhttp.send(JSON.stringify(arrWPs));
+
+    if(elevationProvider == "OpenElevation")
+    {
+        apiURL = "https://api.open-elevation.com/api/v1/lookup";
+        xmlhttp.open("POST", "proxy.php", true);
+        xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlhttp.setRequestHeader('Accept', '*/*');
+        xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
+        xmlhttp.send(JSON.stringify(arrWPs));
+    }
+    else if(elevationProvider == "OpenTopoData")
+    {
+        apiURL = "https://api.opentopodata.org/v1/mapzen?locations=" + locations;
+        xmlhttp.open("GET", "proxy.php", true);
+        xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlhttp.setRequestHeader('Accept', '*/*');
+        xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
+        xmlhttp.send();
+    }
 }
-
-
-
 
 // Adding Map Layers
 map.addLayer(linesVectorLayer);
