@@ -144,17 +144,45 @@ function drawUserOnMap(data)
 // Add Home point on
 var homeIconFeatures = [];
 
-var homeIconStyle = new ol.style.Style({
-    image: new ol.style.Icon({
-        anchor: [0.5, 0.5],
-        anchorXUnits: 'fraction',
-        anchorYUnits: 'fraction',
-        opacity: 1.0,
-        src: 'img/home.png', 
-        scale: (0.04 * window.devicePixelRatio),
-        rotateWithView: false,
-        })
-});
+function fn_homeIconStyle(feature)
+{
+    var txtElevation = "Alt SL: " + data.homeAltitudeSL + " m";
+
+    var homeAlt = parseInt(feature.get("name"));
+
+    var homeIconStyle = new ol.style.Style({
+        image: new ol.style.Icon({
+            anchor: [0.5, 0.5],
+            anchorXUnits: 'fraction',
+            anchorYUnits: 'fraction',
+            opacity: 1.0,
+            src: 'img/home.png', 
+            scale: (0.04 * window.devicePixelRatio),
+            rotateWithView: false,
+            })
+    });
+
+    var home_textStyle = new ol.style.Style({
+        text: new ol.style.Text({
+			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
+			fill: new ol.style.Fill({ color: '#000' }),
+			stroke: new ol.style.Stroke({
+              color: '#fff', 
+              width: (2 * window.devicePixelRatio)
+            }),
+            textAlign: 'left',
+            // get the text from the feature - `this` is ol.Feature
+            // and show only under certain resolution
+            text: txtElevation,
+            offsetX: (20 * window.devicePixelRatio),
+            offsetY: (0 * window.devicePixelRatio)
+		})
+    });
+
+    return [homeIconStyle, home_textStyle];
+}
+
+
 
 var homeVectorSource = new ol.source.Vector({
     features: homeIconFeatures //add an array of features
@@ -162,7 +190,7 @@ var homeVectorSource = new ol.source.Vector({
 
 var homeVectorLayer = new ol.layer.Vector({
     source: homeVectorSource,
-    style: homeIconStyle
+    style: fn_homeIconStyle,
 });
 
 
