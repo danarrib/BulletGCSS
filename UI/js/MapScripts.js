@@ -146,7 +146,7 @@ var homeIconFeatures = [];
 
 function fn_homeIconStyle(feature)
 {
-    var txtElevation = "Alt SL: " + data.homeAltitudeSL + " m";
+    var txtElevation = "Alt SL: " + data.homeAltitudeSL.toFixed(0) + " m";
 
     var homeAlt = parseInt(feature.get("name"));
 

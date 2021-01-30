@@ -355,7 +355,7 @@ function parseStandardTelemetryMessage(payload)
                 data.homeLongitude = parseFloat(arrData[1]);
                 break;
             case "hal":
-                data.homeAltitudeSL = parseInt(arrData[1]);
+                data.homeAltitudeSL = parseInt(arrData[1]) / 100.0; // Home comes in centimeters
                 break;
             case "ont":
                 data.powerTime = parseInt(arrData[1]);
