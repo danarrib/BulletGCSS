@@ -388,6 +388,8 @@ void msp_get_altitude() {
     MSP_ALTITUDE_t inavdata;
     if (msp.request(MSP_ALTITUDE, &inavdata, sizeof(inavdata)))
     {
+      //SerialMon.printf("estimatedVelocity: %d, estimatedAltitude: %d, baroAltitude: %d\n", inavdata.estimatedVelocity, inavdata.estimatedAltitude, inavdata.baroAltitude);
+      
       uavstatus.verticalSpeed = inavdata.estimatedVelocity;
       uavstatus.altitude = inavdata.estimatedAltitude;
 
@@ -515,7 +517,6 @@ void msp_get_wp(uint8_t wp_no) {
     if (msp.requestWithPayload(MSP_WP, &inavdata, sizeof(inavdata)))
     {
       // SerialMon.printf("A waypointNumber: %d, action: %d, lat: %d, lon: %d, alt: %d, p1: %d, p2: %d, p3: %d, flag: %d\n", inavdata.waypointNumber, inavdata.action, inavdata.lat, inavdata.lon, inavdata.alt, inavdata.p1, inavdata.p2, inavdata.p3, inavdata.flag);
-      // uavstatus.isHardwareHealthy = inavdata.isHardwareHealthy;
 
       if(wp_no == 0)
       {

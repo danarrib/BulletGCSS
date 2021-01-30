@@ -62,7 +62,7 @@ struct uav_status
     String callsign;
     double homeLatitude;
     double homeLongitude;
-    int16_t homeAltitudeSL;
+    int32_t homeAltitudeSL;
     uint32_t onTime; 
     uint32_t flightTime; 
     uint8_t throttlePercent;
