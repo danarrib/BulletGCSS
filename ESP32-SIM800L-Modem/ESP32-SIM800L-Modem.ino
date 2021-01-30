@@ -152,7 +152,7 @@ void connectToTheInternet() {
       if(WiFi.status() != WL_CONNECTED)
       {
         failureCounter++;
-        if(failureCounter>=20)
+        if(failureCounter>=10)
         {
           SerialMon.println("Too many fails connecting to WiFi. Restarting...");
           ESP.restart();
@@ -248,11 +248,12 @@ void setup()
 
 void loop()
 {
+  
   getTelemetryDataTask();
   sendMessageTask();
 
-  // Check the failure counter and reset everything if it's above 20.
-  if(failureCounter >= 20)  
+  // Check the failure counter and reset everything if it's above 10.
+  if(failureCounter >= 10)  
   {
     SerialMon.println("Failure count is too high. Restarting everything...");
     ESP.restart();
@@ -271,6 +272,8 @@ void getTelemetryDataTask() {
 
 void getTelemetryData() 
 {
+  //uint32_t stopWatch = millis();
+
   msp_get_boxnames();
   msp_get_gps();
   msp_get_gps_comp();
@@ -284,11 +287,13 @@ void getTelemetryData()
   msp_get_nav_status();
   msp_get_callsign();
   
-  
   get_all_waypoints();
-  
+
   get_cellSignalStrength();
   
+  //uint32_t elapsedTime = millis() - stopWatch;
+  //SerialMon.printf("This telemetry duty cycle took %d ms.\n", elapsedTime);
+
   // Recovery routine for MSP serial port
   if (millis() - lastMspCommunicationTs > MSP_PORT_RECOVERY_THRESHOLD)
   {
@@ -525,7 +530,7 @@ void msp_get_wp(uint8_t wp_no) {
     }
     else
     {
-      SerialMon.println("MSP SENSOR STATUS returned false!");
+      SerialMon.println("MSP WP returned false!");
     }
 }
 
@@ -927,7 +932,7 @@ void connectToTheBroker()
       SerialMon.print("Error connecting to the broker - State: ");
       SerialMon.println(client.state());
       failureCounter++;
-      if(failureCounter>=20)
+      if(failureCounter>=10)
       {
         SerialMon.println("Too many fails connecting to Broker. Restarting...");
         ESP.restart();

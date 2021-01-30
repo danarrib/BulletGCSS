@@ -32,20 +32,20 @@
 #include <Arduino.h>
 #include <Stream.h>
 
-#define MSP_NAME          10
-#define MSP_WP_GETINFO    20
-#define MSP_RAW_GPS       106
-#define MSP_COMP_GPS      107
-#define MSP_ATTITUDE      108
-#define MSP_ALTITUDE      109
-#define MSP_ACTIVEBOXES   113
-#define MSP_BOXNAMES      116
-#define MSP_WP            118
-#define MSP_NAV_STATUS    121
-#define MSP_SENSOR_STATUS 151
-#define MSP_SET_WP        209
-#define MSP2_INAV_ANALOG  0x2002
-#define MSP2_INAV_MISC2   0x203A
+#define MSP_NAME              10
+#define MSP_WP_GETINFO        20
+#define MSP_RAW_GPS           106
+#define MSP_COMP_GPS          107
+#define MSP_ATTITUDE          108
+#define MSP_ALTITUDE          109
+#define MSP_ACTIVEBOXES       113
+#define MSP_BOXNAMES          116
+#define MSP_WP                118
+#define MSP_NAV_STATUS        121
+#define MSP_SENSOR_STATUS     151
+#define MSP_SET_WP            209
+#define MSP2_INAV_ANALOG      0x2002
+#define MSP2_INAV_MISC2       0x203A
 
 // This enum is a copy from INAV one in "src/main/fc/rc_modes.h"
 typedef enum {

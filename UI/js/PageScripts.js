@@ -323,6 +323,12 @@ window.onresize = function(event) {
     renderEFIS(data);
 };
 
+var pageSettings = {
+    efisRefreshInterval: 100,
+    mapAndDataRefreshInterval: 250,
+    lowPriorityTasksInterval: 5000
+};
+
 window.onload = function(event) {
     MQTTconnect();
     renderEFIS(data);
@@ -335,7 +341,7 @@ window.onload = function(event) {
     var timerEFIS = setInterval(function(){ 
         //simulateFlight();
         renderEFIS(data);
-    }, 100); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
+    }, pageSettings.efisRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
 
     var timerMapAndData = setInterval(function(){
         // Fast blinker should update as fast as the DataView panel
@@ -345,7 +351,7 @@ window.onload = function(event) {
         drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
         updateDataView(data);
-    }, 250); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
+    }, pageSettings.mapAndDataRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
     var timerOneSecond = setInterval(function(){ 
         // Update Flight Time and Power Time
@@ -403,7 +409,7 @@ window.onload = function(event) {
         lastTimeUIwasOpen = uiUpdateNow;
 
             
-    }, 5000);
+    }, pageSettings.lowPriorityTasksInterval);
     
     var timerBlinkSlow = setInterval(function(){ 
         blinkSlowSwitch = !blinkSlowSwitch;
