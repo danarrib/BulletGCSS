@@ -326,7 +326,7 @@ window.onresize = function(event) {
 var pageSettings = {
     efisRefreshInterval: 100,
     mapAndDataRefreshInterval: 250,
-    lowPriorityTasksInterval: 5000
+    lowPriorityTasksInterval: 10000
 };
 
 window.onload = function(event) {

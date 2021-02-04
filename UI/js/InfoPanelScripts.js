@@ -276,6 +276,10 @@ function updateDataView(data)
     {
         data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
         data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+        
+        if(isNaN(data.elevation))
+            data.elevation = 0;
+
         document.getElementById("aziElevPlaceHolder").className = "color-normal";
         document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
     }
@@ -304,7 +308,7 @@ function updateDataView(data)
     
     document.getElementById("homeDistancePlaceHolder").innerHTML = metersToNiceDistance(data.homeDistance);
 
-    document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP + ' hdop]</font>';
+    document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP.toFixed(1) + ' hdop]</font>';
     document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
 
     document.getElementById("callsignPlaceHolder").innerHTML = data.callsign.length > 0 ? data.callsign : "&nbsp;";

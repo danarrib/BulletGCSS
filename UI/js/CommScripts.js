@@ -184,10 +184,10 @@ function parseWaypointMessage(payload) {
                 wpno = parseInt(arrData[1]);
                 break;
             case "la":
-                waypoint.wpLatitude = parseFloat(arrData[1]);
+                waypoint.wpLatitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "lo":
-                waypoint.wpLongitude = parseFloat(arrData[1]);
+                waypoint.wpLongitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "ac":
                 waypoint.wpAction = parseInt(arrData[1]);
@@ -240,6 +240,48 @@ function clearCurrentMissionWaypoints() {
     data.isCurrentMissionElevationSet = false;
 }
 
+function flightModeIdToName(flightModeId)
+{
+    switch(flightModeId)
+    {
+        case 1:
+            return "MANUAL";
+            break;
+        case 2:
+            return "RTH";
+            break;
+        case 3:
+            return "A+PH";
+            break;
+        case 4:
+            return "POS H";
+            break;
+        case 5:
+            return "3CRS";
+            break;
+        case 6:
+            return "CRS";
+            break;
+        case 7:
+            return "WP";
+            break;
+        case 8:
+            return "ALT H";
+            break;
+        case 9:
+            return "ANGLE";
+            break;
+        case 10:
+            return "HORIZON";
+            break;
+        case 11:
+            return "ACRO";
+            break;
+        default:
+            return "";
+    }
+}
+
 function parseStandardTelemetryMessage(payload)
 {
     var arrPayload = payload.split(",");
@@ -250,10 +292,10 @@ function parseStandardTelemetryMessage(payload)
         var arrData = arrPayload[i].split(":");
         switch(arrData[0]) {
             case "ran":
-                data.rollAngle = parseFloat(arrData[1] / 10.0);
+                data.rollAngle = parseFloat(arrData[1]) / 10.0;
                 break;
             case "pan":
-                data.pitchAngle = parseFloat(arrData[1] / 10.0);
+                data.pitchAngle = parseFloat(arrData[1]) / 10.0;
                 break;
             case "hea":
                 data.heading = parseFloat(arrData[1]);
@@ -277,7 +319,7 @@ function parseStandardTelemetryMessage(payload)
                 data.homeDistance = parseInt(arrData[1]);
                 break;
             case "cud":
-                data.currentDraw = parseFloat(arrData[1]);
+                data.currentDraw = parseInt(arrData[1]) / 100.0;
                 break;
             case "cad":
                 data.capacityDraw = parseInt(arrData[1]);
@@ -289,19 +331,19 @@ function parseStandardTelemetryMessage(payload)
                 data.gpsSatCount = parseInt(arrData[1]);
                 break;
             case "gla":
-                data.gpsLatitude = parseFloat(arrData[1]);
+                data.gpsLatitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "glo":
-                data.gpsLongitude = parseFloat(arrData[1]);
+                data.gpsLongitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "ghp":
-                data.gpsHDOP = parseFloat(arrData[1]);
+                data.gpsHDOP = parseInt(arrData[1]) / 100.0;
                 break;
             case "acv":
-                data.battCellVoltage = parseFloat(arrData[1]);
+                data.battCellVoltage = parseInt(arrData[1]) / 100.0;
                 break;
             case "bpv":
-                data.batteryVoltage = parseFloat(arrData[1]);
+                data.batteryVoltage = parseInt(arrData[1]) / 100.0;
                 break;
             case "bcc":
                 data.batteryCellCount = parseInt(arrData[1]);
@@ -313,7 +355,7 @@ function parseStandardTelemetryMessage(payload)
                 data.cellSignalStrength = parseInt(arrData[1]);
                 break;
             case "ftm":
-                data.flightMode = arrData[1];
+                data.flightMode = flightModeIdToName(parseInt(arrData[1]));
                 break;
             case "cwn":
                 data.currentWaypointNumber = parseInt(arrData[1]);
@@ -349,10 +391,10 @@ function parseStandardTelemetryMessage(payload)
                 data.isFailsafeActive = parseInt(arrData[1]);
                 break;
             case "hla":
-                data.homeLatitude = parseFloat(arrData[1]);
+                data.homeLatitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "hlo":
-                data.homeLongitude = parseFloat(arrData[1]);
+                data.homeLongitude = parseInt(arrData[1]) / 10000000.0;
                 break;
             case "hal":
                 data.homeAltitudeSL = parseInt(arrData[1]) / 100.0; // Home comes in centimeters
