@@ -81,10 +81,8 @@ HardwareSerial mspSerial(2);
 #define SERIAL_PIN_RX 19
 #define SERIAL_PIN_TX 18
 
-#define GPS_DEGREES_DIVIDER 10000000.0f
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
-
 
 #ifndef USE_WIFI
   // I2C for SIM800 (to keep it running when powered from battery)
@@ -100,8 +98,8 @@ uav_status lastStatus;
 msp_set_wp_t currentWPMission[255];
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
+bool telemetryFetched = false;
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
-uint32_t lastTelemetryPoolTimer = 0; // Used to control the Telemetry pooling task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
 uint16_t failureCounter = 0; // Count how many times it fails sending the messages
 
@@ -261,11 +259,15 @@ void loop()
 }
 
 void getTelemetryDataTask() {
+  if(telemetryFetched)
+    return;
+    
   uint32_t timer = millis();
   
-  if(timer >= lastTelemetryPoolTimer + MESSAGE_SEND_INTERVAL) {
-    lastTelemetryPoolTimer = timer;
-
+  if(timer >= (lastMessageTimer + MESSAGE_SEND_INTERVAL - TELEMETRY_FETCH_DUTY_CYCLE) ) 
+  {
+    //SerialMon.printf("Telemetry: %d\n", timer);
+    telemetryFetched = true;
     getTelemetryData();
   }
 }
@@ -337,9 +339,9 @@ void msp_get_gps()
     if (msp.request(MSP_RAW_GPS, &gpsdata, sizeof(gpsdata)))
     {
       uavstatus.gpsSatCount = gpsdata.numSat;
-      uavstatus.gpsHDOP = gpsdata.hdop / 100.0f;
-      uavstatus.gpsLatitude = gpsdata.lat / GPS_DEGREES_DIVIDER;
-      uavstatus.gpsLongitude = gpsdata.lon / GPS_DEGREES_DIVIDER;
+      uavstatus.gpsHDOP = gpsdata.hdop;
+      uavstatus.gpsLatitude = gpsdata.lat;
+      uavstatus.gpsLongitude = gpsdata.lon;
       uavstatus.altitudeSeaLevel = gpsdata.alt;
       uavstatus.groundSpeed = gpsdata.groundSpeed;
       uavstatus.gpsGroundCourse = gpsdata.groundCourse / 10.0f;
@@ -438,10 +440,10 @@ void msp2_get_inav_analog() {
     MSP2_INAV_ANALOG_t inavdata;
     if (msp.request(MSP2_INAV_ANALOG, &inavdata, sizeof(inavdata)))
     {
-      uavstatus.batteryVoltage = inavdata.batteryVoltage / 100.0f;
+      uavstatus.batteryVoltage = inavdata.batteryVoltage;
       uavstatus.capacityDraw = inavdata.mAhDraw;
       uavstatus.mWhDraw = inavdata.mWhDraw;
-      uavstatus.currentDraw = inavdata.currentDraw / 100.0f;
+      uavstatus.currentDraw = inavdata.currentDraw;
       uavstatus.rssiPercent = inavdata.rssi / 10.0f;
       uavstatus.fuelPercent = inavdata.batteryPercentage;
 
@@ -520,8 +522,8 @@ void msp_get_wp(uint8_t wp_no) {
 
       if(wp_no == 0)
       {
-        uavstatus.homeLatitude = inavdata.lat / GPS_DEGREES_DIVIDER;
-        uavstatus.homeLongitude =  inavdata.lon / GPS_DEGREES_DIVIDER;
+        uavstatus.homeLatitude = inavdata.lat;
+        uavstatus.homeLongitude =  inavdata.lon;
         uavstatus.homeAltitudeSL = inavdata.alt;
       }
 
@@ -597,7 +599,6 @@ void msp_get_callsign() {
     {
       // Allow only chars that are valid
       char allowedChars[] = "ABCDEFGHIJKLMNOPQRSTUWVXYZabcdefghijklmnopqrstuwvxyz0123456789_-";
-      char callsign[32] = "";
       uint8_t callsignLen = 0;
 
       for(uint16_t k = 0; k < dataLen; k++)
@@ -607,14 +608,12 @@ void msp_get_callsign() {
           if(allowedChars[i] == inavdata[k])
           {
             // Char is allowed
-            callsign[callsignLen] = inavdata[k];
+            uavstatus.callsign[callsignLen] = inavdata[k];
             callsignLen++;
           }
         }
       }
       
-      uavstatus.callsign = callsign;
-
       // Set it to 1 so it doesn't run next time
       callsignFetched = 1;
 
@@ -663,28 +662,42 @@ void msp_get_activeboxes() {
       bool fmWaypoint = (boxes64 & (1LL << boxIdWaypoint)) != 0;
       bool fmHorizon  = (boxes64 & (1LL << boxIdHorizon)) != 0;
 
+      /*
+      MANU = 1
+      RTH  = 2
+      P+AH = 3
+      P H  = 4
+      3CRS = 5
+      CRS  = 6
+      WP   = 7
+      A H  = 8
+      ANGL = 9
+      HOR  = 10
+      ACRO = 11
+      */
+      
       if(fmManual)
-        uavstatus.flightMode= "MANU";
+        uavstatus.flightModeId = 1;
       else if(fmRth)
-        uavstatus.flightMode = "RTH";
+        uavstatus.flightModeId = 2;
       else if(fmPosHold && fmAltHold)
-        uavstatus.flightMode = "P+AH";
+        uavstatus.flightModeId = 3;
       else if(fmPosHold)
-        uavstatus.flightMode = "P H";
+        uavstatus.flightModeId = 4;
       else if(fmCruise && fmAltHold)
-        uavstatus.flightMode = "3CRS";
+        uavstatus.flightModeId = 5;
       else if(fmCruise)
-        uavstatus.flightMode = "CRS";
+        uavstatus.flightModeId = 6;
       else if(fmWaypoint)
-        uavstatus.flightMode = "WP";
+        uavstatus.flightModeId = 7;
       else if(fmAltHold && fmAngle)
-        uavstatus.flightMode = "A H";
+        uavstatus.flightModeId = 8;
       else if(fmAngle)
-        uavstatus.flightMode = "ANGL";
+        uavstatus.flightModeId = 9;
       else if(fmHorizon)
-        uavstatus.flightMode = "HOR";
+        uavstatus.flightModeId = 10;
       else
-        uavstatus.flightMode = "ACRO";
+        uavstatus.flightModeId = 11;
 
       uavstatus.uavIsArmed = fmArm;
       uavstatus.isFailsafeActive = fmFailsafe;
@@ -702,10 +715,18 @@ void sendMessageTask() {
   
   if(timer >= lastMessageTimer + MESSAGE_SEND_INTERVAL)
   {
+    //SerialMon.printf("Message: %d\n", timer);
+    telemetryFetched = false;
     lastMessageTimer = timer;
     
     connectToTheInternet();
     connectToTheBroker();
+
+    if(msgCounter==0)
+    {
+      SerialMon.println("Sending first message: id:0");
+      sendMessage("id:0,");
+    }
   
     char message[512];
     buildTelemetryMessage(message);
@@ -743,8 +764,8 @@ void sendWaypointsMessage() {
   for(uint8_t i = 0; i <= uavstatus.waypointCount; i++)
   {
     sprintf(wpsg, "wpno:%d,", currentWPMission[i].waypointNumber);
-    sprintf(wpsg, "%sla:%.8f,", wpsg, currentWPMission[i].lat / GPS_DEGREES_DIVIDER);
-    sprintf(wpsg, "%slo:%.8f,", wpsg, currentWPMission[i].lon / GPS_DEGREES_DIVIDER);
+    sprintf(wpsg, "%sla:%d,", wpsg, currentWPMission[i].lat);
+    sprintf(wpsg, "%slo:%d,", wpsg, currentWPMission[i].lon);
     sprintf(wpsg, "%sal:%d,", wpsg, currentWPMission[i].alt);
     sprintf(wpsg, "%sac:%d,", wpsg, currentWPMission[i].action);
     if(currentWPMission[i].p1 != 0)
@@ -799,16 +820,16 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%shds:%d,", message, uavstatus.homeDistance); // homeDistance
 
   if(lastStatus.averageCellVoltage != uavstatus.averageCellVoltage || msgGroup == 3)
-    sprintf(message, "%sacv:%.2f,", message, uavstatus.averageCellVoltage); // batteryVoltage
+    sprintf(message, "%sacv:%d,", message, uavstatus.averageCellVoltage); // batteryVoltage
 
   if(lastStatus.batteryVoltage != uavstatus.batteryVoltage || msgGroup == 3)
-    sprintf(message, "%sbpv:%.2f,", message, uavstatus.batteryVoltage); // batteryVoltage
+    sprintf(message, "%sbpv:%d,", message, uavstatus.batteryVoltage); // batteryVoltage
 
   if(lastStatus.fuelPercent != uavstatus.fuelPercent || msgGroup == 3)
     sprintf(message, "%sbfp:%d,", message, uavstatus.fuelPercent); // fuelPercent
 
   if(lastStatus.currentDraw != uavstatus.currentDraw || msgGroup == 4)
-    sprintf(message, "%scud:%.2f,", message, uavstatus.currentDraw); // currentDraw
+    sprintf(message, "%scud:%d,", message, uavstatus.currentDraw); // currentDraw
 
   if(lastStatus.capacityDraw != uavstatus.capacityDraw || msgGroup == 4)
     sprintf(message, "%scad:%d,", message, uavstatus.capacityDraw); // capacityDraw
@@ -817,16 +838,16 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%srsi:%d,", message, uavstatus.rssiPercent); // rssiPercent
 
   if(lastStatus.gpsLatitude != uavstatus.gpsLatitude || msgGroup == 5)
-    sprintf(message, "%sgla:%.8f,", message, uavstatus.gpsLatitude); // gpsLatitude
+    sprintf(message, "%sgla:%d,", message, uavstatus.gpsLatitude); // gpsLatitude
 
   if(lastStatus.gpsLongitude != uavstatus.gpsLongitude || msgGroup == 5)
-    sprintf(message, "%sglo:%.8f,", message,uavstatus.gpsLongitude); // gpsLongitude
+    sprintf(message, "%sglo:%d,", message,uavstatus.gpsLongitude); // gpsLongitude
 
   if(lastStatus.gpsSatCount != uavstatus.gpsSatCount || msgGroup == 5)
     sprintf(message, "%sgsc:%d,", message, uavstatus.gpsSatCount); // gpsSatCount
 
   if(lastStatus.gpsHDOP != uavstatus.gpsHDOP || msgGroup == 6)
-    sprintf(message, "%sghp:%.1f,", message, uavstatus.gpsHDOP); // gpsHDOP
+    sprintf(message, "%sghp:%d,", message, uavstatus.gpsHDOP); // gpsHDOP
 
   if(lastStatus.cellSignalStrength != uavstatus.cellSignalStrength || msgGroup == 6)
     sprintf(message, "%scss:%d,", message, uavstatus.cellSignalStrength); // cellSignalStrength
@@ -871,16 +892,16 @@ void buildTelemetryMessage(char* message) {
 
   // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message
   if(lastStatus.homeLatitude != uavstatus.homeLatitude)
-    sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
+    sprintf(message, "%shla:%d,", message, uavstatus.homeLatitude); // homeLatitude
 
   if(lastStatus.homeLongitude != uavstatus.homeLongitude)
-    sprintf(message, "%shlo:%.8f,", message, uavstatus.homeLongitude); // homeLongitude
+    sprintf(message, "%shlo:%d,", message, uavstatus.homeLongitude); // homeLongitude
   
   if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL)
     sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
   
-  if(lastStatus.flightMode != uavstatus.flightMode)
-    sprintf(message, "%sftm:%s,", message, uavstatus.flightMode); // flightMode
+  if(lastStatus.flightModeId != uavstatus.flightModeId)
+    sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
 
   lastStatus = uavstatus;
 }
@@ -892,9 +913,9 @@ void buildLowPriorityMessage(char* message) {
 
   sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign
 
-  sprintf(message, "%shla:%.8f,", message, uavstatus.homeLatitude); // homeLatitude
+  sprintf(message, "%shla:%d,", message, uavstatus.homeLatitude); // homeLatitude
 
-  sprintf(message, "%shlo:%.8f,", message, uavstatus.homeLongitude); // homeLongitude
+  sprintf(message, "%shlo:%d,", message, uavstatus.homeLongitude); // homeLongitude
 
   sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
 
@@ -902,7 +923,7 @@ void buildLowPriorityMessage(char* message) {
 
   sprintf(message, "%sflt:%d,", message, uavstatus.flightTime); // flightTime
 
-  sprintf(message, "%sftm:%s,", message, uavstatus.flightMode); // flightMode
+  sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
   
 }
 
