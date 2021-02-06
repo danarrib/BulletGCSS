@@ -518,7 +518,7 @@ function updateElevationData(elevData)
     var latitude;
     var longitude;
 
-    if(elevationProvider == "OpenTopoData")
+    if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect")
     {
         // Check if it's not a valid result
         if(elevData.status != "OK")
@@ -532,7 +532,7 @@ function updateElevationData(elevData)
             latitude = elevData.results[i].latitude;
             longitude = elevData.results[i].longitude;
         }
-        else if(elevationProvider == "OpenTopoData")
+        else if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect")
         {
             latitude = elevData.results[i].location.lat;
             longitude = elevData.results[i].location.lng;
@@ -581,7 +581,7 @@ function getMissionWaypointsAltitude()
                 longitude: data.currentMissionWaypoints[i].wpLongitude,
             });
         }
-        else if(elevationProvider == "OpenTopoData")
+        else if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect" )
         {
             if(locations.length > 0)
                 locations = locations + "|"
@@ -630,6 +630,14 @@ function getMissionWaypointsAltitude()
         xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
         xmlhttp.setRequestHeader('Accept', '*/*');
         xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
+        xmlhttp.send();
+    }
+    else if(elevationProvider == "OpenTopoDataDirect")
+    {
+        apiURL = "https://fpvsampa.opentopodata.org/v1/mapzen?locations=" + locations;
+        xmlhttp.open("GET", apiURL, true);
+        xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlhttp.setRequestHeader('Accept', '*/*');
         xmlhttp.send();
     }
 }
