@@ -636,8 +636,6 @@ function getMissionWaypointsAltitude()
     {
         apiURL = "https://fpvsampa.opentopodata.org/v1/mapzen?locations=" + locations;
         xmlhttp.open("GET", apiURL, true);
-        xmlhttp.setRequestHeader("Content-Type", "text/html; charset=UTF-8");
-        xmlhttp.setRequestHeader('Accept', '*/*');
         xmlhttp.send();
     }
 }
