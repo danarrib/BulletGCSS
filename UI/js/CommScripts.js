@@ -23,6 +23,26 @@ username = localStorage.getItem("mqttUser");
 password = localStorage.getItem("mqttPass");
 cleansession = true;
 
+var mqttlog = new Array();
+
+function mqttlogevent(eventDescription)
+{
+    var nowDate = new Date();
+    mqttlog.push(nowDate.getTime().toString() + '|' + eventDescription);
+}
+
+function savemqttlog()
+{
+    var nowDate = new Date();
+    var fileContent = mqttlog.join("\n");
+    var bb = new Blob([ fileContent ], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.download = new Date().toISOString().replace(/:/g,"").replace(/-/g,"").substr(0,15) + '.txt';
+    a.href = window.URL.createObjectURL(bb);
+    a.click();
+    closeNav();
+}
+
 var mqtt;
 var reconnectTimeout = 2000;
 
@@ -55,7 +75,9 @@ function MQTTconnect() {
         cleanSession: cleansession,
         onSuccess: onConnect,
         onFailure: function (message) {
-            console.log("Connection failed: " + message.errorMessage + ". Retrying...");
+            var errmsg = "Connection failed: " + message.errorMessage + ". Retrying...";
+            console.log(errmsg);
+            mqttlogevent(errmsg);
             setTimeout(MQTTconnect, reconnectTimeout);
         }
     };
@@ -71,17 +93,23 @@ function MQTTconnect() {
 }
 
 function onConnect() {
-    console.log('Connected to ' + host + ':' + port + path);
+    var errmsg = 'Connected to ' + host + ':' + port + path; 
+    console.log(errmsg);
     // Connection succeeded; subscribe to our topic
     mqtt.subscribe(topic, {qos: 0});
     console.log(topic);
+    mqttlogevent(errmsg + ' - ' + topic);
     mqttConnected = true;
 }
 
 function onConnectionLost(response) {
     setTimeout(MQTTconnect, reconnectTimeout);
     if(typeof responseObject !== 'undefined')
-        console.log("Connection lost: " + responseObject.errorMessage + ". Reconnecting...");
+    {
+        var errmsg = "Connection lost: " + responseObject.errorMessage + ". Reconnecting..."
+        console.log(errmsg);
+        mqttlogevent(errmsg);
+    }
     mqttConnected = false;
 };
 
@@ -91,6 +119,7 @@ function onMessageArrived(message) {
     var payload = message.payloadString;
 
     console.log(payload);
+    mqttlogevent(payload);
     lastMessageDate = new Date();
     parseTelemetryData(payload);
 };
