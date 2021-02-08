@@ -16,7 +16,7 @@ var efis = {
     VerticalSpeedSteps: 2, // Each line on the Vertical Speed bar
     VerticalSpeedFOV: 8, // from 0 to this number (and negative too)
     qtyBlocks: 18, // How many horizontal and vertical chuncks the hud will be divided
-    fontSizeFactor: 3, // (HUD Height / qtyBlocks) * fontSizeFactor
+    fontSizeFactor: 4.5, // (HUD Height / qtyBlocks) * fontSizeFactor
     horizonSizeFactor: 8, // Greater number, shorter AHI lines
     hudView: document.getElementById("hudview"),
     efisCanvas: document.getElementById("cvsEFIS"),
@@ -830,7 +830,7 @@ function renderEFIS(data) {
     drawEfisBankAngle();
 
     // Draw Battery information
-    drawEfisBatterySection();
+    //drawEfisBatterySection();
 
     // Debug Info
     var endTime = performance.now();
