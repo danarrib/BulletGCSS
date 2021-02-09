@@ -274,6 +274,7 @@ function closeUISettings() {
 
 function reloadApplication()
 {
+    closeNav();
     window.location.reload();
 }
 
