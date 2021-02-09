@@ -707,7 +707,7 @@ function drawEfisBankAngle() {
         efis.efisContext.strokeStyle = 'white';
         if(i == 0)
         {
-            efis.efisContext.lineWidth = 4 * window.devicePixelRatio;
+            efis.efisContext.lineWidth = 3 * window.devicePixelRatio;
             efis.efisContext.strokeStyle = 'yellow';
         }
         else if(i == 60 || i == 30)
