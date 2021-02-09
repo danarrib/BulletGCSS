@@ -693,42 +693,54 @@ function drawEfisBankAngle() {
     var lineLength = (efis.efisHeight / 2) - elementY;
 
     // Draw lines
-    efis.efisContext.strokeStyle = 'white';
 
-    for(i=0; i<=30; i+=10) {
+    efis.efisContext.strokeStyle = 'white';
+    var bankAngle = parseInt(data.rollAngle);
+    var arrowAngle = 10;
+
+    for(i=0; i<=60; i+=15) {
         var x1 = (efis.efisWidth / 2);
         var y1 = (efis.efisHeight / 2);
-        var x2 = x1 + lineLength * Math.sin(AngleToRadians(i));
-        var y2 = y1 - lineLength * Math.cos(AngleToRadians(i));
+        var x2 = x1 + lineLength * Math.sin(AngleToRadians(i - bankAngle));
+        var y2 = y1 - lineLength * Math.cos(AngleToRadians(i - bankAngle));
 
-        if(i==0 || i==30)
+        efis.efisContext.strokeStyle = 'white';
+        if(i == 0)
+        {
+            efis.efisContext.lineWidth = 4 * window.devicePixelRatio;
+            efis.efisContext.strokeStyle = 'yellow';
+        }
+        else if(i == 60 || i == 30)
             efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
         else
             efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
 
         drawShorterLine(efis.efisContext, P(x1, y1), P(x2, y2), (efis.efisHeight / 2) - (efis.blockHeight * 2), 0);
-        if(i>0) {
-            x2 = (x1 - (lineLength * Math.sin(AngleToRadians(i))));
+
+        efis.efisContext.strokeStyle = 'white';
+        if(i > 0) {
+            x2 = (x1 - (lineLength * Math.sin(AngleToRadians(i + bankAngle))));
+            y2 = (y1 - (lineLength * Math.cos(AngleToRadians(i + bankAngle))));
             drawShorterLine(efis.efisContext, P(x1, y1), P(x2, y2), (efis.efisHeight / 2) - (efis.blockHeight * 2), 0);
         }
     }
 
     // Draw bank arrow
-    var bankAngle = data.rollAngle;
-    if(bankAngle > -50 && bankAngle < 50) {
+    if(bankAngle > -60 && bankAngle < 60) {
         var arrowAngle = 10;
+        bankAngle = 0; // Make yellow arrow always point up
 
         x1 = elementCenterX + (lineLength - efis.blockHeight) * Math.sin(AngleToRadians(bankAngle));
         y1 = (efis.efisHeight / 2) - (lineLength - efis.blockHeight) * Math.cos(AngleToRadians(bankAngle));
 
         var x2a = x1 - (efis.blockWidth * Math.sin(AngleToRadians(-arrowAngle + bankAngle)));
         var y2a = y1 + (efis.blockHeight * Math.cos(AngleToRadians(-arrowAngle + bankAngle)));
-        var x2b = x1 - (efis.blockWidth * Math.sin(AngleToRadians(arrowAngle + bankAngle)));;
+        var x2b = x1 - (efis.blockWidth * Math.sin(AngleToRadians(arrowAngle + bankAngle)));
         var y2b = y1 + (efis.blockHeight * Math.cos(AngleToRadians(arrowAngle + bankAngle)));
 
         efis.efisContext.beginPath();
         efis.efisContext.strokeStyle = 'yellow';
-        efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
+        efis.efisContext.lineWidth = 3 * window.devicePixelRatio;
         efis.efisContext.moveTo(x1, y1);
         efis.efisContext.lineTo(x2a, y2a);
         efis.efisContext.moveTo(x1, y1);
