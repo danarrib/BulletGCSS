@@ -727,7 +727,7 @@ function drawEfisBankAngle() {
 
     // Draw bank arrow
     if(bankAngle > -60 && bankAngle < 60) {
-        var arrowAngle = 10;
+        var arrowAngle = 12;
         bankAngle = 0; // Make yellow arrow always point up
 
         x1 = elementCenterX + (lineLength - efis.blockHeight) * Math.sin(AngleToRadians(bankAngle));
@@ -738,17 +738,13 @@ function drawEfisBankAngle() {
         var x2b = x1 - (efis.blockWidth * Math.sin(AngleToRadians(arrowAngle + bankAngle)));
         var y2b = y1 + (efis.blockHeight * Math.cos(AngleToRadians(arrowAngle + bankAngle)));
 
+        efis.efisContext.fillStyle = 'yellow';
         efis.efisContext.beginPath();
-        efis.efisContext.strokeStyle = 'yellow';
-        efis.efisContext.lineWidth = 3 * window.devicePixelRatio;
         efis.efisContext.moveTo(x1, y1);
         efis.efisContext.lineTo(x2a, y2a);
-        efis.efisContext.moveTo(x1, y1);
         efis.efisContext.lineTo(x2b, y2b);
-        efis.efisContext.moveTo(x2a, y2a);
-        efis.efisContext.lineTo(x2b, y2b);
-
-        efis.efisContext.stroke();
+        efis.efisContext.lineTo(x1, y1);
+        efis.efisContext.fill();
         efis.efisContext.closePath();
     }
 }
