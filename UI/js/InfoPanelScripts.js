@@ -237,7 +237,7 @@ function updateDataView(data)
         armedClass = "color-ok";
 
     var gps3DClass = "color-danger";
-    if(data.gps3DFix == 1)
+    if(data.gps3DFix != 0)
         gps3DClass = "color-ok";
 
     var wpMissionClass = "color-normal";
