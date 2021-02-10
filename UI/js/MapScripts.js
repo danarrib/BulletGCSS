@@ -541,6 +541,9 @@ function updateElevationData(elevData)
         // Find the WP with same coordinates
         for(j=0; j< data.currentMissionWaypoints.length; j++)
         {
+            if(typeof data.currentMissionWaypoints[j] == "undefined")
+                continue;
+
             if(data.currentMissionWaypoints[j].wpLatitude == latitude
                 && data.currentMissionWaypoints[j].wpLongitude == longitude)
                 {
