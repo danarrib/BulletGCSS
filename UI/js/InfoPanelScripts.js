@@ -14,11 +14,18 @@ function openGoogleMaps(lat, lon){
 
 function secondsToNiceTime(seconds) 
 {
-    if(seconds > 60 * 60 * 24) // More than one day means never
+    if(seconds > 30 * 60 * 60 * 24) // More than 30 days means never
         return "Never";
     
     var minutes = 0;
     var hours = 0;
+    var days = 0;
+
+    if(seconds > (60 * 60 * 24)) 
+    {
+        days = Math.floor(seconds / (60 * 60 * 24));
+        seconds = seconds - (days * 60 * 60 * 24);
+    }
 
     if(seconds > (60 * 60)) 
     {
@@ -33,10 +40,13 @@ function secondsToNiceTime(seconds)
     }
 
     var ret = "";
-    if(hours>0)
+    if(days > 0)
+        ret += days + "d ";
+
+    if(hours > 0)
         ret += hours + "h ";
 
-    if(minutes>0)
+    if(minutes > 0)
         ret += minutes + "m ";
     
     ret += seconds + "s";
