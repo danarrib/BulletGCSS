@@ -178,6 +178,7 @@ var data = {
     navState: 0,
     mWhDraw: 0,
     isCurrentMissionElevationSet: false,
+    gpsGroundCourse: 0,
 };
 
 function parseWaypointMessage(payload) {
@@ -445,6 +446,9 @@ function parseStandardTelemetryMessage(payload)
                 break;
             case "whd":
                 data.mWhDraw = parseInt(arrData[1]);
+                break;
+            case "ggc":
+                data.gpsGroundCourse = parseInt(arrData[1]);
                 break;
             default:
                 break;

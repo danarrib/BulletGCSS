@@ -354,6 +354,7 @@ window.onload = function(event) {
         // Render stuff
         drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
+        drawCourseLineOnMap(data);
         updateDataView(data);
     }, pageSettings.mapAndDataRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
