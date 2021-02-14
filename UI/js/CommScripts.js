@@ -184,6 +184,20 @@ var data = {
         gpsLongitude: 0,
         homeDistance: 0,
         capacityDraw: 0,
+        rollAngle: 0,
+        pitchAngle: 0,
+        heading: 0,
+        altitude: 0,
+        groundSpeed: 0,
+        verticalSpeed: 0,
+    },
+    lastMessage: {
+        rollAngle: 0,
+        pitchAngle: 0,
+        heading: 0,
+        altitude: 0,
+        groundSpeed: 0,
+        verticalSpeed: 0,
     }
 };
 
@@ -328,24 +342,30 @@ function parseStandardTelemetryMessage(payload)
         var arrData = arrPayload[i].split(":");
         switch(arrData[0]) {
             case "ran":
+                data.lastMessage.rollAngle = data.rollAngle;
                 data.rollAngle = parseFloat(arrData[1]) / 10.0;
                 break;
             case "pan":
+                data.lastMessage.pitchAngle = data.pitchAngle;
                 data.pitchAngle = parseFloat(arrData[1]) / 10.0;
                 break;
             case "hea":
+                data.lastMessage.heading = data.heading;
                 data.heading = parseFloat(arrData[1]);
                 break;
             case "alt":
+                data.lastMessage.altitude = data.altitude;
                 data.altitude = parseInt(arrData[1]);
                 break;
             case "asl":
                 data.altitudeSeaLevel = parseInt(arrData[1]);
                 break;
             case "gsp":
+                data.lastMessage.groundSpeed = data.groundSpeed;
                 data.groundSpeed = parseInt(arrData[1]);
                 break;
             case "vsp":
+                data.lastMessage.verticalSpeed = data.verticalSpeed;
                 data.verticalSpeed = parseInt(arrData[1]);
                 break;
             case "hdr":
@@ -513,3 +533,43 @@ function estimatePosition()
     data.estimations.capacityDraw = data.capacityDraw + usedCapacity;
 }
 
+function rangeNumbers(in_number, in_min, in_max, out_min, out_max) {
+    return (in_number - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+function estimateEfis()
+{
+    var dateNow = new Date();
+    var timeSinceLastFrame = dateNow - lastMessageDate;
+
+    if(timeSinceLastFrame > pageSettings.messageInterval) // Stop estimating
+    {
+        
+        data.lastMessage.altitude = data.altitude;
+        data.lastMessage.rollAngle = data.rollAngle;
+        data.lastMessage.pitchAngle = data.pitchAngle;
+        data.lastMessage.groundSpeed = data.groundSpeed;
+        data.lastMessage.verticalSpeed = data.verticalSpeed;
+        data.lastMessage.heading = data.heading;
+
+        data.estimations.altitude = data.altitude;
+        data.estimations.rollAngle = data.rollAngle;
+        data.estimations.pitchAngle = data.pitchAngle;
+        data.estimations.groundSpeed = data.groundSpeed;
+        data.estimations.verticalSpeed = data.verticalSpeed;
+        data.estimations.heading = data.heading;
+        return;
+    }
+
+    // This is the percentage of the movement to the last frame
+    var movePercent = (timeSinceLastFrame / pageSettings.messageInterval) * 100;
+    
+    data.estimations.altitude = rangeNumbers(movePercent, 0, 100, data.lastMessage.altitude, data.altitude);
+    data.estimations.rollAngle = rangeNumbers(movePercent, 0, 100, data.lastMessage.rollAngle, data.rollAngle);
+    data.estimations.pitchAngle = rangeNumbers(movePercent, 0, 100, data.lastMessage.pitchAngle, data.pitchAngle);
+    data.estimations.groundSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.groundSpeed, data.groundSpeed);
+    data.estimations.verticalSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.verticalSpeed, data.verticalSpeed);
+    data.estimations.heading = rangeNumbers(movePercent, 0, 100, data.lastMessage.heading, data.heading);
+
+
+}

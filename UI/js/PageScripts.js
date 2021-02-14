@@ -329,7 +329,8 @@ window.onresize = function(event) {
 var pageSettings = {
     efisRefreshInterval: 100,
     mapAndDataRefreshInterval: 250,
-    lowPriorityTasksInterval: 10000
+    lowPriorityTasksInterval: 10000,
+    messageInterval: 900,
 };
 
 window.onload = function(event) {
@@ -343,6 +344,7 @@ window.onload = function(event) {
 
     var timerEFIS = setInterval(function(){ 
         //simulateFlight();
+        estimateEfis();
         renderEFIS(data);
     }, pageSettings.efisRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
 

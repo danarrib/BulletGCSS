@@ -97,7 +97,7 @@ function lineDistance( point1, point2 ){
 }
 
 function correctPitchAngle(data, line, pitchDegPixels) {
-    var correctedPitchAngle = data.pitchAngle;
+    var correctedPitchAngle = data.estimations.pitchAngle;
     if(correctedPitchAngle > 90) {
         // Aircraft is upside down. Start decreasing pitch angle and flip horizon
         correctedPitchAngle = 180 - correctedPitchAngle;
@@ -109,7 +109,7 @@ function correctPitchAngle(data, line, pitchDegPixels) {
     // On INAV, nose down means positive number and nose up negative. Fix it now.
     correctedPitchAngle = correctedPitchAngle * -1;
     
-    var rollAngleRad = data.rollAngle * (Math.PI / 180) * -1;
+    var rollAngleRad = data.estimations.rollAngle * (Math.PI / 180) * -1;
     var pitchAngleRad = correctedPitchAngle * (Math.PI / 180);
     var cosRoll = Math.cos(rollAngleRad);
     var sinRoll = Math.sin(rollAngleRad);
@@ -188,7 +188,7 @@ function drawEfisHeadingIndicator() {
     var lineY2 = numberY + (efis.fontSize * 0.1);
 
     for(i=0; i <= (359 + efis.horizontalFOV); i+=efis.AHIStepsDeg) {
-        var startingPosX = (efis.efisWidth / 2) - (data.heading * (efis.efisWidth / efis.horizontalFOV));
+        var startingPosX = (efis.efisWidth / 2) - (data.estimations.heading * (efis.efisWidth / efis.horizontalFOV));
         var numberX = startingPosX + (i * (efis.efisWidth / efis.horizontalFOV) );
         var numberXNeg = startingPosX + (-i * (efis.efisWidth / efis.horizontalFOV) );
         var nAngle = i;
@@ -240,7 +240,7 @@ function drawEfisHeadingIndicator() {
     }
 
     efis.efisContext.beginPath();
-    var headingDisplay = data.heading;
+    var headingDisplay = data.estimations.heading;
     if(headingDisplay < 0)
         headingDisplay = 360 + headingDisplay;
     headingDisplay = pad(parseInt(headingDisplay), 3);
@@ -254,7 +254,7 @@ function drawEfisHorizonGroundSky() {
     // Make the horizon line angle
     efis.horizonX1 = (efis.efisWidth / 2);
     efis.horizonY1 = (efis.efisHeight / 2);
-    efis.rollAngleRad = (data.rollAngle * (Math.PI / 180)) * -1;
+    efis.rollAngleRad = (data.estimations.rollAngle * (Math.PI / 180)) * -1;
     efis.horizonX2 = parseInt(efis.horizonX1 + (efis.lineLength * Math.cos(efis.rollAngleRad)));
     efis.horizonY2 = parseInt(efis.horizonY1 + (efis.lineLength * Math.sin(efis.rollAngleRad)));
     efis.horizonX1 = efis.efisWidth - efis.horizonX2;
@@ -297,7 +297,7 @@ function drawEfisHorizonGroundSky() {
 
 function drawEfisHomeArrow()
 {
-    var arrowDirection = data.homeDirection - data.heading;
+    var arrowDirection = data.homeDirection - data.estimations.heading;
     if(arrowDirection < 0)
         arrowDirection += 360;
 
@@ -363,7 +363,7 @@ function drawEfisArtifitialHorizonStepLines() {
     for(i=0; i<=180; i+=efis.AHIStepsDeg / 2) {
         
         var StepsRadius = efis.verticalFOV / 3;
-        var dataPitchAngle = data.pitchAngle * -1; // Fix INAV inverted pitch angle
+        var dataPitchAngle = data.estimations.pitchAngle * -1; // Fix INAV inverted pitch angle
         var StepsStart = dataPitchAngle - StepsRadius;
         var StepsFinish = dataPitchAngle + StepsRadius;
 
@@ -487,7 +487,7 @@ function drawEfisCrosshair() {
     efis.efisContext.fillRect((efis.efisWidth / 2) - elementLineWidth, (efis.efisHeight / 2) - elementLineWidth, elementLineWidth * 2, elementLineWidth * 2);
     efis.efisContext.stroke();
 
-    drawTextWithShadow(efis.efisContext, (data.pitchAngle * -1).toFixed(1) + 'º', (efis.blockWidth * blockStart) - elementLineWidth, (efis.efisHeight / 2) + (efis.fontSize / 2.5), elementFont, 'right', 'white', 'black', elementLineWidth / 2);
+    drawTextWithShadow(efis.efisContext, (data.estimations.pitchAngle * -1).toFixed(1) + 'º', (efis.blockWidth * blockStart) - elementLineWidth, (efis.efisHeight / 2) + (efis.fontSize / 2.5), elementFont, 'right', 'white', 'black', elementLineWidth / 2);
 
     efis.efisContext.closePath();
 
@@ -501,7 +501,7 @@ function drawEfisVerticalSpeed() {
     var elementCenterY = (elementY + elementHeight) / 2;
     var elementFontSize = efis.fontSize * 2;
     var elementSmallFontSize = elementFontSize / 3;
-    var verticalSpeedDisplay = data.verticalSpeed.toFixed(1);
+    var verticalSpeedDisplay = data.estimations.verticalSpeed.toFixed(1);
     var elementLineStartX = elementX + (elementWidth / 6);
     var elementLineEndX = (elementX + elementWidth) - (elementWidth / 2);
     
@@ -526,8 +526,8 @@ function drawEfisVerticalSpeed() {
     var maxVerticalSpeed = efis.VerticalSpeedFOV; // m/s
 
     if(0==1) {
-        if(Math.abs(data.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed)
-            maxVerticalSpeed = Math.ceil(abs(data.verticalSpeed / efis.VerticalSpeedUnitFactor));
+        if(Math.abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed)
+            maxVerticalSpeed = Math.ceil(abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor));
     }
 
     var VerticalSpeedDivisions = efis.VerticalSpeedSteps;
@@ -581,14 +581,14 @@ function drawEfisVerticalSpeed() {
     efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
     var pointerFactor = 0.8;
     
-    var vsLineY = elementCenterY - ((data.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels);
-    var vsLineY2 = elementCenterY - ((data.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels * pointerFactor);
+    var vsLineY = elementCenterY - ((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels);
+    var vsLineY2 = elementCenterY - ((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels * pointerFactor);
 
-    if((data.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed) {
+    if((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed) {
         vsLineY = elementCenterY - (maxVerticalSpeed * VSPixels);
         vsLineY2 = elementCenterY - (maxVerticalSpeed * VSPixels * pointerFactor);
         efis.efisContext.strokeStyle = 'orange';
-    }else if((data.verticalSpeed / efis.VerticalSpeedUnitFactor) < -maxVerticalSpeed) {
+    }else if((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) < -maxVerticalSpeed) {
         vsLineY = elementCenterY + (maxVerticalSpeed * VSPixels);
         vsLineY2 = elementCenterY + (maxVerticalSpeed * VSPixels * pointerFactor);
         efis.efisContext.strokeStyle = 'orange';
@@ -611,7 +611,7 @@ function drawEfisGroundSpeed() {
     var elementY = 0;
     var elementFontSize = efis.fontSize * 2;
     var elementSmallFontSize = elementFontSize / 2;
-    var groundSpeedDisplay = data.groundSpeed * efis.SpeedUnitFactor;
+    var groundSpeedDisplay = data.estimations.groundSpeed * efis.SpeedUnitFactor;
 
     // Draw translucid element space
     efis.efisContext.globalAlpha = 0.2;
@@ -674,7 +674,7 @@ function drawEfisAltitude() {
     var elementY = 0;
     var elementFontSize = efis.fontSize * 2;
     var elementSmallFontSize = elementFontSize / 2;
-    var altitudeDisplay = parseInt(data.altitude / efis.AltitudeUnitFactor);
+    var altitudeDisplay = parseInt(data.estimations.altitude / efis.AltitudeUnitFactor);
 
     // Draw translucid element space
     efis.efisContext.globalAlpha = 0.2;
@@ -748,7 +748,7 @@ function drawEfisBankAngle() {
     // Draw lines
 
     efis.efisContext.strokeStyle = 'white';
-    var bankAngle = parseInt(data.rollAngle);
+    var bankAngle = parseInt(data.estimations.rollAngle);
     var arrowAngle = 10;
 
     for(i=0; i<=60; i+=15) {
