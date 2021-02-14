@@ -295,6 +295,61 @@ function drawEfisHorizonGroundSky() {
     efis.efisContext.closePath();
 }
 
+function drawEfisHomeArrow()
+{
+    var arrowDirection = data.homeDirection - data.heading;
+    if(arrowDirection < 0)
+        arrowDirection += 360;
+
+    console.log(arrowDirection);
+    
+    var elementWidth = efis.blockWidth * 2;
+    var elementHeight = efis.blockHeight * 2;
+    var elementX = efis.blockWidth * 6;
+    var elementY = efis.blockHeight * 2;
+    var elementCenterX = (elementX + elementWidth) / 2;
+    var elementCenterY = (elementY + elementHeight) / 2;
+    
+
+    efis.efisContext.save();
+    efis.efisContext.translate(elementCenterX, elementCenterY);
+    efis.efisContext.rotate(AngleToRadians(arrowDirection));
+    efis.efisContext.beginPath();
+
+    var spacingh = elementWidth / 8;
+    var spacingv = spacingh * 3;
+    var x1 = 0 - spacingh / 2;
+    var y1 = 0 - spacingv / 2;
+
+    var x2a = x1 - spacingh;
+    var y2a = y1 + spacingv;
+    var x2b = x1 + spacingh;
+    var y2b = y1 + spacingv;
+
+    efis.efisContext.fillStyle = 'white';
+    efis.efisContext.moveTo(x1, y1);
+    efis.efisContext.lineTo(x2a, y2a);
+    efis.efisContext.lineTo(x2b, y2b);
+    efis.efisContext.lineTo(x1, y1);
+    efis.efisContext.fill();
+    /*
+    efis.efisContext.lineWidth = window.devicePixelRatio;
+    efis.efisContext.strokeStyle = 'black';
+    efis.efisContext.stroke();
+    */
+
+    efis.efisContext.moveTo(x1, y1);
+    efis.efisContext.fillStyle = 'black';
+    efis.efisContext.font = 'bold ' + (efis.fontSize * 0.5) + 'px ' + efis.DefaultFont;
+    efis.efisContext.textAlign = "center";
+    efis.efisContext.fillText("H", 0 - (spacingh/2), (spacingv/3));
+
+    efis.efisContext.closePath();
+    efis.efisContext.restore();
+
+}
+
+
 function drawEfisArtifitialHorizonStepLines() {
     efis.horizonX1 = (efis.efisWidth / 2);
     efis.horizonY1 = (efis.efisHeight / 2);
@@ -839,6 +894,9 @@ function renderEFIS(data) {
 
     // Draw Battery information
     //drawEfisBatterySection();
+
+    // Draw Home arrow
+    drawEfisHomeArrow();
 
     // Debug Info
     var endTime = performance.now();

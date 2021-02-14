@@ -343,7 +343,7 @@ function parseStandardTelemetryMessage(payload)
                 data.verticalSpeed = parseInt(arrData[1]);
                 break;
             case "hdr":
-                data.homeDirection = parseFloat(arrData[1]) / 10.0;
+                data.homeDirection = parseInt(arrData[1]);
                 break;
             case "hds":
                 data.homeDistance = parseInt(arrData[1]);
