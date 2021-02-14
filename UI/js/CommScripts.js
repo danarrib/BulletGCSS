@@ -1,24 +1,3 @@
-function goclone(source) {
-    if (Object.prototype.toString.call(source) === '[object Array]') {
-        var clone = [];
-        for (var i=0; i<source.length; i++) {
-            clone[i] = goclone(source[i]);
-        }
-        return clone;
-    } else if (typeof(source)=="object") {
-        var clone = {};
-        for (var prop in source) {
-            if (source.hasOwnProperty(prop)) {
-                clone[prop] = goclone(source[prop]);
-            }
-        }
-        return clone;
-    } else {
-        return source;
-    }
-}
-
-
 // Setup MQTT
 
 function MQTTSetDefaultSettings() 
@@ -200,9 +179,13 @@ var data = {
     mWhDraw: 0,
     isCurrentMissionElevationSet: false,
     gpsGroundCourse: 0,
+    estimations: {
+        gpsLatitude: 0,
+        gpsLongitude: 0,
+        homeDistance: 0,
+        capacityDraw: 0,
+    }
 };
-
-var estimatedData = goclone(data);
 
 function parseWaypointMessage(payload) {
     // Don't update mission while fetching elevation data from server.
@@ -499,12 +482,15 @@ function estimatePosition()
     var dateNow = new Date();
     var timeSinceLastFrame = dateNow - lastMessageDate;
 
-    if(timeSinceLastFrame > 5 * 60 * 1000) // Stop estimating if more than 5 minutes without messages
+    if(timeSinceLastFrame > 2 * 60 * 1000) // Stop estimating if more than 2 minutes without messages
+    {
+        data.estimations.gpsLatitude = data.gpsLatitude;
+        data.estimations.gpsLongitude = data.gpsLongitude;
+        data.estimations.homeDistance = data.homeDistance;
+        data.estimations.capacityDraw = data.capacityDraw;
         return;
+    }
 
-    //estimatedData = Object.create(data);
-    estimatedData = goclone(data);
-    
     // Estimate aircraft position based on speed and course
     if(data.groundSpeed > 0)
     {
@@ -514,16 +500,16 @@ function estimatePosition()
 
         // Calculate new estimated coordinates
         var estimatedCoordinates = DestinationCoordinates(data.gpsLatitude, data.gpsLongitude, data.gpsGroundCourse, distance);
-        estimatedData.gpsLatitude = estimatedCoordinates.lat;
-        estimatedData.gpsLongitude = estimatedCoordinates.lng;
+        data.estimations.gpsLatitude = estimatedCoordinates.lat;
+        data.estimations.gpsLongitude = estimatedCoordinates.lng;
 
         // Calculate home distance
-        estimatedData.homeDistance = getDistanceBetweenTwoPoints(data.homeLatitude, data.homeLongitude, estimatedCoordinates.lat, estimatedCoordinates.lng);
+        data.estimations.homeDistance = getDistanceBetweenTwoPoints(data.homeLatitude, data.homeLongitude, estimatedCoordinates.lat, estimatedCoordinates.lng);
     }
 
     // Estimate capacity consumption based on the power consumption
     var usedCapacity = (data.currentDraw / 3600) * 1000; // milliamps in one second
     usedCapacity = usedCapacity * (timeSinceLastFrame / 1000);
-    estimatedData.capacityDraw = data.capacityDraw + usedCapacity;
+    data.estimations.capacityDraw = data.capacityDraw + usedCapacity;
 }
 

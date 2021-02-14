@@ -74,7 +74,7 @@ function drawAircraftOnMap(inputData)
 
     // Adding the updated aircraft position to the VectorSource
     var iconGeometry = new ol.geom.Point(
-        ol.proj.transform([inputData.gpsLongitude, inputData.gpsLatitude], 'EPSG:4326','EPSG:3857')
+        ol.proj.transform([inputData.estimations.gpsLongitude, inputData.estimations.gpsLatitude], 'EPSG:4326','EPSG:3857')
     );
     
     var aircraftIconFeature = new ol.Feature({
@@ -460,7 +460,7 @@ var courseLineFeatures = [];
 
 var courseLineStyle = new ol.style.Style({
     stroke: new ol.style.Stroke({
-        color: '#9F6',
+        color: '#9C6',
         width: 3 * window.devicePixelRatio
     })
 });

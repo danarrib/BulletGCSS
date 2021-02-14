@@ -353,10 +353,10 @@ window.onload = function(event) {
         estimatePosition();
 
         // Render stuff
-        drawAircraftOnMap(estimatedData);
+        drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
         drawCourseLineOnMap(data);
-        updateDataView(estimatedData);
+        updateDataView(data);
     }, pageSettings.mapAndDataRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
     var timerOneSecond = setInterval(function(){ 

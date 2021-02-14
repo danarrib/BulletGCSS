@@ -329,7 +329,7 @@ function updateDataView(data)
     document.getElementById("coordinatesPlaceHolder").innerHTML = '<a style="cursor: pointer; color: #00BFFF;" onclick="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');" ontouchstart="openGoogleMaps(' + data.gpsLatitude + ',' + data.gpsLongitude + ');">' + PlusCodeCoordinates + '</a>';
     
     
-    document.getElementById("homeDistancePlaceHolder").innerHTML = metersToNiceDistance(data.homeDistance);
+    document.getElementById("homeDistancePlaceHolder").innerHTML = metersToNiceDistance(data.estimations.homeDistance);
 
     document.getElementById("gpsInfoPlaceHolder").innerHTML = data.gpsSatCount + ' Sats <font class="smalltext">[' + data.gpsHDOP.toFixed(1) + ' hdop]</font>';
     document.getElementById("gpsInfoPlaceHolder").className = gps3DClass;
@@ -350,7 +350,7 @@ function updateDataView(data)
 
     if(uiElementsUnits.capacityUnit == "mah")
     {
-        document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw.toFixed(0) + " mAh";
+        document.getElementById("mAhUsedPlaceHolder").innerHTML = data.estimations.capacityDraw.toFixed(0) + " mAh";
         document.getElementById("capacityLabel").innerHTML = "mAh used";
     }
     else if(uiElementsUnits.capacityUnit == "mwh")
