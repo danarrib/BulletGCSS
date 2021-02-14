@@ -78,7 +78,6 @@ function openNav() {
     document.getElementById("missionplannerlink").style.display = "none";
     document.getElementById("senduavcommandlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
-    document.getElementById("installhomelink").style.display = "none";
 
     // Open menu
     document.getElementById("sideMenu").style.width = "100%";
