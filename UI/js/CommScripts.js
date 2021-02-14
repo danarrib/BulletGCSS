@@ -1,3 +1,24 @@
+function goclone(source) {
+    if (Object.prototype.toString.call(source) === '[object Array]') {
+        var clone = [];
+        for (var i=0; i<source.length; i++) {
+            clone[i] = goclone(source[i]);
+        }
+        return clone;
+    } else if (typeof(source)=="object") {
+        var clone = {};
+        for (var prop in source) {
+            if (source.hasOwnProperty(prop)) {
+                clone[prop] = goclone(source[prop]);
+            }
+        }
+        return clone;
+    } else {
+        return source;
+    }
+}
+
+
 // Setup MQTT
 
 function MQTTSetDefaultSettings() 
@@ -130,23 +151,23 @@ function onMessageArrived(message) {
 var data = {
     rollAngle: 0, // decimal deg from -180.0 to 180.0
     pitchAngle: 0, // decimal deg from -90.0 to 90.0
-    heading: 35, // decimal deg from -180.0 to 180.0
-    altitude: 4000, // int centimeters
-    altitudeSeaLevel: 400, // int meters
-    groundSpeed: 1450, // int centimeters per second
-    airSpeed: 1350, // int centimeters per second
-    verticalSpeed: 125, // int centimeters per second
-    homeDirection: 35, // decimal deg from -180.0 to 180.0
-    homeDistance: 600, // meters
-    fuelPercent: 50,
-    battCellVoltage: 3.67,
-    batteryVoltage: 14.0,
+    heading: 0, // decimal deg from -180.0 to 180.0
+    altitude: 0, // int centimeters
+    altitudeSeaLevel: 0, // int meters
+    groundSpeed: 0, // int centimeters per second
+    airSpeed: 0, // int centimeters per second
+    verticalSpeed: 0, // int centimeters per second
+    homeDirection: 0, // decimal deg from -180.0 to 180.0
+    homeDistance: 0, // meters
+    fuelPercent: 100,
+    battCellVoltage: 4,
+    batteryVoltage: 16,
     batteryCellCount: 4,
-    currentDraw: 5.6, // Amps
-    capacityDraw: 2345, // mAh
-    rssiPercent: 95,
-    gpsSatCount: 12,
-    gpsHDOP: 1.2,
+    currentDraw: 0, // Amps
+    capacityDraw: 0, // mAh
+    rssiPercent: 100,
+    gpsSatCount: 0,
+    gpsHDOP: 0,
     gpsLatitude: -23.5467,
     gpsLongitude: -46.6652,
     currentWaypointNumber: 0,
@@ -180,6 +201,8 @@ var data = {
     isCurrentMissionElevationSet: false,
     gpsGroundCourse: 0,
 };
+
+var estimatedData = goclone(data);
 
 function parseWaypointMessage(payload) {
     // Don't update mission while fetching elevation data from server.
@@ -470,3 +493,37 @@ function parseTelemetryData(payload) {
 
     data.dataTimestamp = new Date();
 }
+
+function estimatePosition()
+{
+    var dateNow = new Date();
+    var timeSinceLastFrame = dateNow - lastMessageDate;
+
+    if(timeSinceLastFrame > 5 * 60 * 1000) // Stop estimating if more than 5 minutes without messages
+        return;
+
+    //estimatedData = Object.create(data);
+    estimatedData = goclone(data);
+    
+    // Estimate aircraft position based on speed and course
+    if(data.groundSpeed > 0)
+    {
+        // Calculate how much distance it travels on that time and speed
+        var distance = (data.groundSpeed / 100); // meters in one second
+        distance = distance * (timeSinceLastFrame / 1000);
+
+        // Calculate new estimated coordinates
+        var estimatedCoordinates = DestinationCoordinates(data.gpsLatitude, data.gpsLongitude, data.gpsGroundCourse, distance);
+        estimatedData.gpsLatitude = estimatedCoordinates.lat;
+        estimatedData.gpsLongitude = estimatedCoordinates.lng;
+
+        // Calculate home distance
+        estimatedData.homeDistance = getDistanceBetweenTwoPoints(data.homeLatitude, data.homeLongitude, estimatedCoordinates.lat, estimatedCoordinates.lng);
+    }
+
+    // Estimate capacity consumption based on the power consumption
+    var usedCapacity = (data.currentDraw / 3600) * 1000; // milliamps in one second
+    usedCapacity = usedCapacity * (timeSinceLastFrame / 1000);
+    estimatedData.capacityDraw = data.capacityDraw + usedCapacity;
+}
+

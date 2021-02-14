@@ -122,7 +122,20 @@ function getN(a, e, latitude) {
     return a / denom;
 }
 
+function getDistanceBetweenTwoPoints(lat1, lon1, lat2, lon2) 
+{
+    var R = 6371; // km
+    var dLat = AngleToRadians(lat2-lat1);
+    var dLon = AngleToRadians(lon2-lon1);
+    var lat1 = AngleToRadians(lat1);
+    var lat2 = AngleToRadians(lat2);
 
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    var d = R * c;
+    return d * 1000; // Return in meters
+}
 
 
 
@@ -136,7 +149,7 @@ function metersToNiceDistance(meters)
         if(meters > 9999)
             return (meters / 1000).toFixed(1) + " km";
         else
-            return meters + " m";
+            return meters.toFixed(0) + " m";
     }
     else if(uiElementsUnits.distanceUnit == "mi")
     {
@@ -337,13 +350,13 @@ function updateDataView(data)
 
     if(uiElementsUnits.capacityUnit == "mah")
     {
-        document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw + " mAh";
+        document.getElementById("mAhUsedPlaceHolder").innerHTML = data.capacityDraw.toFixed(0) + " mAh";
         document.getElementById("capacityLabel").innerHTML = "mAh used";
     }
     else if(uiElementsUnits.capacityUnit == "mwh")
     {
         if(data.mWhDraw < 1000) {
-            document.getElementById("mAhUsedPlaceHolder").innerHTML = data.mWhDraw + " mWh";
+            document.getElementById("mAhUsedPlaceHolder").innerHTML = data.mWhDraw.toFixed(0) + " mWh";
             document.getElementById("capacityLabel").innerHTML = "mWh used";
         }
         else

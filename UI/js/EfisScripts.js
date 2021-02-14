@@ -301,8 +301,6 @@ function drawEfisHomeArrow()
     if(arrowDirection < 0)
         arrowDirection += 360;
 
-    console.log(arrowDirection);
-    
     var elementWidth = efis.blockWidth * 2;
     var elementHeight = efis.blockHeight * 2;
     var elementX = efis.blockWidth * 6;

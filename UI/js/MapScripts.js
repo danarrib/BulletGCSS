@@ -67,14 +67,14 @@ var aircraftVectorLayer = new ol.layer.Vector({
 });
 
 
-function drawAircraftOnMap(data)
+function drawAircraftOnMap(inputData)
 {
     // Removing Previous Aircraft from the VectorSource
     aircraftVectorSource.clear();
 
     // Adding the updated aircraft position to the VectorSource
     var iconGeometry = new ol.geom.Point(
-        ol.proj.transform([data.gpsLongitude, data.gpsLatitude], 'EPSG:4326','EPSG:3857')
+        ol.proj.transform([inputData.gpsLongitude, inputData.gpsLatitude], 'EPSG:4326','EPSG:3857')
     );
     
     var aircraftIconFeature = new ol.Feature({
@@ -87,7 +87,7 @@ function drawAircraftOnMap(data)
     aircraftVectorSource.addFeatures(aircraftIconFeatures);
     
     // Set reading
-    aircraftIconStyle.getImage().setRotation(AngleToRadians(data.heading));
+    aircraftIconStyle.getImage().setRotation(AngleToRadians(inputData.heading));
 }
 
 // Add User Map Stuff
@@ -419,7 +419,7 @@ function drawAircraftPathOnMap(data)
     // Now, render the flight line
     flightLineVectorSource.clear();
     flightLineFeatures = [];
-    if(data.currentFlightWaypoints.length > 0) {
+    if(data.currentFlightWaypoints.length > 1) {
         var loc1;
         var loc2;
         var flightLineFeature;

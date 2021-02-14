@@ -350,11 +350,13 @@ window.onload = function(event) {
         // Fast blinker should update as fast as the DataView panel
         blinkFastSwitch = !blinkFastSwitch;
 
+        estimatePosition();
+
         // Render stuff
-        drawAircraftOnMap(data);
+        drawAircraftOnMap(estimatedData);
         drawAircraftPathOnMap(data);
         drawCourseLineOnMap(data);
-        updateDataView(data);
+        updateDataView(estimatedData);
     }, pageSettings.mapAndDataRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
 
     var timerOneSecond = setInterval(function(){ 
