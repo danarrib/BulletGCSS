@@ -330,7 +330,7 @@ var pageSettings = {
     efisRefreshInterval: 100,
     mapAndDataRefreshInterval: 250,
     lowPriorityTasksInterval: 10000,
-    messageInterval: 900,
+    messageInterval: 1000,
 };
 
 window.onload = function(event) {
