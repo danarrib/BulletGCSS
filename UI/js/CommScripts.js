@@ -528,13 +528,36 @@ function estimatePosition()
     }
 
     // Estimate capacity consumption based on the power consumption
-    var usedCapacity = (data.currentDraw / 3600) * 1000; // milliamps in one second
+    var usedCapacity = (data.currentDraw / 3600) * 1000; // milliamps-hour in one second
     usedCapacity = usedCapacity * (timeSinceLastFrame / 1000);
     data.estimations.capacityDraw = data.capacityDraw + usedCapacity;
 }
 
 function rangeNumbers(in_number, in_min, in_max, out_min, out_max) {
     return (in_number - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+function rangeNumbers360(in_number, in_min, in_max, out_min, out_max) {
+    var retval = 0;
+
+    if(out_min >= 330 && out_max <= 30) // Moving from left to right passing thru 0
+    {
+        out_max = out_max + 360;
+        retval = rangeNumbers(in_number, in_min, in_max, out_min, out_max);
+        if(retval >= 360)
+            retval = retval - 360;
+    }
+    else if(out_min <= 30 && out_max >= 330) // Moving from right to left passing thru 0
+    {
+        out_min = out_min + 360;
+        retval = rangeNumbers(in_number, in_min, in_max, out_min, out_max);
+        if(retval >= 360)
+            retval = retval - 360;
+    }
+    else
+        retval = rangeNumbers(in_number, in_min, in_max, out_min, out_max);
+
+    return retval;
 }
 
 function estimateEfis()
@@ -569,7 +592,7 @@ function estimateEfis()
     data.estimations.pitchAngle = rangeNumbers(movePercent, 0, 100, data.lastMessage.pitchAngle, data.pitchAngle);
     data.estimations.groundSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.groundSpeed, data.groundSpeed);
     data.estimations.verticalSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.verticalSpeed, data.verticalSpeed);
-    data.estimations.heading = rangeNumbers(movePercent, 0, 100, data.lastMessage.heading, data.heading);
+    data.estimations.heading = rangeNumbers360(movePercent, 0, 100, data.lastMessage.heading, data.heading);
 
 
 }
