@@ -150,7 +150,7 @@
 		<a href="javascript:void(0)" onclick="openBrokerSettings();">Broker settings...</a>
 		<a href="javascript:void(0)" onclick="openUISettings();"id="uisettingslink">UI settings...</a>
 		<a href="javascript:void(0)" onclick="keepScreenAwake();">Keep screen awake</a>
-		<a href="javascript:void(0)" onclick="savemqttlog();">Save log file</a>
+		<a href="javascript:void(0)" onclick="openLogMenu();">Log options...</a>
 		<a href="#" id="missionplannerlink">Mission planner</a>
 		<a href="#" id="senduavcommandlink">Send command to UAV</a>
 		<a href="#" id="inavsettingslink">INAV settings...</a>
@@ -162,6 +162,18 @@
 		<a href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone" target="_blank" id="installhomelink">Install on home screen</a>
 
 		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</a>
+	</div>
+
+	<div id="logMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" onclick="closeLogMenu();">&times;</a>
+		<a href="javascript:void(0)" onclick="savemqttlog();">Save log file...</a>
+		<a href="javascript:void(0)" onclick="replaymqttlog();">Replay log file...</a>
+		<div class="playbackcontainer" id="playbackcontainer" style="display: none;">
+			<p>Replay Playback</p>
+			<div id="currentPlaybackTime">00:00</div>
+			<div id="maxPlaybackTime">00:00</div>
+			<input type="range" min="0" max="100" value="0" step="0.1" class="slider" id="sldrReplay">
+		</div>
 	</div>
 
 	<div id="brokerSettings">
@@ -259,6 +271,7 @@
 			</div>
 		</div>
 	</div>
+
 	<script src="js/MapScripts.js?uid=(UNIQUEID)"></script>
 	<script src="js/EfisScripts.js?uid=(UNIQUEID)"></script>
 	<script src="js/CommScripts.js?uid=(UNIQUEID)"></script>

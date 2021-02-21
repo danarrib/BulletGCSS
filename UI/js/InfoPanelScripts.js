@@ -49,7 +49,7 @@ function secondsToNiceTime(seconds)
     if(minutes > 0)
         ret += minutes + "m ";
     
-    ret += seconds + "s";
+    ret += seconds.toFixed(0) + "s";
     return ret;
 }
 
@@ -445,7 +445,9 @@ function updateDataView(data)
         var dtNow = new Date();
         var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);
 
-        if(!mqttConnected)
+        if(isPlayingLogFile)
+            document.getElementById("statusPlaceHolder").innerHTML = "Playing log - " + playbackPercent.toFixed(1) + "%";
+        else if(!mqttConnected)
             document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
         else if(timeSinceLastMessage >= 5)
             document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);

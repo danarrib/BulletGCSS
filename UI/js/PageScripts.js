@@ -139,6 +139,14 @@ function closeBrokerSettings() {
 }
 
 
+function openLogMenu() 
+{
+    document.getElementById("logMenu").style.width = "100%";
+}
+
+function closeLogMenu() {
+    document.getElementById("logMenu").style.width = "0";
+}
 
 
 

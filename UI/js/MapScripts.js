@@ -641,6 +641,10 @@ function getMissionWaypointsAltitude()
 {
     var elevationProvider = localStorage.getItem("ui_elevation_provider");
 
+    // If not served by https, then it'll not work, just give up
+    if(location.protocol !== "https:")
+        return;
+
     // If mission is not loaded, there's no need to process
     if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
         return;

@@ -24,6 +24,7 @@ password = localStorage.getItem("mqttPass");
 cleansession = true;
 
 var mqttlog = new Array();
+var isPlayingLogFile = false;
 
 function mqttlogevent(eventDescription)
 {
@@ -42,6 +43,158 @@ function savemqttlog()
     a.click();
     closeNav();
 }
+
+var replayIndex = 0;
+var replayInitialTimestamp = 0;
+var replayCurrentTimestamp = 0;
+var firstReplayTimestamp = 0;
+var lastReplayTimestamp = 0;
+var timeSinceBeggining = 0;
+var totalReplayTime = 0;
+var playbackPercent = 0;
+
+function replaymqttlog()
+{
+    var inputFileElement = document.createElement('input');
+    inputFileElement.type="file";
+    inputFileElement.addEventListener("change", function () {
+        if (this.files && this.files[0]) {
+          var myFile = this.files[0];
+          var reader = new FileReader();
+          
+          reader.addEventListener('load', function (e) {
+            mqttConnected = true;
+            isPlayingLogFile = true;
+            mqtt.disconnect();
+
+            mqttlog = e.target.result.split('\n');
+            replayIndex = 0;
+
+            // Update UI
+            document.getElementById("playbackcontainer").style.display = "inherit";
+            resetDataObject();
+            closeLogMenu();
+            closeNav();
+          });
+          
+          reader.readAsBinaryString(myFile);
+        }   
+      });
+    inputFileElement.click();
+
+}
+
+function stopreplaymqttlog()
+{
+    mqttlog = new Array();
+    resetDataObject();
+    isPlayingLogFile = false;
+    replayIndex = 0;
+    mqttConnected = false;
+    document.getElementById("playbackcontainer").style.display = "none";
+    MQTTconnect();
+}
+
+function setplaybackpercent(percent)
+{
+    var percentFrame = (totalReplayTime / 100) * percent;
+    // Round it to a value divisible by 1000
+    percentFrame = Math.floor(percentFrame / 1000) * 1000;
+    timeSinceBeggining = percentFrame;
+}
+
+function updatePlaybackTimers(percent)
+{
+    var percentFrame = (totalReplayTime / 100) * percent;
+    // Round it to a value divisible by 1000
+    percentFrame = Math.floor(percentFrame / 1000) * 1000;
+    //timeSinceBeggining = percentFrame;
+
+    document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(percentFrame / 1000);
+}
+
+document.getElementById("sldrReplay").onmouseup = function() {
+    setplaybackpercent(this.value);
+}
+
+document.getElementById("sldrReplay").ontouchend = function() {
+    setplaybackpercent(this.value);
+}
+
+document.getElementById("sldrReplay").oninput = function() {
+    updatePlaybackTimers(this.value);
+}
+
+var timerReplay = setInterval(function() {
+    if(isPlayingLogFile)
+    {
+        var replayFrame = "";
+        var nowDate = new Date();
+        replayCurrentTimestamp = nowDate.getTime().toString();
+        
+        if(replayIndex == 0)
+        {
+            // Get the first and last timestamp so we can calculate time
+            replayFrame = mqttlog[replayIndex];
+            firstReplayTimestamp = parseInt(replayFrame.split('|')[0]);
+            replayFrame = mqttlog[mqttlog.length - 1];
+            lastReplayTimestamp = parseInt(replayFrame.split('|')[0]);
+            replayInitialTimestamp = replayCurrentTimestamp;
+            timeSinceBeggining = replayCurrentTimestamp - replayInitialTimestamp;
+            totalReplayTime = lastReplayTimestamp - firstReplayTimestamp;
+            playbackPercent = 0;
+            document.getElementById("maxPlaybackTime").innerHTML = secondsToNiceTime(totalReplayTime / 1000);
+        }
+
+        timeSinceBeggining += 1000;
+        
+        // Update UI
+        document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(timeSinceBeggining / 1000);
+        
+        if(document.getElementById("sldrReplay").value != playbackPercent.toFixed(1))
+            document.getElementById("sldrReplay").value = playbackPercent;
+
+        while(true)
+        {
+            var arrReplayFrame = mqttlog[replayIndex].split('|');
+            var replayFrameTimestamp = arrReplayFrame[0];
+            var replayFrameData = arrReplayFrame[1];
+
+            // Check if it has been passed enough time so we can use this frame
+            var timeFrame = replayFrameTimestamp - firstReplayTimestamp;
+            playbackPercent = (timeSinceBeggining / totalReplayTime) * 100;
+            console.log("Frame time: " + timeFrame + " - Replay time: " + timeSinceBeggining + " - Playback %: " + playbackPercent.toFixed(2));
+
+            if(timeFrame <= timeSinceBeggining)
+            {
+                // Process frame
+                console.log("Replay: " + replayFrameData);
+
+                if(!replayFrameData.startsWith('Connect'))
+                {
+                    lastMessageDate = new Date();
+                    mqttConnected = true;
+                    parseTelemetryData(replayFrameData);
+                }
+
+                // Next frame
+                replayIndex++;
+
+                if(replayIndex >= mqttlog.length)
+                {
+                    // Replay ended
+                    stopreplaymqttlog();
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+}, 1000);
 
 var mqtt;
 var reconnectTimeout = 2000;
@@ -78,7 +231,8 @@ function MQTTconnect() {
             var errmsg = "Connection failed: " + message.errorMessage + ". Retrying...";
             console.log(errmsg);
             mqttlogevent(errmsg);
-            setTimeout(MQTTconnect, reconnectTimeout);
+            if(!isPlayingLogFile)
+                setTimeout(MQTTconnect, reconnectTimeout);
         }
     };
 
@@ -103,7 +257,9 @@ function onConnect() {
 }
 
 function onConnectionLost(response) {
-    setTimeout(MQTTconnect, reconnectTimeout);
+    if(!isPlayingLogFile)
+        setTimeout(MQTTconnect, reconnectTimeout);
+
     if(typeof responseObject !== 'undefined')
     {
         var errmsg = "Connection lost: " + responseObject.errorMessage + ". Reconnecting..."
@@ -114,92 +270,98 @@ function onConnectionLost(response) {
 };
 
 function onMessageArrived(message) {
+    if(!isPlayingLogFile)
+    {
+        var topic = message.destinationName;
+        var payload = message.payloadString;
 
-    var topic = message.destinationName;
-    var payload = message.payloadString;
-
-    console.log(payload);
-    mqttlogevent(payload);
-    lastMessageDate = new Date();
-    parseTelemetryData(payload);
+        console.log(payload);
+        mqttlogevent(payload);
+        lastMessageDate = new Date();
+        parseTelemetryData(payload);
+    }
 };
 
 // MQTTconnect();
-
+var data = {};
+function resetDataObject() 
+{
+    data = {
+        rollAngle: 0, // decimal deg from -180.0 to 180.0
+        pitchAngle: 0, // decimal deg from -90.0 to 90.0
+        heading: 0, // decimal deg from -180.0 to 180.0
+        altitude: 0, // int centimeters
+        altitudeSeaLevel: 0, // int meters
+        groundSpeed: 0, // int centimeters per second
+        airSpeed: 0, // int centimeters per second
+        verticalSpeed: 0, // int centimeters per second
+        homeDirection: 0, // decimal deg from -180.0 to 180.0
+        homeDistance: 0, // meters
+        fuelPercent: 100,
+        battCellVoltage: 4,
+        batteryVoltage: 16,
+        batteryCellCount: 4,
+        currentDraw: 0, // Amps
+        capacityDraw: 0, // mAh
+        rssiPercent: 100,
+        gpsSatCount: 0,
+        gpsHDOP: 0,
+        gpsLatitude: -23.5467,
+        gpsLongitude: -46.6652,
+        currentWaypointNumber: 0,
+        waypointCount: 0,
+        azimuth: 100,
+        elevation: 6,
+        dataTimestamp: new Date(2000, 1, 1),
+        flightMode: "N/A",
+        cellSignalStrength: 3,
+        gps3DFix: 0,
+        isHardwareHealthy: 0,
+        uavIsArmed: 0,
+        isWaypointMissionValid: 0,
+        callsign: "UNKNOWN",
+        powerTime: 0,
+        flightTime: 0,
+        isFailsafeActive: 0,
+        currentMissionWaypoints: new Array(),
+        homeLatitude: 0,
+        homeLongitude: 0,
+        homeAltitudeSL: 0,
+        userLatitude: 0,
+        userLongitude: 0,
+        userHeading: 0,
+        userAltitudeSL: 0,
+        currentFlightWaypoints: new Array(),
+        throttlePercent: 0,
+        isAutoThrottleActive: 0,
+        navState: 0,
+        mWhDraw: 0,
+        isCurrentMissionElevationSet: false,
+        gpsGroundCourse: 0,
+        estimations: {
+            gpsLatitude: 0,
+            gpsLongitude: 0,
+            homeDistance: 0,
+            capacityDraw: 0,
+            rollAngle: 0,
+            pitchAngle: 0,
+            heading: 0,
+            altitude: 0,
+            groundSpeed: 0,
+            verticalSpeed: 0,
+        },
+        lastMessage: {
+            rollAngle: 0,
+            pitchAngle: 0,
+            heading: 0,
+            altitude: 0,
+            groundSpeed: 0,
+            verticalSpeed: 0,
+        }
+    };
+}
 // Setup
-var data = {
-    rollAngle: 0, // decimal deg from -180.0 to 180.0
-    pitchAngle: 0, // decimal deg from -90.0 to 90.0
-    heading: 0, // decimal deg from -180.0 to 180.0
-    altitude: 0, // int centimeters
-    altitudeSeaLevel: 0, // int meters
-    groundSpeed: 0, // int centimeters per second
-    airSpeed: 0, // int centimeters per second
-    verticalSpeed: 0, // int centimeters per second
-    homeDirection: 0, // decimal deg from -180.0 to 180.0
-    homeDistance: 0, // meters
-    fuelPercent: 100,
-    battCellVoltage: 4,
-    batteryVoltage: 16,
-    batteryCellCount: 4,
-    currentDraw: 0, // Amps
-    capacityDraw: 0, // mAh
-    rssiPercent: 100,
-    gpsSatCount: 0,
-    gpsHDOP: 0,
-    gpsLatitude: -23.5467,
-    gpsLongitude: -46.6652,
-    currentWaypointNumber: 0,
-    waypointCount: 0,
-    azimuth: 100,
-    elevation: 6,
-    dataTimestamp: new Date(2000, 1, 1),
-    flightMode: "N/A",
-    cellSignalStrength: 3,
-    gps3DFix: 0,
-    isHardwareHealthy: 0,
-    uavIsArmed: 0,
-    isWaypointMissionValid: 0,
-    callsign: "UNKNOWN",
-    powerTime: 0,
-    flightTime: 0,
-    isFailsafeActive: 0,
-    currentMissionWaypoints: new Array(),
-    homeLatitude: 0,
-    homeLongitude: 0,
-    homeAltitudeSL: 0,
-    userLatitude: 0,
-    userLongitude: 0,
-    userHeading: 0,
-    userAltitudeSL: 0,
-    currentFlightWaypoints: new Array(),
-    throttlePercent: 0,
-    isAutoThrottleActive: 0,
-    navState: 0,
-    mWhDraw: 0,
-    isCurrentMissionElevationSet: false,
-    gpsGroundCourse: 0,
-    estimations: {
-        gpsLatitude: 0,
-        gpsLongitude: 0,
-        homeDistance: 0,
-        capacityDraw: 0,
-        rollAngle: 0,
-        pitchAngle: 0,
-        heading: 0,
-        altitude: 0,
-        groundSpeed: 0,
-        verticalSpeed: 0,
-    },
-    lastMessage: {
-        rollAngle: 0,
-        pitchAngle: 0,
-        heading: 0,
-        altitude: 0,
-        groundSpeed: 0,
-        verticalSpeed: 0,
-    }
-};
+resetDataObject();
 
 function parseWaypointMessage(payload) {
     // Don't update mission while fetching elevation data from server.

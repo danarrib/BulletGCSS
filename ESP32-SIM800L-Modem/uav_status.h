@@ -32,7 +32,7 @@ struct uav_status
     int32_t gpsLatitude;
     int32_t gpsLongitude;
     int16_t altitudeSeaLevel;
-    int16_t altitude;
+    int32_t altitude;
     int16_t groundSpeed;
     int16_t heading;
     int16_t gpsGroundCourse;
