@@ -73,8 +73,6 @@ function replaymqttlog()
             // Update UI
             document.getElementById("playbackcontainer").style.display = "inherit";
             resetDataObject();
-            closeLogMenu();
-            closeNav();
           });
           
           reader.readAsBinaryString(myFile);
@@ -113,15 +111,20 @@ function updatePlaybackTimers(percent)
     document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(percentFrame / 1000);
 }
 
+var isDraggingSliderReplay = false;
+
 document.getElementById("sldrReplay").onmouseup = function() {
     setplaybackpercent(this.value);
+    isDraggingSliderReplay = false;
 }
 
 document.getElementById("sldrReplay").ontouchend = function() {
     setplaybackpercent(this.value);
+    isDraggingSliderReplay = false;
 }
 
 document.getElementById("sldrReplay").oninput = function() {
+    isDraggingSliderReplay = true;
     updatePlaybackTimers(this.value);
 }
 
@@ -149,9 +152,10 @@ var timerReplay = setInterval(function() {
         timeSinceBeggining += 1000;
         
         // Update UI
-        document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(timeSinceBeggining / 1000);
+        if(!isDraggingSliderReplay)
+            document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(timeSinceBeggining / 1000);
         
-        if(document.getElementById("sldrReplay").value != playbackPercent.toFixed(1))
+        if(document.getElementById("sldrReplay").value != playbackPercent.toFixed(1) && !isDraggingSliderReplay)
             document.getElementById("sldrReplay").value = playbackPercent;
 
         while(true)

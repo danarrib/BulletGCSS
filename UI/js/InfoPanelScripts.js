@@ -267,7 +267,14 @@ function updateDataView(data)
     var wpMissionText = "Not loaded";
     if(data.waypointCount > 0)
     {
-        wpMissionText = data.currentWaypointNumber + ' / ' + data.waypointCount;
+        wpMissionText = data.currentWaypointNumber + '/' + data.waypointCount;
+
+        // Distance to next wp and distance to the mission end
+        if(data.flightMode == "WP")
+        {
+            var distanceToNextWP = getDistanceBetweenTwoPoints(data.estimations.gpsLatitude, data.estimations.gpsLongitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLatitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLongitude);
+            wpMissionText += ' - ' + metersToNiceDistance(distanceToNextWP);
+        }
         if(data.isWaypointMissionValid == 1)
             wpMissionClass = "color-ok";
         else
@@ -445,14 +452,14 @@ function updateDataView(data)
         var dtNow = new Date();
         var timeSinceLastMessage = parseInt((dtNow - lastMessageDate) / 1000);
 
-        if(isPlayingLogFile)
-            document.getElementById("statusPlaceHolder").innerHTML = "Playing log - " + playbackPercent.toFixed(1) + "%";
-        else if(!mqttConnected)
+        if(!mqttConnected)
             document.getElementById("statusPlaceHolder").innerHTML = "MQTT Broker not connected";
         else if(timeSinceLastMessage >= 5)
             document.getElementById("statusPlaceHolder").innerHTML = "Last message: " + secondsToNiceTime(timeSinceLastMessage);
         else if(updatingWpAltitudes)
             document.getElementById("statusPlaceHolder").innerHTML = "Fetching WP elevation data...";
+        else if(isPlayingLogFile)
+            document.getElementById("statusPlaceHolder").innerHTML = "Playing log - " + playbackPercent.toFixed(1) + "%";
         else
             document.getElementById("statusPlaceHolder").innerHTML = "&nbsp;";
     }

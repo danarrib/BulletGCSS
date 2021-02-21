@@ -540,7 +540,7 @@ function centerMap(data) {
     // Center the map
     var oldCenter = map.getView().getCenter();
     map.getView().setCenter(
-        ol.proj.fromLonLat([data.gpsLongitude, data.gpsLatitude])
+        ol.proj.fromLonLat([data.estimations.gpsLongitude, data.estimations.gpsLatitude])
         );
     var newCenter = map.getView().getCenter();
     map.getView().setCenter(oldCenter);
