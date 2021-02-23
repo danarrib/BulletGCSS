@@ -22,6 +22,10 @@
 // COMMENT NEXT LINE IF YOU WANT TO USE GPRS, UNCOMMENT IF YOU WANT TO USE WIFI
 #define USE_WIFI
 
+// UNCOMMENT THE LINE CORRESPONDING TO YOUR CELLULAR MODEM 
+#define TINY_GSM_MODEM_SIM800 // If you are using a T-Call board
+// #define TINY_GSM_MODEM_SIM7600 // If you are using a T-PCIE board with a SIM7600 module
+
 // WiFi details
 const char* ssid = ""; // WiFi Network Name (SSID)
 const char* password =  ""; // WiFi Network Password

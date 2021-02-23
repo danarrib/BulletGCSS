@@ -27,8 +27,6 @@
  * Core Debug Level: None
  */
 
-#define TINY_GSM_MODEM_SIM800 // Modem is SIM800L
-
 // Set serial for debug console (to the Serial Monitor, default speed 115200)
 #define SerialMon Serial
 // Set serial for AT commands
@@ -69,13 +67,20 @@ HardwareSerial mspSerial(2);
 #endif
 
 // TTGO T-Call pins
-#define MODEM_RST            5
-#define MODEM_PWKEY          4
-#define MODEM_POWER_ON       23
 #define MODEM_TX             27
 #define MODEM_RX             26
+#define MODEM_PWKEY          4
+
+#ifdef TINY_GSM_MODEM_SIM7600
+#define MODEM_POWER_ON       25
+#endif
+
+#ifdef TINY_GSM_MODEM_SIM800
+#define MODEM_RST            5
+#define MODEM_POWER_ON       23
 #define I2C_SDA              21
 #define I2C_SCL              22
+#endif
 
 // Pins that will used for the MSP UART.
 #define SERIAL_PIN_RX 19
@@ -178,23 +183,33 @@ void connectToTheInternet() {
     if (modem.isGprsConnected())
       return; // Gprs already connected. Skipping
 
+    // Set modem reset, enable, power pins
+    pinMode(MODEM_PWKEY, OUTPUT);
+    pinMode(MODEM_POWER_ON, OUTPUT);
+
+    #ifdef TINY_GSM_MODEM_SIM800
+    pinMode(MODEM_RST, OUTPUT);
     // Start I2C communication
     I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
     
     // Keep power when running from battery
     bool isOk = setPowerBoostKeepOn(1);
     SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
-  
-    // Set modem reset, enable, power pins
-    pinMode(MODEM_PWKEY, OUTPUT);
-    pinMode(MODEM_RST, OUTPUT);
-    pinMode(MODEM_POWER_ON, OUTPUT);
-    digitalWrite(MODEM_PWKEY, LOW);
     digitalWrite(MODEM_RST, HIGH);
+    #endif
+
+    #ifdef TINY_GSM_MODEM_SIM7600
+    digitalWrite(MODEM_PWKEY, HIGH);
+    delay(500);    
+    #endif
+    
+    digitalWrite(MODEM_PWKEY, LOW);
     digitalWrite(MODEM_POWER_ON, HIGH);
     
     SerialMon.println("Wait...");
   
+    delay(3000);
+
     // Set GSM module baud rate and UART pins
     SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
     delay(6000);
@@ -204,16 +219,40 @@ void connectToTheInternet() {
     SerialMon.println("Initializing modem...");
     modem.restart();
     //modem.init();
+
+    String result;
+    #ifdef TINY_GSM_MODEM_SIM7600
+      do {
+          // 2 = Automatic, 13 = GSM Only, 38 = LTE Only, 61 = GSM+TDSCDMA+LTE
+          result = modem.setNetworkMode(38);
+          delay(500);
+      } while (result != "OK");
   
+      String modemName = modem.getModemName();
+      SerialMon.print("Modem Name: ");
+      SerialMon.println(modemName);
+    #endif
+    
     String modemInfo = modem.getModemInfo();
     SerialMon.print("Modem Info: ");
     SerialMon.println(modemInfo);
   
     // Unlock your SIM card with a PIN if needed
     if ( GSM_PIN && modem.getSimStatus() != 3 ) {
+      SerialMon.println("Unlocking SIM card");
       modem.simUnlock(GSM_PIN);
     }
-  
+
+    while (!modem.waitForNetwork(600000L))
+    {
+        SerialMon.print("Waiting network...");
+        delay(10000);
+    }
+
+    if (modem.isNetworkConnected()) {
+        SerialMon.println("Network connected");
+    }
+    
     SerialMon.print("Connecting to APN: ");
     SerialMon.print(apn);
     if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
@@ -925,6 +964,7 @@ void buildLowPriorityMessage(char* message) {
 
   sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
   
+  sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
 }
 
 void sendMessage(char* message) {
