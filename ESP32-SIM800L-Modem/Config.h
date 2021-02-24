@@ -35,14 +35,7 @@ const char* mqttServer = "broker.emqx.io";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
-const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change
-
-// Pooling settings
-#define MESSAGE_SEND_INTERVAL         1000  // milliseconds
-#define TELEMETRY_FETCH_DUTY_CYCLE    200   // Time (in milliseconds) that takes to fetch the telemetry data
-#define LOW_PRIORITY_MESSAGE_INTERVAL 60    // seconds
-#define HOME_POINT_FETCH_INTERVAL     10    // how many iterations to fetch the home point from FC
-#define WP_MISSION_MESSAGE_INTERVAL   30    // how many iterations to fetch the WP mission from FC
+const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change - This is the channel for this aircraft only
 
 // set GSM PIN, if any
 #define GSM_PIN ""
@@ -54,3 +47,10 @@ const char gprsPass[] = "claro";
 
 // SIM card PIN (leave empty, if not defined)
 const char simPIN[]   = ""; 
+
+// Pooling settings
+#define MESSAGE_SEND_INTERVAL         1000  // milliseconds
+#define TELEMETRY_FETCH_DUTY_CYCLE    200   // Time (in milliseconds) that takes to fetch the telemetry data
+#define LOW_PRIORITY_MESSAGE_INTERVAL 60    // seconds
+#define HOME_POINT_FETCH_INTERVAL     10    // how many iterations to fetch the home point from FC
+#define WP_MISSION_MESSAGE_INTERVAL   30    // how many iterations to fetch the WP mission from FC
