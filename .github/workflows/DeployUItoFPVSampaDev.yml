@@ -1,0 +1,29 @@
+name: Deploy BulletGCSS UI on FPV Sampa (develop)
+
+on: [push] # tells github to run this on any push to the repository
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.sha }}
+      RUNID: ${{ github.run_id }}
+    if: github.ref == 'refs/heads/develop' # we tell Github to only execute this step if we're on our develop branch
+    steps:
+      - name: Deploying UI to FPV Sampa Develop
+        uses: appleboy/ssh-action@master # An action made to control Linux servers
+        with: # We set all our secrets here for the action, these won't be shown in the action logs
+          host: ${{ secrets.HOST }} 
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd /home/bulletgcss/ci/BulletGCSS/
+            git checkout develop
+            git pull
+            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/dev/
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
+            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/uiversion.json
+
