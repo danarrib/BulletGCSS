@@ -79,7 +79,7 @@ function replaymqttlog()
         }   
       });
     inputFileElement.click();
-
+ 
 }
 
 function stopreplaymqttlog()
