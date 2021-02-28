@@ -20,6 +20,7 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             cd /home/bulletgcss/ci/BulletGCSS/
+            git checkout master
             git pull
             rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/
             sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/basicui.html
