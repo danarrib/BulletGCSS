@@ -5,7 +5,7 @@ body {
     height:100%;
     overflow: hidden;
     font-family: Ubuntu;
-    font-size: 3.5vmin;
+    font-size: 4vmin;
     background-color: black;
     color: white;
 
@@ -41,7 +41,7 @@ body {
 
 #dataview {
     display: flex;
-    overflow: auto;
+    overflow: hidden;
 }
 
 .tblDataView {
@@ -51,10 +51,12 @@ body {
     margin-right: 1em;
     margin-top: 0;
     margin-bottom: 0;
+    border-spacing: 0;
 }
 
 .tblDataViewCellHeader {
-    font-size: 0.6em;
+    font-size: 0.5em;
+    font-weight: bold;
     color: #bbb;
 }
 
@@ -90,13 +92,13 @@ body {
         overflow: hidden;
     }
     #dataview {
-        height:30%;
+        height:35%;
         width:100%;
         position:absolute;
-        bottom:70%;
+        bottom:65%;
     }
     #mapview {
-        height:40%;
+        height:35%;
         width:100%;
         bottom:30%;
         position:absolute;
@@ -112,7 +114,7 @@ body {
             bottom: calc(90% + max(0px, env(safe-area-inset-bottom)));
         }
         #dataview {
-            bottom: calc(70% + max(0px, env(safe-area-inset-bottom)));
+            bottom: calc(65% + max(0px, env(safe-area-inset-bottom)));
         }
         #mapview {
             bottom: calc(30% + max(0px, env(safe-area-inset-bottom)));

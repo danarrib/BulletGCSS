@@ -642,6 +642,9 @@ function parseStandardTelemetryMessage(payload)
             case "ggc":
                 data.gpsGroundCourse = parseInt(arrData[1]);
                 break;
+            case "mfr":
+                pageSettings.messageInterval = parseInt(arrData[1]);
+                break;
             default:
                 break;
         }
