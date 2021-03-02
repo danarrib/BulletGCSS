@@ -5,7 +5,7 @@ Bullet GCSS is a high caliber ground control station system designed for the 21s
 
 ![Deploy BulletGCSS UI on FPV Sampa](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
 
-![github-social-media](https://user-images.githubusercontent.com/17026744/104504015-9a8dd400-55c0-11eb-863f-1a054d97905b.png)
+![github-social-media](https://user-images.githubusercontent.com/17026744/109589244-ca4d5880-7ae8-11eb-9c2f-4cdb2da3160a.png)
 
 Bullet GCSS allows an UAV pilot/operator to get the most important telemetry data right on his/her SmartPhone or computer screen. Information such as aircraft location, distance, altitude, battery status, navigation status are always available.
 
