@@ -26,4 +26,6 @@ jobs:
             sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
             sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
             sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/uiversion.json
+            rm /home/bulletgcss/bulletgcss.fpvsampa.com/dev/manifest.json
+            mv /home/bulletgcss/bulletgcss.fpvsampa.com/dev/manifest.dev.json /home/bulletgcss/bulletgcss.fpvsampa.com/dev/manifest.json
 
