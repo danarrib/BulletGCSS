@@ -275,7 +275,7 @@ function updateDataView(data)
             var distanceToNextWP = getDistanceBetweenTwoPoints(data.estimations.gpsLatitude, data.estimations.gpsLongitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLatitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLongitude);
             var missionRemainingDistance = 0;
             // Get distance of each waypoint from current to the misssion end
-            for(i=data.currentWaypointNumber; i<data.waypointCount-1;i++)
+            for(i=data.currentWaypointNumber-1; i<data.waypointCount-1;i++)
             {
                 if(data.currentMissionWaypoints[i+1].wpAction==4)
                 {

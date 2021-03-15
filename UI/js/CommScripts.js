@@ -781,6 +781,9 @@ var lastPingTime = 0;
 
 function sendPingRequest() 
 {
+    if(isPlayingLogFile)
+        return;
+
     if(isPingSent)
     {
         // Ping was sent but never got back. Declare timeout and send again
