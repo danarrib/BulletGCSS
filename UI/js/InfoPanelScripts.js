@@ -270,16 +270,49 @@ function updateDataView(data)
         wpMissionText = data.currentWaypointNumber + '/' + data.waypointCount;
 
         // Distance to next wp and distance to the mission end
-        if(data.flightMode == "WP")
+        if(data.currentMissionWaypoints.length -1 == data.waypointCount)
         {
             var distanceToNextWP = getDistanceBetweenTwoPoints(data.estimations.gpsLatitude, data.estimations.gpsLongitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLatitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLongitude);
-            wpMissionText += ' - ' + metersToNiceDistance(distanceToNextWP);
+            var missionRemainingDistance = 0;
+            // Get distance of each waypoint from current to the misssion end
+            for(i=data.currentWaypointNumber; i<data.waypointCount-1;i++)
+            {
+                if(data.currentMissionWaypoints[i+1].wpAction==4)
+                {
+                    missionRemainingDistance += getDistanceBetweenTwoPoints(
+                        data.currentMissionWaypoints[i].wpLatitude, 
+                        data.currentMissionWaypoints[i].wpLongitude,
+                        data.homeLatitude, 
+                        data.homeLongitude);
+                }
+                else
+                {
+                    missionRemainingDistance += getDistanceBetweenTwoPoints(
+                        data.currentMissionWaypoints[i].wpLatitude, 
+                        data.currentMissionWaypoints[i].wpLongitude,
+                        data.currentMissionWaypoints[i+1].wpLatitude, 
+                        data.currentMissionWaypoints[i+1].wpLongitude);
+                }
+            }
+
+            if(blinkSlowSwitch)
+            {
+                if(data.flightMode == "WP")
+                {
+                        wpMissionText += ' - ' + metersToNiceDistance(distanceToNextWP);
+                }
+            }
+            else
+            {
+                wpMissionText = metersToNiceDistance(missionRemainingDistance + distanceToNextWP);
+            }
         }
+
         if(data.isWaypointMissionValid == 1)
             wpMissionClass = "color-ok";
         else
             wpMissionClass = "color-danger";
-    }
+}
 
     var activeFlightMode = data.flightMode;
     if(data.isFailsafeActive == 1)
@@ -290,34 +323,49 @@ function updateDataView(data)
         activeFlightMode = "";
 
     // Calculate Azimuth and Elevation using User Location. If it's not available, use Home location
-    if(hasUserLocation) 
+    if(blinkSlowSwitch)
     {
-        data.azimuth = bearing(data.userLatitude, data.userLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
-        document.getElementById("aziElevPlaceHolder").className = "color-ok";
-        if(data.userAltitudeSL !== null)
+        document.getElementById("aziElevLabel").innerHTML = "Azi/Elev";
+        if(hasUserLocation) 
         {
+            data.azimuth = bearing(data.userLatitude, data.userLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+            document.getElementById("aziElevPlaceHolder").className = "color-ok";
+            if(data.userAltitudeSL !== null)
+            {
+                document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
+                data.elevation = getVerticalBearing(data.userLatitude, data.userLongitude, data.userAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+            }
+            else
+                document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / N/A';
+        }
+        else if(data.homeLatitude != 0 && data.homeLongitude != 0)
+        {
+            data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+            data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
+            
+            if(isNaN(data.elevation))
+                data.elevation = 0;
+
+            document.getElementById("aziElevPlaceHolder").className = "color-normal";
             document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
-            data.elevation = getVerticalBearing(data.userLatitude, data.userLongitude, data.userAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
         }
         else
-            document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / N/A';
-    }
-    else if(data.homeLatitude != 0 && data.homeLongitude != 0)
-    {
-        data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
-        data.elevation = getVerticalBearing(data.homeLatitude, data.homeLongitude, data.homeAltitudeSL, data.gpsLatitude, data.gpsLongitude, data.altitudeSeaLevel, 0).toFixed(0);
-        
-        if(isNaN(data.elevation))
-            data.elevation = 0;
-
-        document.getElementById("aziElevPlaceHolder").className = "color-normal";
-        document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
+        {
+            data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
+            document.getElementById("aziElevPlaceHolder").className = "color-normal";
+            document.getElementById("aziElevPlaceHolder").innerHTML = "";
+        }
     }
     else
     {
-        data.azimuth = bearing(data.homeLatitude, data.homeLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
-        document.getElementById("aziElevPlaceHolder").className = "color-normal";
-        document.getElementById("aziElevPlaceHolder").innerHTML = "";
+        document.getElementById("aziElevLabel").innerHTML = "Ping";
+        if(lastPingTime == 0)
+            document.getElementById("aziElevPlaceHolder").innerHTML = "Never set";
+        else if(lastPingTime >= pageSettings.lowPriorityTasksInterval)
+            document.getElementById("aziElevPlaceHolder").innerHTML = "Timeout";
+        else
+            document.getElementById("aziElevPlaceHolder").innerHTML = lastPingTime.toFixed(0) + " ms";
+
     }
 
     document.getElementById("waipointPlaceHolder").innerHTML = wpMissionText;

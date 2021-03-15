@@ -288,7 +288,8 @@ void loop()
   
   getTelemetryDataTask();
   sendMessageTask();
-
+  client.loop();
+  
   // Check the failure counter and reset everything if it's above 10.
   if(failureCounter >= 10)  
   {
@@ -982,12 +983,18 @@ void sendMessage(char* message) {
 void connectToTheBroker()
 {
   client.setServer(mqttServer, mqttPort);
+  client.setCallback(mqttCallback);
   while (!client.connected())
   {
     SerialMon.println("Connecting to the broker MQTT...");
     if (client.connect("ESP32Client", mqttUser, mqttPassword ))
     {
       SerialMon.println("Connected to the broker!");
+      char mqttReturnTopic[70];
+      sprintf(mqttReturnTopic, "%s/ret", mqttTopic);
+      SerialMon.printf("Will subscribe to topic: %s\n", mqttReturnTopic);
+      bool retSubscribe = client.subscribe(mqttReturnTopic);
+      SerialMon.println(retSubscribe);
     }
     else
     {
@@ -1001,5 +1008,28 @@ void connectToTheBroker()
       }
       delay(5000);
     }
+  }
+}
+
+void mqttCallback(char* topic, byte* message, unsigned int len) {
+  SerialMon.print("Message arrived on topic: ");
+  SerialMon.print(topic);
+  SerialMon.print(". Message: ");
+  String messageTemp;
+  
+  for (int i = 0; i < len; i++) {
+    SerialMon.print((char)message[i]);
+    messageTemp += (char)message[i];
+  }
+  SerialMon.println();
+
+
+  if(messageTemp.startsWith("ping:"))
+  {
+    String pingToken = messageTemp.substring(5);
+    SerialMon.printf("Ping request received: %s\n", pingToken);
+    char message[len+1];
+    messageTemp.toCharArray(message, len+1);
+    sendMessage(message);
   }
 }

@@ -645,6 +645,14 @@ function parseStandardTelemetryMessage(payload)
             case "mfr":
                 pageSettings.messageInterval = parseInt(arrData[1]);
                 break;
+            case "ping":
+                if(parseInt(arrData[1]) == pingToken)
+                {
+                    var dateNow = new Date();
+                    lastPingTime = dateNow - pingSentTimestamp; // Millisseconds
+                    isPingSent = false;
+                }
+                break;
             default:
                 break;
         }
@@ -671,7 +679,7 @@ function estimatePosition()
     var dateNow = new Date();
     var timeSinceLastFrame = dateNow - lastMessageDate;
 
-    if(timeSinceLastFrame > 2 * 60 * 1000) // Stop estimating if more than 2 minutes without messages
+    if(timeSinceLastFrame > 2 * 60 * 1000 || data.uavIsArmed == 0) // Stop estimating if more than 2 minutes without messages
     {
         data.estimations.gpsLatitude = data.gpsLatitude;
         data.estimations.gpsLongitude = data.gpsLongitude;
@@ -764,4 +772,24 @@ function estimateEfis()
     data.estimations.heading = rangeNumbers360(movePercent, 0, 100, data.lastMessage.heading, data.heading);
 
 
+}
+
+var isPingSent = false;
+var pingSentTimestamp = new Date();
+var pingToken = 0;
+var lastPingTime = 0;
+
+function sendPingRequest() 
+{
+    if(isPingSent)
+    {
+        // Ping was sent but never got back. Declare timeout and send again
+        lastPingTime = pageSettings.lowPriorityTasksInterval + 1000;
+    }
+
+    // Generate a random number between 1 and 255 and start the clock
+    pingToken = Math.floor(Math.random() * 255) + 1;
+    mqtt.send(topic + "/ret", "ping:" + pingToken, 0, false);
+    pingSentTimestamp = new Date();
+    isPingSent = true;
 }

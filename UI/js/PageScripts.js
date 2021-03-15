@@ -424,6 +424,8 @@ window.onload = function(event) {
         }
         lastTimeUIwasOpen = uiUpdateNow;
 
+        // Send ping request
+        sendPingRequest();
             
     }, pageSettings.lowPriorityTasksInterval);
     
