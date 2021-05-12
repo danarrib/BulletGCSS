@@ -486,6 +486,9 @@ void msp2_get_inav_analog() {
       uavstatus.rssiPercent = inavdata.rssi / 10.0f;
       uavstatus.fuelPercent = inavdata.batteryPercentage;
 
+      if(uavstatus.rssiPercent > 99)
+        uavstatus.rssiPercent = 99;
+
       uint8_t cellCount = inavdata.batteryStats >> 4;
       if(cellCount==0)
         cellCount = 1;
