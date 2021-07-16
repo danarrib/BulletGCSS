@@ -326,7 +326,7 @@ function updateDataView(data)
     if(blinkSlowSwitch)
     {
         document.getElementById("aziElevLabel").innerHTML = "Azi/Elev";
-        if(hasUserLocation) 
+        if(hasUserLocation && !isPlayingLogFile) 
         {
             data.azimuth = bearing(data.userLatitude, data.userLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
             document.getElementById("aziElevPlaceHolder").className = "color-ok";
@@ -356,7 +356,7 @@ function updateDataView(data)
             document.getElementById("aziElevPlaceHolder").innerHTML = "";
         }
     }
-    else
+    else if(!isPlayingLogFile)
     {
         document.getElementById("aziElevLabel").innerHTML = "Ping";
         if(lastPingTime == 0)

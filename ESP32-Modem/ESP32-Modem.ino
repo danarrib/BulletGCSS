@@ -774,6 +774,9 @@ void sendMessageTask() {
     char message[512];
     buildTelemetryMessage(message);
   
+    SerialMon.print("Topic: ");
+    SerialMon.println(mqttTopic);
+    
     SerialMon.print("Sending message: ");
     SerialMon.println(message);
     sendMessage(message);
