@@ -336,29 +336,45 @@ function drawMissionOnMap(data) {
     // Starts at WP 1 since WP0 is home point
     var previousWp;
     for(var i = 1; i <= data.waypointCount; i++) {
-        var wp = data.currentMissionWaypoints[i];
-        
-        // Action 0 = Regular Waypoint
-        if(wp.wpAction == 1) {
-            // Adding the updated aircraft position to the VectorSource
-            var iconGeometry = new ol.geom.Point(
-                ol.proj.transform([wp.wpLongitude, wp.wpLatitude], 'EPSG:4326','EPSG:3857')
-            );
-            
-            var waypointIconFeature = new ol.Feature({
-                geometry: iconGeometry,
-                name: wp.waypointNumber,
-                groundAltitude: wp.elevation,
-                wpAltitude: wp.wpAltitude,
-                wpAction: wp.wpAction,
-            });
+        const wp = data.currentMissionWaypoints[i];
+        if(wp !== undefined) {
+            // Action 0 = Regular Waypoint
+            if(wp.wpAction == 1) {
+                // Adding the updated aircraft position to the VectorSource
+                var iconGeometry = new ol.geom.Point(
+                    ol.proj.transform([wp.wpLongitude, wp.wpLatitude], 'EPSG:4326','EPSG:3857')
+                );
+                
+                var waypointIconFeature = new ol.Feature({
+                    geometry: iconGeometry,
+                    name: wp.waypointNumber,
+                    groundAltitude: wp.elevation,
+                    wpAltitude: wp.wpAltitude,
+                    wpAction: wp.wpAction,
+                });
 
-            waypointIconFeatures.push(waypointIconFeature);
+                waypointIconFeatures.push(waypointIconFeature);
 
-            // From the second wp, draw a line to the previous one.
-            if(i > 1) {
+                // From the second wp, draw a line to the previous one.
+                if(i > 1) {
+                    var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
+                    var loc2 = ol.proj.fromLonLat([wp.wpLongitude, wp.wpLatitude]);
+                    
+                    iconGeometry = new ol.geom.LineString([loc1, loc2]);
+
+                    var lineFeature = new ol.Feature({
+                        geometry: iconGeometry,
+                        name: 'From ' + previousWp.waypointNumber + ' to ' + wp.waypointNumber,
+                    });
+
+                    linesFeatures.push(lineFeature);
+                }
+
+                previousWp = wp;
+            }
+            else if(wp.wpAction == 4 && data.homeLatitude != 0 && data.homeLatitude != 0) {
                 var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
-                var loc2 = ol.proj.fromLonLat([wp.wpLongitude, wp.wpLatitude]);
+                var loc2 = ol.proj.fromLonLat([data.homeLongitude, data.homeLatitude]);
                 
                 iconGeometry = new ol.geom.LineString([loc1, loc2]);
 
@@ -368,24 +384,10 @@ function drawMissionOnMap(data) {
                 });
 
                 linesFeatures.push(lineFeature);
+
+                previousWp = wp;
+
             }
-
-            previousWp = wp;
-        }
-        else if(wp.wpAction == 4 && data.homeLatitude != 0 && data.homeLatitude != 0) {
-            var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
-            var loc2 = ol.proj.fromLonLat([data.homeLongitude, data.homeLatitude]);
-            
-            iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-            var lineFeature = new ol.Feature({
-                geometry: iconGeometry,
-                name: 'From ' + previousWp.waypointNumber + ' to ' + wp.waypointNumber,
-            });
-
-            linesFeatures.push(lineFeature);
-
-            previousWp = wp;
 
         }
 

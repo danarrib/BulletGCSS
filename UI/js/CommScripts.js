@@ -439,9 +439,10 @@ function parseWaypointMessage(payload) {
             data.isCurrentMissionElevationSet = false;
         return;
     }
-    else if(data.currentMissionWaypoints[wpno].wpLatitude != waypoint.wpLatitude 
-    || data.currentMissionWaypoints[wpno].wpLongitude != waypoint.wpLongitude 
-    || data.currentMissionWaypoints[wpno].wpAltitude != waypoint.wpAltitude 
+    else if(data.currentMissionWaypoints[wpno] !== undefined 
+        && (data.currentMissionWaypoints[wpno].wpLatitude != waypoint.wpLatitude 
+        || data.currentMissionWaypoints[wpno].wpLongitude != waypoint.wpLongitude 
+        || data.currentMissionWaypoints[wpno].wpAltitude != waypoint.wpAltitude)
     )
     {
         data.currentMissionWaypoints[wpno] = waypoint;

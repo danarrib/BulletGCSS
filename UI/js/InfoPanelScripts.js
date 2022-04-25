@@ -272,8 +272,11 @@ function updateDataView(data)
         // Distance to next wp and distance to the mission end
         if(data.flightMode == "WP")
         {
-            var distanceToNextWP = getDistanceBetweenTwoPoints(data.estimations.gpsLatitude, data.estimations.gpsLongitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLatitude, data.currentMissionWaypoints[data.currentWaypointNumber].wpLongitude);
-            wpMissionText += ' - ' + metersToNiceDistance(distanceToNextWP);
+            const localCurrentWaypoint = data.currentMissionWaypoints[data.currentWaypointNumber];
+            if(localCurrentWaypoint !== undefined) {
+                const distanceToNextWP = getDistanceBetweenTwoPoints(data.estimations.gpsLatitude, data.estimations.gpsLongitude, localCurrentWaypoint.wpLatitude, localCurrentWaypoint.wpLongitude);
+                wpMissionText += ' - ' + metersToNiceDistance(distanceToNextWP);
+            }
         }
         if(data.isWaypointMissionValid == 1)
             wpMissionClass = "color-ok";
