@@ -50,6 +50,7 @@ $valid_requests = array(
     'fpvsampa.com',
     'gcss.fpvsampa.com',
     'bulletgcss.fpvsampa.com',
+    'bulletgcss.outros.net',
     'api.open-elevation.com'
 );
 

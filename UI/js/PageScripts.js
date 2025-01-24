@@ -60,7 +60,7 @@ function checkForDefaultSettings()
         localStorage.setItem("ui_efficiency", "mahkm" );
 
     if(localStorage.getItem("ui_elevation_provider") === null)
-        if(location.href.indexOf("bulletgcss.fpvsampa.com") > 0)
+        if(location.href.indexOf("bulletgcss.outros.net") > 0)
             localStorage.setItem("ui_elevation_provider", "OpenTopoDataDirect" );
         else
             localStorage.setItem("ui_elevation_provider", "OpenTopoData" );
