@@ -23,5 +23,7 @@ Modem talks to the Flight Controller on the aircraft to get the telemetry data, 
 
 The UI is connected to this same MQTT Broker, and every time it gets a new telemetry message, it'll display it on the screen.
 
+Check out this [Demonstration Video](https://youtu.be/Iwv_Eo0fOuc?si=-nH5KV7GBwPIXf3V&t=623), action starts at 10:23.
+
 ## How can I use it?
 Check out the [Wiki](https://github.com/danarrib/BulletGCSS/wiki) for detailed instructions.
