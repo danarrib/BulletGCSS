@@ -69,7 +69,17 @@
 	<script src="js/olc.min.js?uid=(UNIQUEID)"></script>
 	<script src="js/NoSleep.min.js?uid=(UNIQUEID)"></script>
 	<script type="text/javascript">
-		    var currentVersion = "(UNIQUEID)";
+		var currentVersion = "(UNIQUEID)";
+		
+		function checkUIProtocol() {
+			let protocol = window.location.protocol;
+
+			if (protocol !== "https:") {
+				alert("Warning: It is highly recommended to use HTTPS protocol to run this application. WebSockets may not work properly over " + protocol.toUpperCase().slice(0, -1) + " protocol.\n\nPlease refer to the online manual for more information.");
+			}
+		}
+
+		checkUIProtocol();
 	</script>
   </head>
   <body>
