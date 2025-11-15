@@ -22,8 +22,8 @@ jobs:
             cd /home/bulletgcss/ci/BulletGCSS/
             git checkout develop
             git pull
-            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.fpvsampa.com/dev/
-            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
-            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/basicui.html
-            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.fpvsampa.com/dev/uiversion.json
+            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.outros.net/dev/
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/basicui.html
+            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/basicui.html
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/uiversion.json
 
