@@ -20,22 +20,22 @@
 */
 
 // COMMENT NEXT LINE IF YOU WANT TO USE GPRS, UNCOMMENT IF YOU WANT TO USE WIFI
-#define USE_WIFI
+// #define USE_WIFI
 
 // UNCOMMENT THE LINE CORRESPONDING TO YOUR CELLULAR MODEM 
-#define TINY_GSM_MODEM_SIM800 // If you are using a T-Call board
-// #define TINY_GSM_MODEM_SIM7600 // If you are using a T-PCIE board with a SIM7600 module
+// #define TINY_GSM_MODEM_SIM800 // If you are using a T-Call board
+#define TINY_GSM_MODEM_SIM7600 // If you are using a T-PCIE board with a SIM7600 module
 
 // WiFi details
-const char* ssid = ""; // WiFi Network Name (SSID)
-const char* password =  ""; // WiFi Network Password
+const char* ssid = "Casinha3"; // WiFi Network Name (SSID)
+const char* password =  "dexter2022"; // WiFi Network Password
 
 // MQTT Broker Details
 const char* mqttServer = "broker.emqx.io";
 const int mqttPort = 1883;
-const char* mqttUser = "";
-const char* mqttPassword = "";
-const char* mqttTopic = "revspace/sensors/dnrbtelem"; // Needs to change - This is the channel for this aircraft only
+const char* mqttUser = "danarrib";
+const char* mqttPassword = "123456";
+const char* mqttTopic = "bulletgcss/uavs/mdalema"; // Needs to change - This is the channel for this aircraft only
 
 // set GSM PIN, if any
 #define GSM_PIN ""

@@ -622,12 +622,6 @@ function parseStandardTelemetryMessage(payload)
             case "hal":
                 data.homeAltitudeSL = parseInt(arrData[1]) / 100.0; // Home comes in centimeters
                 break;
-            case "ont":
-                data.powerTime = parseInt(arrData[1]);
-                break;
-            case "flt":
-                data.flightTime = parseInt(arrData[1]);
-                break;
             case "trp":
                 data.throttlePercent = parseInt(arrData[1]);
                 break;

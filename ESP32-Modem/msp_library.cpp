@@ -140,7 +140,7 @@ bool MSPLibrary::recv(uint16_t * messageID, void * payload, uint16_t maxSize, ui
       {
         Serial.printf("Checksum failed. Calculated: %d - Retrieved: %d.\n", _crc, checksum);
         Serial.printf("MessageID: %d - MaxSize: %d - Retrieved Size %d.\n", *messageID, maxSize, *recvSize);
-        //return false;
+        return false;
       }
       
       return true;

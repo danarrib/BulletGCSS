@@ -100,7 +100,7 @@ HardwareSerial mspSerial(2);
 MSPLibrary msp;
 uav_status uavstatus;
 uav_status lastStatus;
-msp_set_wp_t currentWPMission[255];
+msp_set_wp_t currentWPMission[256];
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 bool telemetryFetched = false;
@@ -235,7 +235,7 @@ void connectToTheInternet() {
     SerialMon.println(modemInfo);
   
     // Unlock your SIM card with a PIN if needed
-    if ( GSM_PIN && modem.getSimStatus() != 3 ) {
+    if ( GSM_PIN && modem.getSimStatus() != SIM_READY ) {
       SerialMon.println("Unlocking SIM card");
       modem.simUnlock(GSM_PIN);
     }
@@ -300,7 +300,7 @@ void getTelemetryDataTask() {
     
   uint32_t timer = millis();
   
-  if(timer >= (lastMessageTimer + MESSAGE_SEND_INTERVAL - TELEMETRY_FETCH_DUTY_CYCLE) ) 
+  if(timer - lastMessageTimer >= MESSAGE_SEND_INTERVAL - TELEMETRY_FETCH_DUTY_CYCLE)
   {
     //SerialMon.printf("Telemetry: %d\n", timer);
     telemetryFetched = true;
@@ -450,7 +450,7 @@ void msp_get_wp_getinfo() {
     }
     else
     {
-      SerialMon.println("ALTITUDE returned false!");
+      SerialMon.println("WP GETINFO returned false!");
     }
 }
 
@@ -468,7 +468,7 @@ void msp_get_nav_status() {
     }
     else
     {
-      SerialMon.println("ALTITUDE returned false!");
+      SerialMon.println("NAV STATUS returned false!");
     }
 }
 
@@ -660,7 +660,7 @@ void msp_get_callsign() {
     }
     else
     {
-      SerialMon.println("MSP BOXNAMES returned false!");
+      SerialMon.println("MSP CALLSIGN returned false!");
     }
 }
 
@@ -752,7 +752,7 @@ void msp_get_activeboxes() {
 void sendMessageTask() {
   uint32_t timer = millis();
   
-  if(timer >= lastMessageTimer + MESSAGE_SEND_INTERVAL)
+  if(timer - lastMessageTimer >= MESSAGE_SEND_INTERVAL)
   {
     //SerialMon.printf("Message: %d\n", timer);
     telemetryFetched = false;
@@ -774,7 +774,7 @@ void sendMessageTask() {
     SerialMon.println(message);
     sendMessage(message);
     
-    if(timer >= lastLowPriorityMessageTimer + (LOW_PRIORITY_MESSAGE_INTERVAL * 1000) )
+    if(timer - lastLowPriorityMessageTimer >= (LOW_PRIORITY_MESSAGE_INTERVAL * 1000))
     {
       lastLowPriorityMessageTimer = timer;
       buildLowPriorityMessage(message);
@@ -800,7 +800,7 @@ void sendWaypointsMessage() {
   
   char wpsg[256];
 
-  for(uint8_t i = 0; i <= uavstatus.waypointCount; i++)
+  for(uint16_t i = 0; i <= uavstatus.waypointCount; i++)
   {
     sprintf(wpsg, "wpno:%d,", currentWPMission[i].waypointNumber);
     sprintf(wpsg, "%sla:%d,", wpsg, currentWPMission[i].lat);
@@ -985,7 +985,9 @@ void connectToTheBroker()
   while (!client.connected())
   {
     SerialMon.println("Connecting to the broker MQTT...");
-    if (client.connect("ESP32Client", mqttUser, mqttPassword ))
+    char mqttClientId[32];
+    snprintf(mqttClientId, sizeof(mqttClientId), "ESP32_%llX", ESP.getEfuseMac());
+    if (client.connect(mqttClientId, mqttUser, mqttPassword))
     {
       SerialMon.println("Connected to the broker!");
     }

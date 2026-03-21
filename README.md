@@ -26,4 +26,15 @@ The UI is connected to this same MQTT Broker, and every time it gets a new telem
 Check out this [Demonstration Video](https://youtu.be/Iwv_Eo0fOuc?si=-nH5KV7GBwPIXf3V&t=623), action starts at 10:23.
 
 ## How can I use it?
-Check out the [Wiki](https://github.com/danarrib/BulletGCSS/wiki) for detailed instructions.
+
+- [What do I need?](docs/Required-hardware.md)
+- [How to configure the modem device?](docs/Setup-modem.md)
+- [How to install the modem device on my aircraft?](docs/Wiring.md)
+- [How to Host the UI?](docs/Host-the-user-interface.md)
+- [How to configure the UI?](docs/User-Interface.md)
+- [How to find a MQTT Broker](docs/Find-a-MQTT-Broker.md)
+- [How to self-host a MQTT Broker](docs/Self-Hosting-a-MQTT-server--(broker).md)
+- [How much data will Bullet GCSS use?](docs/How-much-will-Bullet-GCSS-use-from-my-GPRS-data-plan?.md)
+- [How to install Bullet GCSS on a SmartPhone](docs/How-to-install-Bullet-GCSS-on-SmartPhone.md)
+- [Terrain elevation feature](docs/Terrain-elevation.md)
+- [Communication Protocol Reference](docs/BulletGCSS_protocol.md)
