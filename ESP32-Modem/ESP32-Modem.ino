@@ -86,6 +86,16 @@ HardwareSerial mspSerial(2);
 #define SERIAL_PIN_RX 19
 #define SERIAL_PIN_TX 18
 
+// Forward declarations required for PlatformIO compatibility.
+// Arduino IDE generates these automatically; PlatformIO does not handle
+// functions defined inside #ifdef/#else blocks correctly.
+#ifdef USE_WIFI
+  void connectToWifiNetwork();
+#else
+  bool setPowerBoostKeepOn(int en);
+  void connectToGprsNetwork();
+#endif
+
 #define TASK_MSP_READ_MS 200
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 

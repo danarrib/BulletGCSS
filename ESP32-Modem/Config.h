@@ -22,9 +22,11 @@
 // COMMENT NEXT LINE IF YOU WANT TO USE GPRS, UNCOMMENT IF YOU WANT TO USE WIFI
 // #define USE_WIFI
 
-// UNCOMMENT THE LINE CORRESPONDING TO YOUR CELLULAR MODEM 
-// #define TINY_GSM_MODEM_SIM800 // If you are using a T-Call board
-#define TINY_GSM_MODEM_SIM7600 // If you are using a T-PCIE board with a SIM7600 module
+// UNCOMMENT THE LINE CORRESPONDING TO YOUR CELLULAR MODEM
+// (If using PlatformIO, leave both commented out — the modem type is set via
+//  build_flags in platformio.ini for each build environment.)
+// #define TINY_GSM_MODEM_SIM800   // If you are using a T-Call board
+// #define TINY_GSM_MODEM_SIM7600  // If you are using a T-PCIE board with a SIM7600 module
 
 // WiFi details
 const char* ssid = "Casinha3"; // WiFi Network Name (SSID)

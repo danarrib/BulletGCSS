@@ -1,0 +1,32 @@
+name: Build Firmware
+
+on:
+  push:
+    paths:
+      - 'ESP32-Modem/**'
+  pull_request:
+    paths:
+      - 'ESP32-Modem/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [esp32-sim7600, esp32-sim800]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('ESP32-Modem/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build ${{ matrix.environment }}
+        run: pio run -e ${{ matrix.environment }}
+        working-directory: ESP32-Modem
