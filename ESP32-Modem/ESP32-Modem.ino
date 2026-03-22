@@ -49,8 +49,13 @@
 HardwareSerial mspSerial(2);
 
 #ifdef USE_WIFI
-  #include <WiFi.h>
-  WiFiClient espClient;
+  #ifdef USE_TLS
+    #include <WiFiClientSecure.h>
+    WiFiClientSecure espClient;
+  #else
+    #include <WiFi.h>
+    WiFiClient espClient;
+  #endif
   PubSubClient client(espClient);
 #else
   #include <Wire.h>
@@ -63,7 +68,13 @@ HardwareSerial mspSerial(2);
     TinyGsm modem(SerialAT);
   #endif
   TinyGsmClient gsmClient(modem);
-  PubSubClient client(gsmClient);
+  #ifdef USE_TLS
+    #include <SSLClient.h>
+    SSLClient sslClient(&gsmClient);
+    PubSubClient client(sslClient);
+  #else
+    PubSubClient client(gsmClient);
+  #endif
 #endif
 
 // TTGO T-Call pins
@@ -174,6 +185,9 @@ void connectToTheInternet() {
     }
   
     SerialMon.println("WiFi connected!");
+    #ifdef USE_TLS
+      espClient.setInsecure(); // Encrypt without certificate verification
+    #endif
   }
 #else
   // Add only functions that works with GPRS

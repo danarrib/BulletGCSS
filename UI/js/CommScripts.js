@@ -367,17 +367,21 @@ function resetDataObject()
 // Setup
 resetDataObject();
 
+function inRange(val, min, max) {
+    return !isNaN(val) && val >= min && val <= max;
+}
+
 function parseWaypointMessage(payload) {
     // Don't update mission while fetching elevation data from server.
     if(updatingWpAltitudes)
         return;
 
-    var wpno = 0;
-    var arrPayload = payload.split(",");
-    
+    var wpno = null;
+    var rawLa = null, rawLo = null;
+
     var waypoint = {
         waypointNumber: 0,
-        wpAction: 0,
+        wpAction: 1,
         wpLatitude: 0,
         wpLongitude: 0,
         wpAltitude: 0,
@@ -387,51 +391,71 @@ function parseWaypointMessage(payload) {
         flag: 0,
         elevation: 0,
     };
-    
+
+    var arrPayload = payload.split(",");
     for(var i=0; i < arrPayload.length; i++) {
         if(arrPayload[i] == "")
             continue;
 
         var arrData = arrPayload[i].split(":");
-        
+        var raw;
+
         switch(arrData[0]) {
             case "wpno":
-                waypoint.waypointNumber = parseInt(arrData[1]);
-                wpno = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 255)) wpno = raw;
                 break;
             case "la":
-                waypoint.wpLatitude = parseInt(arrData[1]) / 10000000.0;
+                rawLa = parseInt(arrData[1]);
                 break;
             case "lo":
-                waypoint.wpLongitude = parseInt(arrData[1]) / 10000000.0;
+                rawLo = parseInt(arrData[1]);
                 break;
             case "ac":
-                waypoint.wpAction = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 1, 8)) waypoint.wpAction = raw;
                 break;
             case "al":
-                waypoint.wpAltitude = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 60000)) waypoint.wpAltitude = raw;
                 break;
             case "p1":
-                waypoint.p1 = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -32768, 32767)) waypoint.p1 = raw;
                 break;
             case "p2":
-                waypoint.p2 = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -32768, 32767)) waypoint.p2 = raw;
                 break;
             case "p3":
-                waypoint.p3 = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -32768, 32767)) waypoint.p3 = raw;
                 break;
             case "f":
-                waypoint.flag = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 255)) waypoint.flag = raw;
                 break;
             case "el":
-                waypoint.elevation = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(!isNaN(raw)) waypoint.elevation = raw;
                 break;
             default:
                 break;
         }
     }
 
-    // Check if the loaded waypoint has the same coordinates as the previous one, and change only if it's different
+    // Reject the waypoint if the index is invalid
+    if(wpno === null) return;
+    waypoint.waypointNumber = wpno;
+
+    // Both coordinates must be present and valid to place the waypoint
+    var laValid = rawLa !== null && inRange(rawLa, -900000000, 900000000);
+    var loValid = rawLo !== null && inRange(rawLo, -1800000000, 1800000000);
+    if(!laValid || !loValid) return;
+    waypoint.wpLatitude = rawLa / 10000000.0;
+    waypoint.wpLongitude = rawLo / 10000000.0;
+
+    // Store only if this is a new slot or the coordinates changed
     if(data.currentMissionWaypoints.length <= wpno)
     {
         data.currentMissionWaypoints[wpno] = waypoint;
@@ -439,9 +463,9 @@ function parseWaypointMessage(payload) {
             data.isCurrentMissionElevationSet = false;
         return;
     }
-    else if(data.currentMissionWaypoints[wpno] !== undefined 
-        && (data.currentMissionWaypoints[wpno].wpLatitude != waypoint.wpLatitude 
-        || data.currentMissionWaypoints[wpno].wpLongitude != waypoint.wpLongitude 
+    else if(data.currentMissionWaypoints[wpno] !== undefined
+        && (data.currentMissionWaypoints[wpno].wpLatitude != waypoint.wpLatitude
+        || data.currentMissionWaypoints[wpno].wpLongitude != waypoint.wpLongitude
         || data.currentMissionWaypoints[wpno].wpAltitude != waypoint.wpAltitude)
     )
     {
@@ -502,146 +526,263 @@ function flightModeIdToName(flightModeId)
 function parseStandardTelemetryMessage(payload)
 {
     var arrPayload = payload.split(",");
+
+    // GPS and home coordinate pairs are collected first and validated together after the loop
+    var rawGla = null, rawGlo = null;
+    var rawHla = null, rawHlo = null;
+
     for(var i=0; i < arrPayload.length; i++) {
         if(arrPayload[i] == "")
             continue;
 
         var arrData = arrPayload[i].split(":");
+        var raw;
+
         switch(arrData[0]) {
             case "ran":
-                data.lastMessage.rollAngle = data.rollAngle;
-                data.rollAngle = parseFloat(arrData[1]) / 10.0;
+                raw = parseFloat(arrData[1]);
+                if(inRange(raw, -1800, 1800)) {
+                    data.lastMessage.rollAngle = data.rollAngle;
+                    data.rollAngle = raw / 10.0;
+                }
                 break;
             case "pan":
-                data.lastMessage.pitchAngle = data.pitchAngle;
-                data.pitchAngle = parseFloat(arrData[1]) / 10.0;
+                raw = parseFloat(arrData[1]);
+                if(inRange(raw, -900, 900)) {
+                    data.lastMessage.pitchAngle = data.pitchAngle;
+                    data.pitchAngle = raw / 10.0;
+                }
                 break;
             case "hea":
-                data.lastMessage.heading = data.heading;
-                data.heading = parseFloat(arrData[1]);
+                raw = parseFloat(arrData[1]);
+                if(inRange(raw, 0, 359)) {
+                    data.lastMessage.heading = data.heading;
+                    data.heading = raw;
+                }
                 break;
             case "alt":
-                data.lastMessage.altitude = data.altitude;
-                data.altitude = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -1000000, 10000000)) {
+                    data.lastMessage.altitude = data.altitude;
+                    data.altitude = raw;
+                }
                 break;
             case "asl":
-                data.altitudeSeaLevel = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -500, 9000))
+                    data.altitudeSeaLevel = raw;
                 break;
             case "gsp":
-                data.lastMessage.groundSpeed = data.groundSpeed;
-                data.groundSpeed = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 15000)) {
+                    data.lastMessage.groundSpeed = data.groundSpeed;
+                    data.groundSpeed = raw;
+                }
                 break;
             case "vsp":
-                data.lastMessage.verticalSpeed = data.verticalSpeed;
-                data.verticalSpeed = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -60000, 60000)) {
+                    data.lastMessage.verticalSpeed = data.verticalSpeed;
+                    data.verticalSpeed = raw;
+                }
                 break;
             case "hdr":
-                data.homeDirection = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 359))
+                    data.homeDirection = raw;
                 break;
             case "hds":
-                data.homeDistance = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 20000000))
+                    data.homeDistance = raw;
                 break;
             case "cud":
-                data.currentDraw = parseInt(arrData[1]) / 100.0;
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 50000))
+                    data.currentDraw = raw / 100.0;
                 break;
             case "cad":
-                data.capacityDraw = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 100000))
+                    data.capacityDraw = raw;
                 break;
             case "rsi":
-                data.rssiPercent = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 100))
+                    data.rssiPercent = raw;
                 break;
             case "gsc":
-                data.gpsSatCount = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 50))
+                    data.gpsSatCount = raw;
                 break;
             case "gla":
-                data.gpsLatitude = parseInt(arrData[1]) / 10000000.0;
+                rawGla = parseInt(arrData[1]);
                 break;
             case "glo":
-                data.gpsLongitude = parseInt(arrData[1]) / 10000000.0;
+                rawGlo = parseInt(arrData[1]);
                 break;
             case "ghp":
-                data.gpsHDOP = parseInt(arrData[1]) / 100.0;
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 9999))
+                    data.gpsHDOP = raw / 100.0;
                 break;
             case "acv":
-                data.battCellVoltage = parseInt(arrData[1]) / 100.0;
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 500))
+                    data.battCellVoltage = raw / 100.0;
                 break;
             case "bpv":
-                data.batteryVoltage = parseInt(arrData[1]) / 100.0;
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 6000))
+                    data.batteryVoltage = raw / 100.0;
                 break;
             case "bcc":
-                data.batteryCellCount = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 1, 12))
+                    data.batteryCellCount = raw;
                 break;
             case "bfp":
-                data.fuelPercent = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 100))
+                    data.fuelPercent = raw;
                 break;
             case "css":
-                data.cellSignalStrength = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 3))
+                    data.cellSignalStrength = raw;
                 break;
             case "ftm":
-                data.flightMode = flightModeIdToName(parseInt(arrData[1]));
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 1, 11))
+                    data.flightMode = flightModeIdToName(raw);
                 break;
             case "cwn":
-                data.currentWaypointNumber = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 255))
+                    data.currentWaypointNumber = raw;
                 break;
             case "wpc":
-                if(parseInt(arrData[1]) != data.waypointCount)
-                    clearCurrentMissionWaypoints();
-
-                data.waypointCount = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 256)) {
+                    if(raw != data.waypointCount)
+                        clearCurrentMissionWaypoints();
+                    data.waypointCount = raw;
+                }
                 break;
             case "3df":
-                data.gps3DFix = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.gps3DFix = raw;
                 break;
             case "hwh":
-                data.isHardwareHealthy = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.isHardwareHealthy = raw;
                 break;
             case "arm":
-                data.uavIsArmed = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.uavIsArmed = raw;
                 break;
             case "wpv":
-                data.isWaypointMissionValid = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.isWaypointMissionValid = raw;
                 break;
             case "cs":
-                data.callsign = arrData[1];
+                if(/^[A-Za-z0-9_-]{1,16}$/.test(arrData[1]))
+                    data.callsign = arrData[1];
                 break;
             case "ont":
-                data.powerTime = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 172800))
+                    data.powerTime = raw;
                 break;
             case "flt":
-                data.flightTime = parseInt(arrData[1]);
-                break;
-            case "fs":
-                data.isFailsafeActive = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 86400))
+                    data.flightTime = raw;
                 break;
             case "hla":
-                data.homeLatitude = parseInt(arrData[1]) / 10000000.0;
+                rawHla = parseInt(arrData[1]);
                 break;
             case "hlo":
-                data.homeLongitude = parseInt(arrData[1]) / 10000000.0;
+                rawHlo = parseInt(arrData[1]);
                 break;
             case "hal":
-                data.homeAltitudeSL = parseInt(arrData[1]) / 100.0; // Home comes in centimeters
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, -50000, 900000))
+                    data.homeAltitudeSL = raw / 100.0; // Home comes in centimeters
                 break;
             case "trp":
-                data.throttlePercent = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 100))
+                    data.throttlePercent = raw;
                 break;
             case "att":
-                data.isAutoThrottleActive = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.isAutoThrottleActive = raw;
                 break;
             case "nvs":
-                data.navState = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 30))
+                    data.navState = raw;
                 break;
             case "whd":
-                data.mWhDraw = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 1000000))
+                    data.mWhDraw = raw;
                 break;
             case "ggc":
-                data.gpsGroundCourse = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 0, 359))
+                    data.gpsGroundCourse = raw;
+                break;
+            case "fs":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.isFailsafeActive = raw;
                 break;
             case "mfr":
-                pageSettings.messageInterval = parseInt(arrData[1]);
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 100, 10000))
+                    pageSettings.messageInterval = raw;
                 break;
             default:
                 break;
+        }
+    }
+
+    // Validate GPS coordinate pairs together after the loop.
+    // When both arrive in the same message, both must be valid or both are discarded.
+    // When only one arrives (the other didn't change), validate independently.
+    if(rawGla !== null || rawGlo !== null) {
+        var glaValid = rawGla !== null && inRange(rawGla, -900000000, 900000000);
+        var gloValid = rawGlo !== null && inRange(rawGlo, -1800000000, 1800000000);
+        if(rawGla !== null && rawGlo !== null) {
+            if(glaValid && gloValid) {
+                data.gpsLatitude  = rawGla / 10000000.0;
+                data.gpsLongitude = rawGlo / 10000000.0;
+            }
+        } else {
+            if(glaValid) data.gpsLatitude  = rawGla / 10000000.0;
+            if(gloValid) data.gpsLongitude = rawGlo / 10000000.0;
+        }
+    }
+
+    if(rawHla !== null || rawHlo !== null) {
+        var hlaValid = rawHla !== null && inRange(rawHla, -900000000, 900000000);
+        var hloValid = rawHlo !== null && inRange(rawHlo, -1800000000, 1800000000);
+        if(rawHla !== null && rawHlo !== null) {
+            if(hlaValid && hloValid) {
+                data.homeLatitude  = rawHla / 10000000.0;
+                data.homeLongitude = rawHlo / 10000000.0;
+            }
+        } else {
+            if(hlaValid) data.homeLatitude  = rawHla / 10000000.0;
+            if(hloValid) data.homeLongitude = rawHlo / 10000000.0;
         }
     }
 }

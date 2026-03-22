@@ -22,7 +22,7 @@
  */
 set_time_limit(300);
 
-define('CSAJAX_FILTERS', false);
+define('CSAJAX_FILTERS', true);
 
 /**
  * If set to true, $valid_requests should hold only domains i.e. a.example.com, b.example.com, usethisdomain.com
@@ -47,7 +47,6 @@ define('CSAJAX_DEBUG', false);
  * A set of valid cross domain requests
  */
 $valid_requests = array(
-    'bulletgcss.outros.net',
     'api.open-elevation.com'
 );
 

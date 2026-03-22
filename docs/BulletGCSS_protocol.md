@@ -24,6 +24,8 @@ Flight Controller  ──MSPv2 (UART)──►  ESP32 Modem  ──MQTT──►
 | QoS | 0 (fire and forget) | 0 (subscribe) |
 | Client ID | `ESP32_<MAC>` (chip MAC address) | `web_<random>` |
 
+**QoS note:** All messages use QoS 0 (fire-and-forget) by design. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display at most; the 10-second force-refresh cycle (see Standard Telemetry Message below) re-syncs all fields automatically when connectivity returns. The UI's stale-data indicator signals loss of connection; this is normal operating behaviour, not an error condition.
+
 **Topic format:** `bulletgcss/uavs/<callsign>`
 
 The callsign is read from the flight controller at startup via MSP and used as the topic suffix. The UI subscribes to the configured topic stored in browser `localStorage`.
@@ -117,71 +119,83 @@ Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
 
 ### Attitude
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `ran` | Roll angle | Decidegrees (÷10 → degrees) | `data.rollAngle` |
-| `pan` | Pitch angle | Decidegrees (÷10 → degrees) | `data.pitchAngle` |
-| `hea` | Heading (yaw) | Degrees | `data.heading` |
-| `ggc` | GPS ground course | Degrees | `data.gpsGroundCourse` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `ran` | Roll angle | Decidegrees (÷10 → degrees) | `data.rollAngle` | -1800 to 1800 |
+| `pan` | Pitch angle | Decidegrees (÷10 → degrees) | `data.pitchAngle` | -900 to 900 |
+| `hea` | Heading (yaw) | Degrees | `data.heading` | 0 to 359 |
+| `ggc` | GPS ground course | Degrees | `data.gpsGroundCourse` | 0 to 359 |
 
 ### Altitude & Speed
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `alt` | Relative altitude (barometric/estimated) | Centimeters | `data.altitude` |
-| `asl` | Altitude above sea level (GPS) | Meters | `data.altitudeSeaLevel` |
-| `gsp` | Ground speed | cm/s | `data.groundSpeed` |
-| `vsp` | Vertical speed | cm/s | `data.verticalSpeed` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `alt` | Relative altitude (barometric/estimated) | Centimeters | `data.altitude` | -1000000 to 10000000 |
+| `asl` | Altitude above sea level (GPS) | Meters | `data.altitudeSeaLevel` | -500 to 9000 |
+| `gsp` | Ground speed | cm/s | `data.groundSpeed` | 0 to 15000 |
+| `vsp` | Vertical speed | cm/s | `data.verticalSpeed` | -60000 to 60000 |
+
+> `alt` range covers 10 km below home to 100 km relative altitude.
+> `asl` range covers below-sea-level terrain to above the highest mountain.
+> `gsp` ceiling of 15000 cm/s = 540 km/h, well above any fixed-wing UAV speed.
+> `vsp` allows ±2160 km/h vertical.
 
 ### GPS
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `gla` | GPS latitude | Degrees × 10,000,000 | `data.gpsLatitude` |
-| `glo` | GPS longitude | Degrees × 10,000,000 | `data.gpsLongitude` |
-| `gsc` | GPS satellite count | Count | `data.gpsSatCount` |
-| `ghp` | GPS HDOP | HDOP × 100 (÷100 → HDOP) | `data.gpsHDOP` |
-| `3df` | GPS 3D fix | `0` = no fix, `1` = 3D fix | `data.gps3DFix` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `gla` | GPS latitude | Degrees × 10,000,000 | `data.gpsLatitude` | -900000000 to 900000000 |
+| `glo` | GPS longitude | Degrees × 10,000,000 | `data.gpsLongitude` | -1800000000 to 1800000000 |
+| `gsc` | GPS satellite count | Count | `data.gpsSatCount` | 0 to 50 |
+| `ghp` | GPS HDOP | HDOP × 100 (÷100 → HDOP) | `data.gpsHDOP` | 0 to 9999 |
+| `3df` | GPS 3D fix | `0` = no fix, `1` = 3D fix | `data.gps3DFix` | 0 or 1 |
 
 ### Navigation
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `hdr` | Direction to home | Degrees | `data.homeDirection` |
-| `hds` | Distance to home | Meters | `data.homeDistance` |
-| `nvs` | Navigation state (INAV nav_state enum) | Integer | `data.navState` |
-| `cwn` | Current active waypoint number | Count | `data.currentWaypointNumber` |
-| `wpc` | Total waypoint count in mission | Count | `data.waypointCount` |
-| `wpv` | Waypoint mission valid flag | `0` / `1` | `data.isWaypointMissionValid` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `hdr` | Direction to home | Degrees | `data.homeDirection` | 0 to 359 |
+| `hds` | Distance to home | Meters | `data.homeDistance` | 0 to 20000000 |
+| `nvs` | Navigation state (INAV nav_state enum) | Integer | `data.navState` | 0 to 30 |
+| `cwn` | Current active waypoint number | Count | `data.currentWaypointNumber` | 0 to 255 |
+| `wpc` | Total waypoint count in mission | Count | `data.waypointCount` | 0 to 256 |
+| `wpv` | Waypoint mission valid flag | `0` / `1` | `data.isWaypointMissionValid` | 0 or 1 |
+
+> `hds` ceiling of 20000 km ≈ half the Earth's circumference.
+> `nvs` ceiling of 30 is intentionally generous — INAV's nav_state enum currently tops out around 20.
 
 ### Battery & Power
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `bpv` | Total battery voltage | Centivolts (÷100 → V) | `data.batteryVoltage` |
-| `acv` | Average cell voltage | Centivolts (÷100 → V) | `data.battCellVoltage` |
-| `bfp` | Battery fuel (charge) percent | Percent | `data.fuelPercent` |
-| `cud` | Current draw | Centiamps (÷100 → A) | `data.currentDraw` |
-| `cad` | Capacity drawn | mAh | `data.capacityDraw` |
-| `whd` | Energy drawn | mWh | `data.mWhDraw` |
-| `trp` | Throttle percent | Percent | `data.throttlePercent` |
-| `att` | Auto-throttle active | `0` / `1` | `data.isAutoThrottleActive` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `bpv` | Total battery voltage | Centivolts (÷100 → V) | `data.batteryVoltage` | 0 to 6000 |
+| `acv` | Average cell voltage | Centivolts (÷100 → V) | `data.battCellVoltage` | 0 to 500 |
+| `bfp` | Battery fuel (charge) percent | Percent | `data.fuelPercent` | 0 to 100 |
+| `cud` | Current draw | Centiamps (÷100 → A) | `data.currentDraw` | 0 to 50000 |
+| `cad` | Capacity drawn | mAh | `data.capacityDraw` | 0 to 100000 |
+| `whd` | Energy drawn | mWh | `data.mWhDraw` | 0 to 1000000 |
+| `trp` | Throttle percent | Percent | `data.throttlePercent` | 0 to 100 |
+| `att` | Auto-throttle active | `0` / `1` | `data.isAutoThrottleActive` | 0 or 1 |
+
+> `bpv` ceiling of 6000 cV = 60 V covers up to 14S LiPo configurations.
+> `acv` ceiling of 500 cV = 5.0 V per cell covers HV LiPo (4.35 V) with margin.
+> `cud` ceiling of 50000 cA = 500 A accommodates very high-current setups.
 
 ### Status Flags
 
-| Key | Description | Values | JS field |
-|---|---|---|---|
-| `arm` | Aircraft armed | `0` / `1` | `data.uavIsArmed` |
-| `fs` | Failsafe active | `0` / `1` | `data.isFailsafeActive` |
-| `hwh` | Hardware healthy | `0` / `1` | `data.isHardwareHealthy` |
-| `css` | Cellular/WiFi signal strength | `0`–`3` | `data.cellSignalStrength` |
-| `rsi` | RC link RSSI | Percent | `data.rssiPercent` |
+| Key | Description | Values | JS field | Valid Range |
+|---|---|---|---|---|
+| `arm` | Aircraft armed | `0` / `1` | `data.uavIsArmed` | 0 or 1 |
+| `fs` | Failsafe active | `0` / `1` | `data.isFailsafeActive` | 0 or 1 |
+| `hwh` | Hardware healthy | `0` / `1` | `data.isHardwareHealthy` | 0 or 1 |
+| `css` | Cellular/WiFi signal strength | `0`–`3` | `data.cellSignalStrength` | 0 to 3 |
+| `rsi` | RC link RSSI | Percent | `data.rssiPercent` | 0 to 100 |
 
 ### Flight Mode
 
-| Key | Description | JS field |
-|---|---|---|
-| `ftm` | Flight mode ID (see table below) | `data.flightMode` (resolved to name) |
+| Key | Description | JS field | Valid Range |
+|---|---|---|---|
+| `ftm` | Flight mode ID (see table below) | `data.flightMode` (resolved to name) | 1 to 11 |
 
 Flight mode ID values:
 
@@ -203,17 +217,21 @@ Flight mode ID values:
 
 ## Low Priority Message Field Reference
 
-| Key | Description | Unit / Scale | JS field |
-|---|---|---|---|
-| `bcc` | Battery cell count | Count | `data.batteryCellCount` |
-| `cs` | Aircraft callsign | String (alphanumeric, `_`, `-`) | `data.callsign` |
-| `hla` | Home latitude | Degrees × 10,000,000 | `data.homeLatitude` |
-| `hlo` | Home longitude | Degrees × 10,000,000 | `data.homeLongitude` |
-| `hal` | Home altitude above sea level | Centimeters (÷100 → m) | `data.homeAltitudeSL` |
-| `ont` | On-time (time since power on) | Seconds | `data.powerTime` |
-| `flt` | Flight time (time since arm) | Seconds | `data.flightTime` |
-| `ftm` | Flight mode ID | See flight mode table | `data.flightMode` |
-| `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` |
+| Key | Description | Unit / Scale | JS field | Valid Range |
+|---|---|---|---|---|
+| `bcc` | Battery cell count | Count | `data.batteryCellCount` | 1 to 12 |
+| `cs` | Aircraft callsign | String (alphanumeric, `_`, `-`) | `data.callsign` | 1–16 chars; pattern `^[A-Za-z0-9_-]+$` |
+| `hla` | Home latitude | Degrees × 10,000,000 | `data.homeLatitude` | -900000000 to 900000000 |
+| `hlo` | Home longitude | Degrees × 10,000,000 | `data.homeLongitude` | -1800000000 to 1800000000 |
+| `hal` | Home altitude above sea level | Centimeters (÷100 → m) | `data.homeAltitudeSL` | -50000 to 900000 |
+| `ont` | On-time (time since power on) | Seconds | `data.powerTime` | 0 to 172800 |
+| `flt` | Flight time (time since arm) | Seconds | `data.flightTime` | 0 to 86400 |
+| `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
+| `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
+
+> `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
+> `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
+> `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
 
 ---
 
@@ -221,17 +239,34 @@ Flight mode ID values:
 
 Waypoint messages start with `wpno:` and are parsed separately from telemetry messages.
 
-| Key | Description | Unit / Scale |
-|---|---|---|
-| `wpno` | Waypoint number (`0` = home point) | Count |
-| `la` | Waypoint latitude | Degrees × 10,000,000 |
-| `lo` | Waypoint longitude | Degrees × 10,000,000 |
-| `al` | Waypoint altitude | Centimeters |
-| `ac` | Waypoint action (INAV action enum) | Integer |
-| `p1` | Parameter 1 (omitted if 0) | Integer |
-| `p2` | Parameter 2 (omitted if 0) | Integer |
-| `p3` | Parameter 3 (omitted if 0) | Integer |
-| `f` | Flag (omitted if 0) | Integer |
+| Key | Description | Unit / Scale | Valid Range |
+|---|---|---|---|
+| `wpno` | Waypoint number (`0` = home point) | Count | 0 to 255 |
+| `la` | Waypoint latitude | Degrees × 10,000,000 | -900000000 to 900000000 |
+| `lo` | Waypoint longitude | Degrees × 10,000,000 | -1800000000 to 1800000000 |
+| `al` | Waypoint altitude | Centimeters | 0 to 60000 |
+| `ac` | Waypoint action (INAV action enum) | Integer | 1 to 8 |
+| `p1` | Parameter 1 (omitted if 0) | Integer | -32768 to 32767 |
+| `p2` | Parameter 2 (omitted if 0) | Integer | -32768 to 32767 |
+| `p3` | Parameter 3 (omitted if 0) | Integer | -32768 to 32767 |
+| `f` | Flag (omitted if 0) | Integer | 0 to 255 |
+
+> `al` ceiling of 60000 cm = 600 m is the typical INAV waypoint altitude limit.
+> `ac` values: 1=WAYPOINT, 2=POSHOLD_UNLIM, 3=POSHOLD_TIME, 4=RTH, 5=SET_POI, 6=JUMP, 7=SET_HEAD, 8=LAND.
+> `p1`/`p2`/`p3` are signed 16-bit integers as defined by the MSPv2 waypoint payload.
+
+---
+
+## Validation Strategy
+
+When implementing input validation in the UI parser (`CommScripts.js`), apply the following rules consistently:
+
+- **Out-of-range numeric fields:** silently discard the field (leave the previous value unchanged). Do not clamp — a clamped value could be misleading (e.g. showing 100 m altitude when the message contained 999999 m).
+- **Boolean / flag fields (0 or 1):** discard the message field if the parsed value is anything other than 0 or 1.
+- **Enum fields (`nvs`, `ac`, `ftm`):** discard values outside the documented range.
+- **String fields (`cs`):** reject the callsign if it does not match `^[A-Za-z0-9_-]+$` or exceeds 16 characters. Fall back to the previously displayed callsign.
+- **GPS coordinates:** both latitude and longitude must be within range simultaneously. If either is invalid, discard both (a position with only one valid coordinate is unusable and could plot to the wrong location).
+- **`parseInt` / `parseFloat` failures:** `NaN` results must be treated as invalid and discarded — never passed to the display logic.
 
 ---
 

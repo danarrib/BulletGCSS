@@ -1,0 +1,15 @@
+{
+  "name": "bulletgcss-ui",
+  "private": true,
+  "description": "Version manifest for third-party libraries bundled in the BulletGCSS UI. Run download-libs.sh to fetch or update them. This file is NOT used with npm install — no node_modules are created.",
+  "dependencies": {
+    "ol": "6.5.0",
+    "nosleep.js": "0.12.0",
+    "paho-mqtt": "1.1.0",
+    "open-location-code": "1.0.3"
+  },
+  "notes": {
+    "paho-mqtt": "Version 1.1.0 is inferred — the bundled mqttws31.js file has no version string in its header. Verify before upgrading.",
+    "open-location-code": "Version 1.0.3 is inferred — the bundled olc.min.js file has no version string in its header. Verify before upgrading."
+  }
+}

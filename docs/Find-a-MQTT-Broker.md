@@ -23,7 +23,7 @@ To change the MQTT parameters on the modem, edit the `Config.h` file before [fla
 ![image](https://user-images.githubusercontent.com/17026744/104539414-3ab51e80-55fc-11eb-8d15-e778d69ca5b2.png)
 
 * Host: `broker.emqx.io`
-* Port: `1883`
+* Port: `8883` (TLS encrypted port — the firmware encrypts the connection automatically)
 * Username: (any username will work)
 * Password: (any password will work)
 * Topic: (any topic that was at least 3 levels. Example: `bulletgcss/uavs/myaircraftname`)
@@ -53,8 +53,8 @@ As you may noticed, this is a public broker, which means that your aircraft will
 
 You're highly encouraged to do so. You can subscribe to any service provider that offers you a MQTT broker service. Here are the requirements:
 * MQTT Broker hostname (or IP address)
-* Port for non-encrypted communication (used on the modem)
-* Port for encrypted (TLS) WebSockets communication (used on the UI)
+* Port for TLS-encrypted MQTT communication (used on the modem — port 8883 is standard)
+* Port for TLS-encrypted WebSockets communication (used on the UI — port 8084 is standard for emqx)
 * Username and Password for both modem and UI
 * Instructions on topic structure (if there are any constrains about that)
 * Being able to handle ~5000 messages per hour per aircraft (around 500KB per hour) *** 

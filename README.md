@@ -25,6 +25,10 @@ The UI is connected to this same MQTT Broker, and every time it gets a new telem
 
 Check out this [Demonstration Video](https://youtu.be/Iwv_Eo0fOuc?si=-nH5KV7GBwPIXf3V&t=623), action starts at 10:23.
 
+## A note on privacy
+
+By default, Bullet GCSS uses a public MQTT broker. This means your aircraft's telemetry (GPS position, altitude, battery, etc.) can be seen by anyone who subscribes to the same topic. For most hobbyist flights this is perfectly fine — but if you'd rather keep your flights private, it's easy to set up your own broker. See [How to self-host a MQTT Broker](docs/Self-Hosting-a-MQTT-server--(broker).md).
+
 ## How can I use it?
 
 - [What do I need?](docs/Required-hardware.md)
@@ -38,3 +42,5 @@ Check out this [Demonstration Video](https://youtu.be/Iwv_Eo0fOuc?si=-nH5KV7GBwP
 - [How to install Bullet GCSS on a SmartPhone](docs/How-to-install-Bullet-GCSS-on-SmartPhone.md)
 - [Terrain elevation feature](docs/Terrain-elevation.md)
 - [Communication Protocol Reference](docs/BulletGCSS_protocol.md)
+- [Monitoring multiple aircraft simultaneously](docs/Multi-aircraft-monitoring.md)
+- [Troubleshooting](docs/Troubleshooting.md)

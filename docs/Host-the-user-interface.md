@@ -23,3 +23,11 @@ To host it, just copy the entire "UI" directory from this repository to your web
 That's all. Simple, right?
 
 But wait, there's a catch: If you're using a MQTT Broker that uses TLS for WebSockets connection (and you really should use it), then you have to host the UI in a http**s** (secure) environment. Your hosting company probably knows how to do it.
+
+### Configuring `proxy.php` for your hostname
+
+The `proxy.php` file is a reverse proxy used for the terrain elevation feature. It has a security allowlist that restricts which external domains it will forward requests to. The default allowlist contains only `api.open-elevation.com`, which is correct and should not be changed.
+
+> **Note:** Older versions of this file also contained the `bulletgcss.outros.net` hostname in the allowlist. If you copied `proxy.php` from an older version, remove that entry — it is not needed and should not be there.
+
+No other changes to `proxy.php` are needed regardless of where you host the UI.

@@ -6,56 +6,36 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ## Security — Critical
 
-### 1. Credentials hardcoded in `Config.h`
-`ESP32-Modem/Config.h` contains a real WiFi password and MQTT credentials committed to the public repository. These should be treated as compromised.
+### ~~1. Credentials hardcoded in `Config.h`~~ ✅ Done
+`Config.h` is now gitignored. `Config.h.example` with placeholder values is committed instead. Users copy it to `Config.h` and fill in their credentials. Documented in `docs/Development-setup.md`.
 
-**What to do:**
-- Rotate the WiFi password and MQTT credentials immediately.
-- Convert `Config.h` into a `Config.h.example` template with placeholder values, and add `Config.h` to `.gitignore` so real credentials are never committed again.
-- Document this pattern in the setup guide.
+> Note: The credentials that were previously committed (`WiFi password`, `MQTT user/password`) should still be rotated, as they remain in the git history.
 
 ---
 
-### 2. `proxy.php` is an open proxy
-`UI/proxy.php` line 25 sets `CSAJAX_FILTERS` to `false`, which **completely disables** the domain allowlist in `$valid_requests`. In this state the proxy will forward HTTP requests to any URL on the internet, making the server exploitable for SSRF attacks or as an anonymous proxy.
-
-**What to do:**
-- Set `define('CSAJAX_FILTERS', true);` to enable the allowlist.
-- Verify `$valid_requests` contains only the necessary domains (`api.open-elevation.com`).
-- Remove `bulletgcss.outros.net` from the allowlist if it is no longer needed.
+### ~~2. `proxy.php` is an open proxy~~ ✅ Done
+`CSAJAX_FILTERS` set to `true`. Allowlist cleaned up to contain only `api.open-elevation.com`. Note added to `docs/Host-the-user-interface.md` for self-hosters.
 
 ---
 
-### 3. No authentication on the telemetry stream — fake data injection
-Anyone who knows (or guesses) the MQTT topic `bulletgcss/uavs/<callsign>` can publish arbitrary messages to it. The UI will parse and display them as real telemetry — spoofed GPS position, false failsafe alerts, fake battery readings.
-
-**What to do:**
-- Use a private MQTT broker with per-user ACLs so only the ESP32 can publish and only authorised clients can subscribe.
-- Long-term: consider adding a simple HMAC signature to each telemetry message so the UI can verify authenticity.
+### 3. No authentication on the telemetry stream — fake data injection ⚠️ Won't fix / by design
+Bullet GCSS is a **receive-only** system — it does not send commands to the aircraft. The worst a bad actor can do by injecting messages is display incorrect telemetry on the UI; they cannot affect the flight. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented.
 
 ---
 
-### 4. ESP32 → Broker link is unencrypted (port 1883, no TLS)
-The modem publishes telemetry in plaintext over port 1883. Aircraft GPS position and status are visible to anyone with access to the cellular carrier network or the broker.
-
-**What to do:**
-- Switch the ESP32 MQTT connection to TLS (port 8883). `TinyGSM` and `PubSubClient` support TLS with a root CA certificate.
-- Update `Config.h` with the new port and add instructions to the setup guide.
+### ~~4. ESP32 → Broker link is unencrypted (port 1883, no TLS)~~ ✅ Done
+TLS enabled using `govorox/SSLClient` wrapping `TinyGsmClient` (cellular) and `WiFiClientSecure` (WiFi). Encryption is active but certificate verification is skipped (`VERIFY_NONE`) — protects against passive eavesdropping without requiring certificate management. MQTT port updated to 8883 in `Config.h.example`.
 
 ---
 
 ## Security — Medium
 
-### 5. Public broker by default — no privacy
-The default broker `broker.emqx.io` is fully public. All telemetry is readable by anyone who subscribes to the same topic. There is no access control.
-
-**What to do:**
-- Add a prominent security warning to `README.md` and `docs/Find-a-MQTT-Broker.md` explaining the privacy implications.
-- Encourage users to follow `docs/Self-Hosting-a-MQTT-server--(broker).md` for production use.
+### ~~5. Public broker by default — no privacy~~ ✅ Done
+Added a friendly privacy note to `README.md` informing users that the default public broker makes telemetry visible to anyone on the same topic, with a link to the self-hosting guide for those who want privacy. Kept the tone light — this is a hobbyist project.
 
 ---
 
-### 6. No input validation on the telemetry parser
+### ~~6. No input validation on the telemetry parser~~ ✅ Done
 `parseStandardTelemetryMessage()` in `UI/js/CommScripts.js` calls `parseInt`/`parseFloat` directly on untrusted values with no bounds checking. A malformed or adversarial MQTT message could result in nonsensical display values (negative satellite counts, impossible altitudes, etc.).
 
 **What to do:**
@@ -66,49 +46,72 @@ The default broker `broker.emqx.io` is fully public. All telemetry is readable b
 
 ## Architecture
 
-### 7. Custom CSV telemetry format — consider migrating to JSON
-The current format (`ran:1234,pan:567,...`) works but has no schema, no versioning, and no tooling support. Every new field requires changes in both firmware and the UI parser, and debugging requires reading both sides simultaneously.
-
-**What to do:**
-- Evaluate migrating to JSON (`{"ran":1234,"pan":567,...}`). The ESP32 and `PubSubClient` support it natively, and the UI can use `JSON.parse()` instead of the manual split/switch parser.
-- If staying with the current format, document a versioning strategy so the UI can handle messages from older firmware gracefully.
-- The protocol is already documented in `docs/BulletGCSS_protocol.md` — add a version field to messages as a first step.
+### 7. Custom CSV telemetry format — consider migrating to binary ⏳ Deferred
+JSON was considered but rejected — it adds overhead compared to the current key:value format, and the long-term plan is to migrate to a compact binary protocol instead. Deferred until the binary format design is ready.
 
 ---
 
-### 8. MQTT QoS 0 — no delivery guarantee
-All messages are published and subscribed at QoS 0 (fire-and-forget). Telemetry packets can be silently dropped with no feedback to the operator.
+### 15. Protocol version detection and backwards compatibility
+There is currently no version field in the telemetry messages. If a breaking change is made to the protocol, the UI will silently misparse data from older firmware with no indication that something is wrong. Users who keep older firmware versions will get a broken experience without any explanation.
 
 **What to do:**
-- Evaluate using QoS 1 for critical messages (failsafe state, armed status). Note this increases broker load and requires `PubSubClient` to be configured accordingly.
-- At minimum, document this limitation clearly so operators understand that a stale UI does not necessarily mean the aircraft is safe.
+
+- Add a protocol version field (`pv:<number>`) to the **Session Start message** (`id:0,`). This is sent once when the ESP32 connects, making it the natural place to declare the version. Example: `id:0,pv:2,`
+- The UI reads `pv` from the session start message and stores the active protocol version.
+- Parsing logic is gated on the detected version: new fields introduced in a later version are only expected if `pv` is high enough; unknown fields from newer firmware are already silently ignored by the parser.
+- If no `pv` field is received (old firmware), the UI assumes version 1 and applies the v1 parsing rules.
+- A visible notice should be shown when the UI detects that the firmware is running a protocol version older than what it fully supports, explaining that some features may be unavailable.
+
+**Design notes:**
+- The version number is an integer, incremented only on **breaking changes** (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
+- This must be implemented on both sides: firmware increments `pv` when making a breaking change; UI maintains a compatibility table mapping version numbers to parsing rules.
+- This is a prerequisite for safely making any breaking changes to the protocol in the future, including the binary protocol migration (item F1).
 
 ---
 
-### 9. Data flow is one-way — no uplink capability
-The system is purely read-only. The firmware already defines `MSP_SET_WP` and `msp_set_wp_t`, suggesting uplink was considered. The `BOXGCSNAV` flight mode box also exists in the MSP enum, hinting at GCS navigation support in INAV.
+### 8. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
+QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
 
-**What to do:**
-- Decide whether uplink (e.g. uploading a waypoint mission from the UI) is in scope.
-- If yes, design an MQTT command topic (`bulletgcss/cmd/<callsign>`), authentication strategy, and command acknowledgment mechanism before implementing.
+---
+
+### 9. Data flow is one-way — no uplink capability ⏳ Deferred
+Uplink is planned for a future version. When the time comes, design should cover: a dedicated MQTT command topic (`bulletgcss/cmd/<callsign>`), an authentication strategy, and a command acknowledgment mechanism. The firmware already defines `MSP_SET_WP` and `msp_set_wp_t`, and `BOXGCSNAV` exists in the MSP enum, so the groundwork is there.
 
 ---
 
 ### 10. Global mutable state in the UI JavaScript
-All JS files share a single global `data` object and dozens of global variables. This works at the current scale but makes the code brittle and hard to extend.
+All JS files share a single global `data` object and dozens of global variables. This works at the current scale but makes the code brittle and hard to extend — a naming collision with a third-party library or a future script is easy to introduce silently.
 
-**What to do:**
-- No immediate action needed, but keep this in mind when adding features.
-- When refactoring, consider encapsulating state in a module or a simple class to reduce the risk of naming collisions between scripts.
+**Chosen approach: ES Modules (`import`/`export`)**
+- `CommScripts.js` owns and exports the `data` object and related functions (`resetDataObject`, `parseTelemetryData`, etc.).
+- `MapScripts.js`, `EfisScripts.js`, `InfoPanelScripts.js`, and `PageScripts.js` import what they need explicitly.
+- Script tags in `basicui.html` change from plain `<script src="...">` to `<script type="module" src="...">`.
+- No build step required — browsers handle ES Modules natively. All target browsers (modern Chrome/Firefox/Safari) support this.
+
+**Things to watch out for during the refactor:**
+- `type="module"` scripts are always deferred (run after HTML is parsed), so load order assumptions in the current code need to be verified.
+- Inline `onclick` handlers in HTML cannot reference module-scoped functions directly — any functions called from HTML must either stay global or be wired up via `addEventListener` in the module.
+- Third-party libraries (OpenLayers, Paho MQTT, etc.) are still loaded as plain scripts and will continue to attach to `window` as before.
 
 ---
 
-### 11. Bundled third-party libraries — no package manager
-OpenLayers, Bootstrap, jQuery, Paho MQTT, NoSleep, and Popper are all committed as minified files directly in the repo. Updating any of them requires manual file replacement.
+### ~~11. Bundled third-party libraries — no package manager~~ ✅ Done
+Libraries are committed as minified files directly in the repo. Updating any of them requires manual file replacement, and the current versions are unknown.
 
-**What to do:**
-- Consider introducing a simple build step (e.g. `npm` + a bundler, or just a `package.json` with download scripts) so library versions are declared and upgradable.
-- At minimum, document the version of each bundled library in a `THIRD_PARTY.md` file so outdated dependencies are easy to spot.
+**Investigation findings:**
+Bootstrap, jQuery, and Popper are present in the repo but **not referenced anywhere in the HTML or JS** — they are dead files and can be deleted. The libraries actually in use are:
+- `mqttws31.js` — Paho MQTT (WebSocket client)
+- `ol/ol.js` + `css/ol.css` — OpenLayers (map)
+- `js/olc.min.js` — Open Location Code
+- `js/NoSleep.min.js` — NoSleep (prevents screen lock on mobile)
+
+**Chosen approach: `package.json` as version manifest + `download-libs.sh` shell script**
+- `UI/package.json` records the name and pinned version of each library (no `npm install`, no `node_modules`).
+- `UI/download-libs.sh` fetches each library from jsdelivr.com at the pinned version and saves it in place. To upgrade: change the version in the script, run it, commit the updated file.
+- Bootstrap, jQuery, and Popper were found to be **unused** (not loaded in HTML) and have been deleted from the repo.
+- `UI/package.json` records the pinned version of each library in use (ol 6.5.0, nosleep.js 0.12.0, paho-mqtt 1.1.0, open-location-code 1.0.3).
+- `UI/download-libs.sh` fetches each library from jsdelivr.com. To upgrade: edit the version variable, run the script, commit.
+- Paho MQTT and Open Location Code versions are inferred (no version string in original file headers) — verify before upgrading.
 
 ---
 
@@ -122,23 +125,13 @@ The README gives no indication that the default configuration broadcasts the air
 
 ---
 
-### 13. No troubleshooting section
-There is no guidance for when things go wrong — ESP32 failing to connect to MQTT, MSP communication not working, UI showing stale data, etc.
-
-**What to do:**
-- Add a `docs/Troubleshooting.md` covering at minimum:
-  - How to read Serial Monitor output to diagnose firmware issues.
-  - How to use `mosquitto_sub` to verify the ESP32 is publishing.
-  - What to check when the UI shows no data.
-  - Common cellular modem initialization failures.
+### ~~13. No troubleshooting section~~ ✅ Done
+Added `docs/Troubleshooting.md` covering: Serial Monitor diagnostics, WiFi/cellular/MQTT connection failures, MSP communication, verifying with `mosquitto_sub`, and UI no-data / stale-data scenarios.
 
 ---
 
-### 14. Multi-aircraft monitoring is undocumented
-The README mentions multiple clients can monitor the same aircraft, but monitoring multiple aircraft simultaneously is also possible and undocumented.
-
-**What to do:**
-- Document how multiple aircraft can be monitored (each with a unique callsign/topic) and any current UI limitations around this use case.
+### ~~14. Multi-aircraft monitoring is undocumented~~ ✅ Done
+Added `docs/Multi-aircraft-monitoring.md` clarifying that multi-aircraft monitoring is **not yet supported** (the UI subscribes to one topic at a time), documenting the workaround (multiple browser tabs), and describing the planned feature.
 
 ---
 
@@ -158,3 +151,21 @@ The following issues were identified and resolved during the v1.2 development cy
 | `ont`/`flt` parsed in standard message and low-priority message | Removed from standard message |
 | Wiki documentation separate from codebase | Moved to `docs/` |
 | Battery planner files from another project in repo | Removed |
+
+---
+
+## Future Features
+
+Larger features that are planned but not yet scoped or scheduled.
+
+### F1. Binary telemetry protocol
+Replace the current ASCII key:value format with a compact binary protocol. Goal: reduce bytes per message, add implicit versioning, and make parsing deterministic on both the firmware and UI sides. Design TBD — the protocol format, framing, and versioning strategy need to be decided before implementation.
+
+### F2. Multi-aircraft monitoring
+Allow the UI to subscribe to multiple MQTT topics simultaneously and display all aircraft on a single map. Each aircraft would have its own icon on the map. A quick-selector in the data/EFIS panel would let the operator switch which aircraft's telemetry is displayed in detail.
+
+Design considerations:
+- UI subscribes to a list of topics (configured in settings).
+- `data` object becomes a keyed map of per-aircraft state.
+- Map renders all aircraft icons simultaneously; clicking one selects it as the active aircraft for the data panel and EFIS.
+- Depends on the ES Modules refactor (item 10) to make per-aircraft state management clean.

@@ -46,7 +46,13 @@ PlatformIO will detect `platformio.ini` and configure the project automatically.
 
 ## Configuring credentials
 
-Before building, edit `ESP32-Modem/Config.h` with your settings:
+`Config.h` contains your personal credentials and is not committed to the repository. You need to create it from the provided example before your first build:
+
+```bash
+cp ESP32-Modem/Config.h.example ESP32-Modem/Config.h
+```
+
+Then edit `ESP32-Modem/Config.h` with your settings:
 
 ```c
 // WiFi credentials (only needed if using USE_WIFI mode)
@@ -55,7 +61,7 @@ const char* password = "YourPassword";
 
 // MQTT broker
 const char* mqttServer = "your.broker.address";
-const int   mqttPort   = 1883;
+const int   mqttPort   = 8883; // TLS port — use 1883 if you comment out USE_TLS
 const char* mqttUser   = "your_username";
 const char* mqttPassword = "your_password";
 const char* mqttTopic  = "bulletgcss/uavs/your_callsign";
@@ -67,6 +73,15 @@ const char gprsPass[] = "";
 ```
 
 > **Do not commit `Config.h` with real credentials.** Keep your personal copy local.
+
+### TLS encryption
+
+TLS is enabled by default via `#define USE_TLS` in `Config.h`. This encrypts the MQTT connection between the firmware and the broker (port 8883). To disable it — for example, if your broker does not support TLS — comment out that line and change the port to 1883:
+
+```c
+// #define USE_TLS   ← commented out = no encryption
+const int mqttPort = 1883;
+```
 
 ---
 
