@@ -850,8 +850,6 @@ function drawEfisBatterySection() {
 export function renderEFIS(data) {
     var startTime = performance.now();
 
-    UpdateViewPortSize();
-
     // Declare basic objects and resize canvas to the hud available size
     efis.efisContext = efis.efisCanvas.getContext("2d"),
     efis.efisWidth = efis.hudView.offsetWidth;
