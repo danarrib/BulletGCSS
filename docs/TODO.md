@@ -15,7 +15,9 @@ Code organisation and cleanup first. All JS files currently share a single globa
 Once the module boundaries are clean, add `localStorage` persistence for telemetry state and GPS track. This also establishes the pattern for storing sensitive data (encryption keys) in the browser — step 5 will build on this foundation.
 
 ### Step 3 — Protocol and software version detection (item 15)
-Both firmware and UI need to declare their own versions and understand the other side's version. The firmware already has a natural place for this (`id:0` session start message). The UI side needs a mechanism too — likely included in the first uplink message (step 4). Open question: what should happen when there is a version mismatch? *(To be decided.)*
+Both firmware and UI need to declare their own versions and understand the other side's version. The firmware already has a natural place for this (`id:0` session start message). The UI side sends its version in the first uplink message (step 4).
+
+Version information is logged to the browser console and firmware serial output for debugging purposes only. No user-facing warnings or enforcement for now — the data is captured so we can act on it in a future release.
 
 ### Step 4 — Bidirectional ping (new, unencrypted)
 Implement the simplest possible uplink message end-to-end:
@@ -29,9 +31,8 @@ This validates the full round-trip before adding any complexity. The UI version 
 ### Step 5 — Key pair setup and distribution
 UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
 
-Two options under consideration — **decision pending:**
-- **A) Manual:** UI displays the public key; user copies it into `Config.h` and re-flashes. Fully secure, no automated distribution. Requires re-flashing if the operator changes devices.
-- **B) Trust On First Use (TOFU):** The first ping (step 4) includes the public key in plain text. Firmware stores it in flash and locks it — all subsequent messages must be signed with the matching private key. Changing the key requires a physical factory reset. More user-friendly, narrow vulnerability window only on first pairing.
+**Chosen approach: Manual (Option A)**
+The UI displays the generated public key and provides a copy button. The user pastes it into `Config.h` and re-flashes the firmware. Fully secure — the public key never travels over any network. Requires re-flashing if the operator changes devices or regenerates the key pair, which is acceptable for this use case.
 
 ### Step 6 — Encrypted ping
 Change the ping implementation to use Ed25519 message signing. UI signs the ping with the private key; firmware verifies with the stored public key before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks.
