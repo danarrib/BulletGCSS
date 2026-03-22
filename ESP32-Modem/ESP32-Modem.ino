@@ -302,13 +302,16 @@ void setup()
   msp.begin(mspSerial, 750);
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
 
+  client.setServer(mqttServer, mqttPort);
+
 }
 
 void loop()
 {
-  
+
   getTelemetryDataTask();
   sendMessageTask();
+  client.loop();
 
   // Check the failure counter and reset everything if it's above 10.
   if(failureCounter >= 10)  
@@ -1005,7 +1008,6 @@ void sendMessage(char* message) {
 
 void connectToTheBroker()
 {
-  client.setServer(mqttServer, mqttPort);
   while (!client.connected())
   {
     SerialMon.println("Connecting to the broker MQTT...");
