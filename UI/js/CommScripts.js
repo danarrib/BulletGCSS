@@ -1,6 +1,9 @@
 // Setup MQTT
 
-function MQTTSetDefaultSettings() 
+// Declare connection variables (re-read from localStorage in MQTTconnect)
+let host, port, useTLS, topic, username, password, cleansession, path;
+
+export function MQTTSetDefaultSettings()
 {
     localStorage.setItem("mqttHost", "broker.emqx.io");
     localStorage.setItem("mqttPort", "8084");
@@ -23,8 +26,8 @@ username = localStorage.getItem("mqttUser");
 password = localStorage.getItem("mqttPass");
 cleansession = true;
 
-var mqttlog = new Array();
-var isPlayingLogFile = false;
+let mqttlog = new Array();
+export let isPlayingLogFile = false;
 
 function mqttlogevent(eventDescription)
 {
@@ -32,7 +35,7 @@ function mqttlogevent(eventDescription)
     mqttlog.push(nowDate.getTime().toString() + '|' + eventDescription);
 }
 
-function savemqttlog()
+export function savemqttlog()
 {
     var nowDate = new Date();
     var fileContent = mqttlog.join("\n");
@@ -44,16 +47,16 @@ function savemqttlog()
     closeNav();
 }
 
-var replayIndex = 0;
-var replayInitialTimestamp = 0;
-var replayCurrentTimestamp = 0;
-var firstReplayTimestamp = 0;
-var lastReplayTimestamp = 0;
-var timeSinceBeggining = 0;
-var totalReplayTime = 0;
-var playbackPercent = 0;
+let replayIndex = 0;
+let replayInitialTimestamp = 0;
+let replayCurrentTimestamp = 0;
+let firstReplayTimestamp = 0;
+let lastReplayTimestamp = 0;
+let timeSinceBeggining = 0;
+let totalReplayTime = 0;
+export let playbackPercent = 0;
 
-function replaymqttlog()
+export function replaymqttlog()
 {
     var inputFileElement = document.createElement('input');
     inputFileElement.type="file";
@@ -111,7 +114,7 @@ function updatePlaybackTimers(percent)
     document.getElementById("currentPlaybackTime").innerHTML = secondsToNiceTime(percentFrame / 1000);
 }
 
-var isDraggingSliderReplay = false;
+let isDraggingSliderReplay = false;
 
 document.getElementById("sldrReplay").onmouseup = function() {
     setplaybackpercent(this.value);
@@ -200,13 +203,13 @@ var timerReplay = setInterval(function() {
 
 }, 1000);
 
-var mqtt;
-var reconnectTimeout = 2000;
+export let mqtt;
+let reconnectTimeout = 2000;
 
-var mqttConnected = false;
-var lastMessageDate = new Date(2000, 1, 1);
+export let mqttConnected = false;
+export let lastMessageDate = new Date(2000, 1, 1);
 
-function MQTTconnect() {
+export function MQTTconnect() {
     host = localStorage.getItem("mqttHost");	// hostname or IP address
     port = parseInt(localStorage.getItem("mqttPort"));
     useTLS = (localStorage.getItem("mqttUseTLS") == "true");
@@ -287,8 +290,8 @@ function onMessageArrived(message) {
 };
 
 // MQTTconnect();
-var data = {};
-function resetDataObject() 
+export let data = {};
+export function resetDataObject()
 {
     data = {
         rollAngle: 0, // decimal deg from -180.0 to 180.0
@@ -367,7 +370,7 @@ function resetDataObject()
 // Setup
 resetDataObject();
 
-function inRange(val, min, max) {
+export function inRange(val, min, max) {
     return !isNaN(val) && val >= min && val <= max;
 }
 
@@ -476,7 +479,7 @@ function parseWaypointMessage(payload) {
     }
 }
 
-function clearCurrentMissionWaypoints() {
+export function clearCurrentMissionWaypoints() {
     data.currentMissionWaypoints = new Array();
     data.isCurrentMissionElevationSet = false;
 }
@@ -787,7 +790,7 @@ function parseStandardTelemetryMessage(payload)
     }
 }
 
-function parseTelemetryData(payload) {
+export function parseTelemetryData(payload) {
     var arrPayload = payload.split(",");
 
     if(arrPayload.length > 0) {
@@ -802,7 +805,7 @@ function parseTelemetryData(payload) {
     data.dataTimestamp = new Date();
 }
 
-function estimatePosition()
+export function estimatePosition()
 {
     var dateNow = new Date();
     var timeSinceLastFrame = dateNow - lastMessageDate;
@@ -838,11 +841,11 @@ function estimatePosition()
     data.estimations.capacityDraw = data.capacityDraw + usedCapacity;
 }
 
-function rangeNumbers(in_number, in_min, in_max, out_min, out_max) {
+export function rangeNumbers(in_number, in_min, in_max, out_min, out_max) {
     return (in_number - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-function rangeNumbers360(in_number, in_min, in_max, out_min, out_max) {
+export function rangeNumbers360(in_number, in_min, in_max, out_min, out_max) {
     var retval = 0;
 
     if(out_min >= 330 && out_max <= 30) // Moving from left to right passing thru 0
@@ -865,7 +868,7 @@ function rangeNumbers360(in_number, in_min, in_max, out_min, out_max) {
     return retval;
 }
 
-function estimateEfis()
+export function estimateEfis()
 {
     var dateNow = new Date();
     var timeSinceLastFrame = dateNow - lastMessageDate;
@@ -901,3 +904,77 @@ function estimateEfis()
 
 
 }
+
+// Timing and refresh intervals (consumed by estimateEfis and PageScripts timers)
+export let pageSettings = {
+    efisRefreshInterval: 100,
+    mapAndDataRefreshInterval: 250,
+    lowPriorityTasksInterval: 10000,
+    messageInterval: 1000,
+};
+
+// Flag set by MapScripts while an elevation API request is in flight.
+// Read by parseWaypointMessage and InfoPanelScripts status bar.
+export let updatingWpAltitudes = false;
+export function setUpdatingWpAltitudes(val) { updatingWpAltitudes = val; }
+
+// Haversine distance between two GPS coordinates, returns metres.
+// Used internally by estimatePosition and by InfoPanelScripts.
+export function getDistanceBetweenTwoPoints(lat1, lon1, lat2, lon2)
+{
+    var R = 6371; // km
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a1 = AngleToRadians(lat1);
+    var a2 = AngleToRadians(lat2);
+
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(a1) * Math.cos(a2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c;
+    return d * 1000; // metres
+}
+
+// Vincenty destination point given a start, bearing and distance.
+// Used internally by estimatePosition and by MapScripts drawCourseLineOnMap.
+export function DestinationCoordinates(lat1, lon1, brng, dist) {
+    var a = 6378137,
+        b = 6356752.3142,
+        f = 1 / 298.257223563,
+        s = dist,
+        alpha1 = AngleToRadians(brng),
+        sinAlpha1 = Math.sin(alpha1),
+        cosAlpha1 = Math.cos(alpha1),
+        tanU1 = (1 - f) * Math.tan(AngleToRadians(lat1)),
+        cosU1 = 1 / Math.sqrt((1 + tanU1 * tanU1)), sinU1 = tanU1 * cosU1,
+        sigma1 = Math.atan2(tanU1, cosAlpha1),
+        sinAlpha = cosU1 * sinAlpha1,
+        cosSqAlpha = 1 - sinAlpha * sinAlpha,
+        uSq = cosSqAlpha * (a * a - b * b) / (b * b),
+        A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq))),
+        B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq))),
+        sigma = s / (b * A),
+        sigmaP = 2 * Math.PI;
+    while (Math.abs(sigma - sigmaP) > 1e-12) {
+        var cos2SigmaM = Math.cos(2 * sigma1 + sigma),
+            sinSigma = Math.sin(sigma),
+            cosSigma = Math.cos(sigma),
+            deltaSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) - B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+        sigmaP = sigma;
+        sigma = s / (b * A) + deltaSigma;
+    }
+    var tmp = sinU1 * sinSigma - cosU1 * cosSigma * cosAlpha1,
+        lat2 = Math.atan2(sinU1 * cosSigma + cosU1 * sinSigma * cosAlpha1, (1 - f) * Math.sqrt(sinAlpha * sinAlpha + tmp * tmp)),
+        lambda = Math.atan2(sinSigma * sinAlpha1, cosU1 * cosSigma - sinU1 * sinSigma * cosAlpha1),
+        C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha)),
+        L = lambda - (1 - C) * f * sinAlpha * (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+    return {
+        lat: RadiansToAngle(lat2),
+        lng: lon1 + RadiansToAngle(L),
+    };
+}
+
+// AngleToRadians / RadiansToAngle are defined in EfisScripts.js which is loaded
+// as a plain script before modules run, so they are available as globals here.
+function AngleToRadians(angle) { return angle * Math.PI / 180; }
+function RadiansToAngle(radians) { return radians * 180 / Math.PI; }

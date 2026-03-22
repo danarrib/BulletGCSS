@@ -1,4 +1,6 @@
-var efis = {
+import { data } from './CommScripts.js';
+
+export var efis = {
     verticalFOV: 60, // Degrees
     horizontalFOV: 50, // Degrees
     AHIStepsDeg: 10, // Degrees
@@ -728,11 +730,11 @@ function drawEfisAltitude() {
 
 }
 
-function AngleToRadians(angle) {
+export function AngleToRadians(angle) {
     return angle * Math.PI / 180;
 }
 
-function RadiansToAngle(radians) {
+export function RadiansToAngle(radians) {
     return radians * 180 / Math.PI;
 }
 
@@ -845,7 +847,7 @@ function drawEfisBatterySection() {
 
 }
 
-function renderEFIS(data) {
+export function renderEFIS(data) {
     var startTime = performance.now();
 
     UpdateViewPortSize();

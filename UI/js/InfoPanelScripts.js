@@ -1,7 +1,13 @@
-var blinkSlowSwitch = true;
-var blinkFastSwitch = true;
+import { data, mqttConnected, lastMessageDate, updatingWpAltitudes, isPlayingLogFile, playbackPercent, getDistanceBetweenTwoPoints } from './CommScripts.js';
+import { efis, AngleToRadians, RadiansToAngle } from './EfisScripts.js';
+import { hasUserLocation } from './MapScripts.js';
 
-function openGoogleMaps(lat, lon){
+export let blinkSlowSwitch = true;
+export let blinkFastSwitch = true;
+export function toggleBlinkSlow() { blinkSlowSwitch = !blinkSlowSwitch; }
+export function toggleBlinkFast() { blinkFastSwitch = !blinkFastSwitch; }
+
+export function openGoogleMaps(lat, lon){
     // If it's an iPhone..
     if( (navigator.platform.indexOf("iPhone") != -1) 
         || (navigator.platform.indexOf("iPod") != -1)
@@ -12,7 +18,7 @@ function openGoogleMaps(lat, lon){
         window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&layer=traffic&destination=" + lat + "," + lon + "");
 }
 
-function secondsToNiceTime(seconds) 
+export function secondsToNiceTime(seconds) 
 {
     if(seconds > 30 * 60 * 60 * 24) // More than 30 days means never
         return "Never";
@@ -122,20 +128,72 @@ function getN(a, e, latitude) {
     return a / denom;
 }
 
-function getDistanceBetweenTwoPoints(lat1, lon1, lat2, lon2) 
-{
-    var R = 6371; // km
-    var dLat = AngleToRadians(lat2-lat1);
-    var dLon = AngleToRadians(lon2-lon1);
-    var lat1 = AngleToRadians(lat1);
-    var lat2 = AngleToRadians(lat2);
+// getDistanceBetweenTwoPoints is imported from CommScripts.js
 
-    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    var d = R * c;
-    return d * 1000; // Return in meters
+export var uiElementsUnits = {
+    distanceUnit: "km",
+    distanceMetersToYardsFactor: 1.09361,
+    distanceMetersToMilesFactor: 0.000621371,
+    distanceMetersToFeetFactor: 3.28084,
+    distanceMetersToNauticalMilesFactor: 0.000539957,
+    speedUnit: "kmh",
+    speedCmsToKmhFactor: 0.036,
+    speedCmsToMphFactor: 0.0223694,
+    speedCmsToKtFactor: 0.0194384,
+    speedCmsToMsFactor: 0.01,
+    altitudeUnit: "km",
+    altitudeCmToFeetFactor: 30.48,
+    altitudeCmToMFactor: 100,
+    currentUnit: "a",
+    capacityUnit: "mah",
+};
+
+export function setUIUnits()
+{
+    uiElementsUnits.distanceUnit = localStorage.getItem("ui_distance");
+    uiElementsUnits.speedUnit = localStorage.getItem("ui_speed");
+    uiElementsUnits.altitudeUnit = localStorage.getItem("ui_altitude");
+    uiElementsUnits.currentUnit = localStorage.getItem("ui_current");
+    uiElementsUnits.capacityUnit = localStorage.getItem("ui_capacity");
+    uiElementsUnits.efficiencyUnit = localStorage.getItem("ui_efficiency");
+
+    if(uiElementsUnits.speedUnit == "kmh")
+    {
+        efis.SpeedUnitLabel = "Km/h";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKmhFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "mph")
+    {
+        efis.SpeedUnitLabel = "Mph";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMphFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "kt")
+    {
+        efis.SpeedUnitLabel = "Kt";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKtFactor;
+    }
+    else if(uiElementsUnits.speedUnit == "ms")
+    {
+        efis.SpeedUnitLabel = "M/s";
+        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMsFactor;
+    }
+
+    if(uiElementsUnits.altitudeUnit == "m")
+    {
+        efis.AltitudeUnitLabel = "m";
+        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToMFactor;
+        efis.AltitudeSmallTextNumber = 2;
+    }
+    else if(uiElementsUnits.altitudeUnit == "ft")
+    {
+        efis.AltitudeUnitLabel = "ft";
+        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToFeetFactor;
+        efis.AltitudeSmallTextNumber = 3;
+    }
 }
+
+// openGoogleMaps is called from dynamically generated HTML, so expose it on window
+window.openGoogleMaps = openGoogleMaps;
 
 
 
@@ -251,7 +309,7 @@ function getHardwareHealthyIcon(isHwHealthy)
     return "img/health_" + ret + ".png";
 }
 
-function updateDataView(data)
+export function updateDataView(data)
 {
     var PlusCodeCoordinates = OpenLocationCode.encode(data.gpsLatitude, data.gpsLongitude);
     
