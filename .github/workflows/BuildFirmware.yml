@@ -27,6 +27,10 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Create Config.h from example
+        run: cp Config.h.example Config.h
+        working-directory: ESP32-Modem
+
       - name: Build ${{ matrix.environment }}
         run: pio run -e ${{ matrix.environment }}
         working-directory: ESP32-Modem
