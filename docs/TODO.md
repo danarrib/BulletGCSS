@@ -4,6 +4,45 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ---
 
+## Roadmap
+
+The following sequence defines the planned implementation order. Each step is a prerequisite for the next.
+
+### Step 1 — ES Modules refactor (item 10)
+Code organisation and cleanup first. All JS files currently share a single global `data` object and dozens of global variables. Migrating to ES Modules before adding new features avoids compounding the existing technical debt. This is a prerequisite for persistent state management (step 2) and multi-aircraft monitoring (F2).
+
+### Step 2 — Persistent flight data (item F5)
+Once the module boundaries are clean, add `localStorage` persistence for telemetry state and GPS track. This also establishes the pattern for storing sensitive data (encryption keys) in the browser — step 5 will build on this foundation.
+
+### Step 3 — Protocol and software version detection (item 15)
+Both firmware and UI need to declare their own versions and understand the other side's version. The firmware already has a natural place for this (`id:0` session start message). The UI side needs a mechanism too — likely included in the first uplink message (step 4). Open question: what should happen when there is a version mismatch? *(To be decided.)*
+
+### Step 4 — Bidirectional ping (new, unencrypted)
+Implement the simplest possible uplink message end-to-end:
+- Define the uplink MQTT topic: `bulletgcss/cmd/<callsign>`.
+- UI publishes: `cmd:ping,`
+- Firmware subscribes to the command topic, detects the ping, and replies on the telemetry topic: `id:pong,`
+- UI receives the pong and confirms the channel is working.
+
+This validates the full round-trip before adding any complexity. The UI version (step 3) can be included in the ping payload.
+
+### Step 5 — Key pair setup and distribution
+UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
+
+Two options under consideration — **decision pending:**
+- **A) Manual:** UI displays the public key; user copies it into `Config.h` and re-flashes. Fully secure, no automated distribution. Requires re-flashing if the operator changes devices.
+- **B) Trust On First Use (TOFU):** The first ping (step 4) includes the public key in plain text. Firmware stores it in flash and locks it — all subsequent messages must be signed with the matching private key. Changing the key requires a physical factory reset. More user-friendly, narrow vulnerability window only on first pairing.
+
+### Step 6 — Encrypted ping
+Change the ping implementation to use Ed25519 message signing. UI signs the ping with the private key; firmware verifies with the stored public key before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks.
+
+This is the foundation for all future uplink commands — once signed ping works reliably, adding new command types is straightforward.
+
+### After step 6 — Flight controller commands
+With a verified, signed bidirectional channel in place, implement actual commands: RTH, mission upload, arm/disarm, and eventually ESP32-Cam trigger. Each command follows the same signing pattern established in step 6.
+
+---
+
 ## Security — Critical
 
 ### 3. No authentication on the telemetry stream — fake data injection ⚠️ Won't fix / by design
