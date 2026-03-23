@@ -1,4 +1,4 @@
-import { data, mqttConnected, lastMessageDate, updatingWpAltitudes, isPlayingLogFile, playbackPercent, getDistanceBetweenTwoPoints } from './CommScripts.js';
+import { data, mqttConnected, lastMessageDate, updatingWpAltitudes, isPlayingLogFile, playbackPercent, getDistanceBetweenTwoPoints, secondsToNiceTime } from './CommScripts.js';
 import { efis, AngleToRadians, RadiansToAngle } from './EfisScripts.js';
 import { hasUserLocation } from './MapScripts.js';
 
@@ -18,46 +18,7 @@ export function openGoogleMaps(lat, lon){
         window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&layer=traffic&destination=" + lat + "," + lon + "");
 }
 
-export function secondsToNiceTime(seconds) 
-{
-    if(seconds > 30 * 60 * 60 * 24) // More than 30 days means never
-        return "Never";
-    
-    var minutes = 0;
-    var hours = 0;
-    var days = 0;
-
-    if(seconds > (60 * 60 * 24)) 
-    {
-        days = Math.floor(seconds / (60 * 60 * 24));
-        seconds = seconds - (days * 60 * 60 * 24);
-    }
-
-    if(seconds > (60 * 60)) 
-    {
-        hours = Math.floor(seconds / (60 * 60));
-        seconds = seconds - (hours * 60 * 60);
-    }
-
-    if(seconds > 60) 
-    {
-        minutes = Math.floor(seconds / 60);
-        seconds = seconds - (minutes * 60);
-    }
-
-    var ret = "";
-    if(days > 0)
-        ret += days + "d ";
-
-    if(hours > 0)
-        ret += hours + "h ";
-
-    if(minutes > 0)
-        ret += minutes + "m ";
-    
-    ret += seconds.toFixed(0) + "s";
-    return ret;
-}
+// secondsToNiceTime imported from CommScripts.js
 
 function bearing(startLat, startLng, destLat, destLng){
     startLat = AngleToRadians(startLat);

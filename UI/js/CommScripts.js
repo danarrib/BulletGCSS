@@ -974,6 +974,47 @@ export function DestinationCoordinates(lat1, lon1, brng, dist) {
     };
 }
 
+export function secondsToNiceTime(seconds)
+{
+    if(seconds > 30 * 60 * 60 * 24) // More than 30 days means never
+        return "Never";
+
+    var minutes = 0;
+    var hours = 0;
+    var days = 0;
+
+    if(seconds > (60 * 60 * 24))
+    {
+        days = Math.floor(seconds / (60 * 60 * 24));
+        seconds = seconds - (days * 60 * 60 * 24);
+    }
+
+    if(seconds > (60 * 60))
+    {
+        hours = Math.floor(seconds / (60 * 60));
+        seconds = seconds - (hours * 60 * 60);
+    }
+
+    if(seconds > 60)
+    {
+        minutes = Math.floor(seconds / 60);
+        seconds = seconds - (minutes * 60);
+    }
+
+    var ret = "";
+    if(days > 0)
+        ret += days + "d ";
+
+    if(hours > 0)
+        ret += hours + "h ";
+
+    if(minutes > 0)
+        ret += minutes + "m ";
+
+    ret += seconds.toFixed(0) + "s";
+    return ret;
+}
+
 // AngleToRadians / RadiansToAngle are defined in EfisScripts.js which is loaded
 // as a plain script before modules run, so they are available as globals here.
 function AngleToRadians(angle) { return angle * Math.PI / 180; }
