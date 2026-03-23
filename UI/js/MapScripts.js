@@ -429,6 +429,7 @@ export function drawAircraftPathOnMap(data)
         var loc1;
         var loc2;
         var flightLineFeature;
+        var iconGeometry;
 
         for(var i = 1; i < data.currentFlightWaypoints.length; i++)
         {
