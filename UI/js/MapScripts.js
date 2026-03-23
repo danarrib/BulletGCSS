@@ -430,7 +430,7 @@ export function drawAircraftPathOnMap(data)
         var loc2;
         var flightLineFeature;
 
-        for(i = 1; i < data.currentFlightWaypoints.length; i++)
+        for(var i = 1; i < data.currentFlightWaypoints.length; i++)
         {
             loc1 = ol.proj.fromLonLat([data.currentFlightWaypoints[i-1].wpLongitude, data.currentFlightWaypoints[i-1].wpLatitude]);
             loc2 = ol.proj.fromLonLat([data.currentFlightWaypoints[i].wpLongitude, data.currentFlightWaypoints[i].wpLatitude]);
