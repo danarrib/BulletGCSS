@@ -8,7 +8,7 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 The following sequence defines the planned implementation order. Each step is a prerequisite for the next.
 
-### Step 1 — ES Modules refactor (item 10)
+### ~~Step 1 — ES Modules refactor (item 10)~~ ✓ COMPLETE
 Code organisation and cleanup first. All JS files currently share a single global `data` object and dozens of global variables. Migrating to ES Modules before adding new features avoids compounding the existing technical debt. This is a prerequisite for persistent state management (step 2) and multi-aircraft monitoring (F2).
 
 ### Step 2 — Persistent flight data (item F5)
