@@ -23,8 +23,8 @@ jobs:
             git fetch origin
             git checkout develop
             git reset --hard origin/develop
-            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/develop.bulletgcss.outros.net/
-            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/develop.bulletgcss.outros.net/basicui.html
-            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/develop.bulletgcss.outros.net/basicui.html
-            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/develop.bulletgcss.outros.net/uiversion.json
+            rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/bulletgcss.outros.net/dev/
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/basicui.html
+            sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/basicui.html
+            sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/bulletgcss.outros.net/dev/uiversion.json
 
