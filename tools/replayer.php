@@ -8,8 +8,6 @@
  * Usage:
  *   php replayer.php
  *
- * Cron example (every 20 minutes):
- *   */20 * * * * php /path/to/replayer.php >> /path/to/replayer.log 2>&1
  */
 
 // ─── Configuration ────────────────────────────────────────────────────────────
@@ -17,12 +15,12 @@
 define('MQTT_HOST',      'broker.emqx.io');
 define('MQTT_PORT',      1883);           // 1883 = plain TCP, 8883 = TLS
 define('MQTT_USE_TLS',   false);
-define('MQTT_USERNAME',  '');
-define('MQTT_PASSWORD',  '');
+define('MQTT_USERNAME',  'bulletgcss');
+define('MQTT_PASSWORD',  'bulletgcss');
 define('MQTT_TOPIC',     'bulletgcss/uavs/mdalema');
 define('MQTT_CLIENT_ID', 'replayer_' . substr(md5(uniqid()), 0, 8));
 
-define('LOG_FILE',       __DIR__ . '/20231218T010410.txt');
+define('LOG_FILE',       __DIR__ . '/testflight1.txt');
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -116,7 +114,12 @@ if (count($messages) === 0) {
     die("No messages found in log file.\n");
 }
 
+$totalMs  = $messages[count($messages) - 1][0] - $messages[0][0];
+$totalMin = (int)($totalMs / 60000);
+$totalSec = (int)(($totalMs % 60000) / 1000);
+
 echo date('Y-m-d H:i:s') . " Starting replay of " . count($messages) . " messages to " . MQTT_TOPIC . "\n";
+echo date('Y-m-d H:i:s') . " Session duration: {$totalMin}m {$totalSec}s\n";
 
 
 // ─── Connect ──────────────────────────────────────────────────────────────────
