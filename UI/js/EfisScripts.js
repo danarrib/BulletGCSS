@@ -1,4 +1,6 @@
-var efis = {
+import { data } from './CommScripts.js';
+
+export var efis = {
     verticalFOV: 60, // Degrees
     horizontalFOV: 50, // Degrees
     AHIStepsDeg: 10, // Degrees
@@ -187,7 +189,7 @@ function drawEfisHeadingIndicator() {
     var lineY1 = numberY + (efis.fontSize);
     var lineY2 = numberY + (efis.fontSize * 0.1);
 
-    for(i=0; i <= (359 + efis.horizontalFOV); i+=efis.AHIStepsDeg) {
+    for(var i=0; i <= (359 + efis.horizontalFOV); i+=efis.AHIStepsDeg) {
         var startingPosX = (efis.efisWidth / 2) - (data.estimations.heading * (efis.efisWidth / efis.horizontalFOV));
         var numberX = startingPosX + (i * (efis.efisWidth / efis.horizontalFOV) );
         var numberXNeg = startingPosX + (-i * (efis.efisWidth / efis.horizontalFOV) );
@@ -360,7 +362,7 @@ function drawEfisArtifitialHorizonStepLines() {
 
     correctPitchAngle(data, AHILine, efis.pitchDegPixels);
     
-    for(i=0; i<=180; i+=efis.AHIStepsDeg / 2) {
+    for(var i=0; i<=180; i+=efis.AHIStepsDeg / 2) {
         
         var StepsRadius = efis.verticalFOV / 3;
         var dataPitchAngle = data.estimations.pitchAngle * -1; // Fix INAV inverted pitch angle
@@ -527,14 +529,14 @@ function drawEfisVerticalSpeed() {
 
     if(0==1) {
         if(Math.abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed)
-            maxVerticalSpeed = Math.ceil(abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor));
+            maxVerticalSpeed = Math.ceil(Math.abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor));
     }
 
     var VerticalSpeedDivisions = efis.VerticalSpeedSteps;
     var textX = (elementX + elementWidth) - (elementWidth / 6);
     var VSPixels = elementHeight / ((maxVerticalSpeed + 1) * 2);
     
-    for(i=0; i<=maxVerticalSpeed; i++) {
+    for(var i=0; i<=maxVerticalSpeed; i++) {
         if(i % VerticalSpeedDivisions != 0)
             continue;
 
@@ -631,7 +633,7 @@ function drawEfisGroundSpeed() {
     var lineX2 = numberX - ((elementWidth / 8) * 0.9);
     var textX = numberX - (elementWidth / 8);
 
-    for(i=startSpeed; i<=endSpeed;i++) {
+    for(var i=startSpeed; i<=endSpeed;i++) {
         if(i % efis.SpeedSteps == 0) {
             var startingPosY = (elementHeight / 2) - (groundSpeedDisplay * (elementHeight / efis.SpeedFOV));
             var numberY = startingPosY + (i * (elementHeight / efis.SpeedFOV) );
@@ -691,7 +693,7 @@ function drawEfisAltitude() {
     var lineX2 = numberX + ((elementWidth / 8) * 0.9);
     var textX = numberX + (elementWidth / 8);
 
-    for(i=startAltitude; i<=endAltitude;i++) {
+    for(var i=startAltitude; i<=endAltitude;i++) {
         if(i % efis.AltitudeSteps == 0) {
             var startingPosY = (elementHeight / 2) - (altitudeDisplay * (elementHeight / efis.AltitudeFOV));
             var numberY = startingPosY + (i * (elementHeight / efis.AltitudeFOV) );
@@ -728,11 +730,11 @@ function drawEfisAltitude() {
 
 }
 
-function AngleToRadians(angle) {
+export function AngleToRadians(angle) {
     return angle * Math.PI / 180;
 }
 
-function RadiansToAngle(radians) {
+export function RadiansToAngle(radians) {
     return radians * 180 / Math.PI;
 }
 
@@ -751,7 +753,7 @@ function drawEfisBankAngle() {
     var bankAngle = parseInt(data.estimations.rollAngle);
     var arrowAngle = 10;
 
-    for(i=0; i<=60; i+=15) {
+    for(var i=0; i<=60; i+=15) {
         var x1 = (efis.efisWidth / 2);
         var y1 = (efis.efisHeight / 2);
         var x2 = x1 + lineLength * Math.sin(AngleToRadians(i - bankAngle));
@@ -845,10 +847,8 @@ function drawEfisBatterySection() {
 
 }
 
-function renderEFIS(data) {
+export function renderEFIS(data) {
     var startTime = performance.now();
-
-    UpdateViewPortSize();
 
     // Declare basic objects and resize canvas to the hud available size
     efis.efisContext = efis.efisCanvas.getContext("2d"),

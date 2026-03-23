@@ -1,3 +1,8 @@
+import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes } from './CommScripts.js';
+import { efis, renderEFIS } from './EfisScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
+import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
+
 // Setup viewport
 var windowOuterWidth = 0;
 
@@ -5,7 +10,7 @@ function UpdateViewPortSize(resize=true) {
     if(windowOuterWidth != window.outerWidth) {
         windowOuterWidth = window.outerWidth;
         var width = windowOuterWidth * window.devicePixelRatio;
-        viewport = document.querySelector("meta[name=viewport]");
+        var viewport = document.querySelector("meta[name=viewport]");
         viewport.setAttribute('content', 'width=' + width + ', viewport-fit=cover');
 
         if(resize)
@@ -39,7 +44,7 @@ function checkForDefaultSettings()
         localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
     if(localStorage.getItem("mqttUseTLS") === null)
         localStorage.setItem("mqttUseTLS", "true");
-    
+
     // UI
     if(localStorage.getItem("ui_speed") === null)
         localStorage.setItem("ui_speed", "kmh" );
@@ -74,7 +79,6 @@ function openNav() {
     document.getElementById("installhomelink").style.display = isRunningStandalone() ? "none" : "";
 
     // Not implemented yet
-    //document.getElementById("uisettingslink").style.display = "none";
     document.getElementById("missionplannerlink").style.display = "none";
     document.getElementById("senduavcommandlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
@@ -102,7 +106,7 @@ function saveBrokerSettings()
 {
     localStorage.setItem("mqttHost", document.getElementById("brokerHost").value);
     localStorage.setItem("mqttPort", document.getElementById("brokerPort").value);
-    
+
     if(document.getElementById("brokerUser").value.length > 0)
         localStorage.setItem("mqttUser", document.getElementById("brokerUser").value);
     else
@@ -116,7 +120,7 @@ function saveBrokerSettings()
     localStorage.setItem("mqttTopic", document.getElementById("brokerTopic").value);
     localStorage.setItem("mqttUseTLS", document.getElementById("brokerUseTLS").checked ? "true" : "false");
 
-    if(mqttConnected )
+    if(mqttConnected)
         mqtt.disconnect();
 
     closeBrokerSettings();
@@ -127,7 +131,7 @@ function resetBrokerSettings()
 {
     MQTTSetDefaultSettings();
 
-    if(mqttConnected )
+    if(mqttConnected)
         mqtt.disconnect();
 
     closeBrokerSettings();
@@ -138,8 +142,7 @@ function closeBrokerSettings() {
     document.getElementById("brokerSettings").style.width = "0";
 }
 
-
-function openLogMenu() 
+function openLogMenu()
 {
     document.getElementById("logMenu").style.width = "100%";
 }
@@ -148,9 +151,7 @@ function closeLogMenu() {
     document.getElementById("logMenu").style.width = "0";
 }
 
-
-
-function openUISettings() 
+function openUISettings()
 {
     document.getElementById("ui_speed").value = localStorage.getItem("ui_speed");
     document.getElementById("ui_distance").value = localStorage.getItem("ui_distance");
@@ -178,79 +179,14 @@ function saveUISettings()
     closeNav();
 }
 
-var uiElementsUnits = {
-    distanceUnit: "km",
-    distanceMetersToYardsFactor: 1.09361,
-    distanceMetersToMilesFactor: 0.000621371,
-    distanceMetersToFeetFactor: 3.28084,
-    distanceMetersToNauticalMilesFactor: 0.000539957,
-    speedUnit: "kmh",
-    speedCmsToKmhFactor: 0.036,
-    speedCmsToMphFactor: 0.0223694,
-    speedCmsToKtFactor: 0.0194384,
-    speedCmsToMsFactor: 0.01,
-    altitudeUnit: "km",
-    altitudeCmToFeetFactor: 30.48,
-    altitudeCmToMFactor: 100,
-    currentUnit: "a",
-    capacityUnit: "mah",
-};
-
-function setUIUnits()
-{
-    // Set the UI elements
-    uiElementsUnits.distanceUnit = localStorage.getItem("ui_distance");
-    uiElementsUnits.speedUnit = localStorage.getItem("ui_speed");
-    uiElementsUnits.altitudeUnit = localStorage.getItem("ui_altitude");
-    uiElementsUnits.currentUnit = localStorage.getItem("ui_current");
-    uiElementsUnits.capacityUnit = localStorage.getItem("ui_capacity");
-    uiElementsUnits.efficiencyUnit = localStorage.getItem("ui_efficiency");
-
-    if(uiElementsUnits.speedUnit == "kmh")
-    {
-        efis.SpeedUnitLabel = "Km/h";
-        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKmhFactor;
-    }
-    else if(uiElementsUnits.speedUnit == "mph")
-    {
-        efis.SpeedUnitLabel = "Mph";
-        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMphFactor;
-    }
-    else if(uiElementsUnits.speedUnit == "kt")
-    {
-        efis.SpeedUnitLabel = "Kt";
-        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToKtFactor;
-    }
-    else if(uiElementsUnits.speedUnit == "ms")
-    {
-        efis.SpeedUnitLabel = "M/s";
-        efis.SpeedUnitFactor = uiElementsUnits.speedCmsToMsFactor;
-    }
-
-    if(uiElementsUnits.altitudeUnit == "m")
-    {
-        efis.AltitudeUnitLabel = "m";
-        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToMFactor;
-        efis.AltitudeSmallTextNumber = 2;
-    }
-    else if(uiElementsUnits.altitudeUnit == "ft")
-    {
-        efis.AltitudeUnitLabel = "ft";
-        efis.AltitudeUnitFactor = uiElementsUnits.altitudeCmToFeetFactor;
-        efis.AltitudeSmallTextNumber = 3;
-    }
-
-
+function closeUISettings() {
+    document.getElementById("uiSettings").style.width = "0";
 }
-
-setUIUnits();
 
 function getRadioValue(radioName) {
     var ret = "";
-
     var radios = document.getElementsByName(radioName);
-
-    for (i=0; i < radios.length; i++)
+    for (var i=0; i < radios.length; i++)
     {
         if(radios[i].checked)
         {
@@ -263,8 +199,7 @@ function getRadioValue(radioName) {
 
 function setRadioValue(radioName, value) {
     var radios = document.getElementsByName(radioName);
-
-    for (i=0; i < radios.length; i++)
+    for (var i=0; i < radios.length; i++)
     {
         if(radios[i].value == value)
         {
@@ -274,11 +209,6 @@ function setRadioValue(radioName, value) {
     }
 }
 
-function closeUISettings() {
-    document.getElementById("uiSettings").style.width = "0";
-}
-
-
 function reloadApplication()
 {
     closeNav();
@@ -287,8 +217,8 @@ function reloadApplication()
 
 function isRunningStandalone()
 {
-    isInWebAppiOS = (window.navigator.standalone === true);
-    isInWebAppChrome = (window.matchMedia('(display-mode: standalone)').matches);
+    var isInWebAppiOS = (window.navigator.standalone === true);
+    var isInWebAppChrome = (window.matchMedia('(display-mode: standalone)').matches);
 
     return isInWebAppiOS || isInWebAppChrome;
 }
@@ -299,12 +229,12 @@ function checkforNewUIVersion() {
     var xmlhttp = new XMLHttpRequest();
 
     xmlhttp.onreadystatechange = function() {
-        if (xmlhttp.readyState == XMLHttpRequest.DONE) 
+        if (xmlhttp.readyState == XMLHttpRequest.DONE)
         {
-            if (xmlhttp.status == 200) 
+            if (xmlhttp.status == 200)
             {
                 var jsonResponse = JSON.parse(xmlhttp.responseText);
-                
+
                 if(jsonResponse.lastVersion != currentVersion)
                 {
                     newUIVersionAvailable = true;
@@ -312,9 +242,8 @@ function checkforNewUIVersion() {
                     document.getElementById("refreshMenuBadge").style.display = "inline";
                     document.getElementById("gearIconBadge").style.display = "inline";
                 }
-
             }
-            else 
+            else
             {
                 console.log("Error checking for newer UI version. Status: " + xmlhttp.status);
                 console.log("Response text: " + xmlhttp.responseText);
@@ -330,84 +259,89 @@ document.addEventListener("touchmove", function(e){
     e.preventDefault();
 },{passive: false});
 
-window.onresize = function(event) {
+window.onresize = function() {
     renderEFIS(data);
 };
 
-var pageSettings = {
-    efisRefreshInterval: 100,
-    mapAndDataRefreshInterval: 250,
-    lowPriorityTasksInterval: 10000,
-    messageInterval: 1000,
-};
+setUIUnits();
 
-window.onload = function(event) {
+// Wire up event listeners for all interactive elements (replaces inline onclick)
+document.getElementById("gearIcon").addEventListener("click", openNav);
+document.getElementById("closeSideMenu").addEventListener("click", closeNav);
+document.getElementById("navBrokerSettings").addEventListener("click", openBrokerSettings);
+document.getElementById("uisettingslink").addEventListener("click", openUISettings);
+document.getElementById("navKeepAwake").addEventListener("click", keepScreenAwake);
+document.getElementById("navLogOptions").addEventListener("click", openLogMenu);
+document.getElementById("navRefreshApp").addEventListener("click", reloadApplication);
+document.getElementById("btSaveBrokerSettings").addEventListener("click", saveBrokerSettings);
+document.getElementById("btResetBrokerSettings").addEventListener("click", resetBrokerSettings);
+document.getElementById("closeBrokerSettings").addEventListener("click", closeBrokerSettings);
+document.getElementById("closeUISettings").addEventListener("click", closeUISettings);
+document.getElementById("btSaveUISettings").addEventListener("click", saveUISettings);
+document.getElementById("closeLogMenu").addEventListener("click", closeLogMenu);
+document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
+document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
+
+// Modules are deferred — use DOMContentLoaded instead of window.onload
+// to guarantee the handler runs even if the page loaded before the module executed.
+window.addEventListener("DOMContentLoaded", function() {
     MQTTconnect();
     renderEFIS(data);
     updateDataView(data);
     drawAircraftOnMap(data);
-    
+
     getUserLocation();
     drawUserOnMap(data);
 
-    var timerEFIS = setInterval(function(){ 
-        //simulateFlight();
+    var timerEFIS = setInterval(function(){
         estimateEfis();
         renderEFIS(data);
-    }, pageSettings.efisRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 200 = 5fps, 500 = 2fps
+    }, pageSettings.efisRefreshInterval);
 
     var timerMapAndData = setInterval(function(){
-        // Fast blinker should update as fast as the DataView panel
-        blinkFastSwitch = !blinkFastSwitch;
+        toggleBlinkFast();
 
         estimatePosition();
 
-        // Render stuff
         drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
         drawCourseLineOnMap(data);
         updateDataView(data);
-    }, pageSettings.mapAndDataRefreshInterval); // 33 = 30fps, 66 = 15fps, 100 = 10fps, 250 = 4fps, 500 = 2fps
+    }, pageSettings.mapAndDataRefreshInterval);
 
-    var timerOneSecond = setInterval(function(){ 
-        // Update Flight Time and Power Time
+    var timerOneSecond = setInterval(function(){
         data.powerTime++;
         if(data.uavIsArmed)
         {
             data.flightTime++;
 
-            // Remove the oldest waypoint if there are too many waypoints
-            if(data.currentFlightWaypoints.length > 3600) // 3600 Waypoints means 1 hour of flight with 1 waypoint per second
+            if(data.currentFlightWaypoints.length > 3600)
                 data.currentFlightWaypoints.shift();
-    
+
             var wpCount = data.currentFlightWaypoints.length;
-    
+
             var waypoint = {
                 wpLatitude: data.gpsLatitude,
                 wpLongitude: data.gpsLongitude,
             };
-    
+
             data.currentFlightWaypoints[wpCount] = waypoint;
-    
         }
-            
     }, 1000);
 
     var lastTimeUIwasOpen = new Date().getTime();
     checkforNewUIVersion();
 
-    var timerLowPriorityTasks = setInterval(function(){ 
+    var timerLowPriorityTasks = setInterval(function(){
         drawMissionOnMap(data);
         drawHomeOnMap(data);
         drawUserOnMap(data);
 
-        // Center map
         if(user_moved_map == true)
-            user_moved_map = false; // Set it false so the next time this routine will move the map
+            setUserMovedMap(false);
         else
             centerMap(data);
 
-        // Update Mission WP Elevation data
         if(data.waypointCount > 0 && data.isCurrentMissionElevationSet == false
         && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false
         && data.waypointCount == (data.currentMissionWaypoints.length - 1))
@@ -416,20 +350,17 @@ window.onload = function(event) {
             getMissionWaypointsAltitude();
         }
 
-        // Check for ui update
         var uiUpdateNow = new Date().getTime();
-        if(uiUpdateNow - lastTimeUIwasOpen > 15000) 
+        if(uiUpdateNow - lastTimeUIwasOpen > 15000)
         {
             checkforNewUIVersion();
         }
         lastTimeUIwasOpen = uiUpdateNow;
 
-            
     }, pageSettings.lowPriorityTasksInterval);
-    
-    var timerBlinkSlow = setInterval(function(){ 
-        blinkSlowSwitch = !blinkSlowSwitch;
+
+    var timerBlinkSlow = setInterval(function(){
+        toggleBlinkSlow();
     }, 2000);
 
-
-}
+});
