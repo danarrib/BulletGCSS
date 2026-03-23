@@ -529,7 +529,7 @@ function drawEfisVerticalSpeed() {
 
     if(0==1) {
         if(Math.abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) > maxVerticalSpeed)
-            maxVerticalSpeed = Math.ceil(abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor));
+            maxVerticalSpeed = Math.ceil(Math.abs(data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor));
     }
 
     var VerticalSpeedDivisions = efis.VerticalSpeedSteps;
