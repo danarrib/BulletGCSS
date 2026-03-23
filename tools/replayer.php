@@ -20,7 +20,7 @@ define('MQTT_PASSWORD',  'bulletgcss');
 define('MQTT_TOPIC',     'bulletgcss/uavs/mdalema');
 define('MQTT_CLIENT_ID', 'replayer_' . substr(md5(uniqid()), 0, 8));
 
-define('LOG_FILE',       __DIR__ . '/testflight1.txt');
+define('LOG_FILE',       __DIR__ . '/testflight2.txt');
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -112,6 +112,19 @@ foreach ($lines as $line) {
 
 if (count($messages) === 0) {
     die("No messages found in log file.\n");
+}
+
+// Detect gaps larger than 1 minute between consecutive messages
+$gapThresholdMs = 60000;
+for ($i = 1; $i < count($messages); $i++) {
+    $gapMs = $messages[$i][0] - $messages[$i - 1][0];
+    if ($gapMs >= $gapThresholdMs) {
+        $gapMin = (int)($gapMs / 60000);
+        $gapSec = (int)(($gapMs % 60000) / 1000);
+        $startTs = date('Y-m-d H:i:s', (int)($messages[$i - 1][0] / 1000));
+        $endTs   = date('Y-m-d H:i:s', (int)($messages[$i][0] / 1000));
+        echo "Gap of {$gapMin}m {$gapSec}s starting at {$startTs} ending at {$endTs}\n";
+    }
 }
 
 $totalMs  = $messages[count($messages) - 1][0] - $messages[0][0];
