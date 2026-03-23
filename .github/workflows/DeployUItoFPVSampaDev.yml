@@ -20,8 +20,9 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             cd /home/bulletgcss/ci/BulletGCSS/
+            git fetch origin
             git checkout develop
-            git pull
+            git reset --hard origin/develop
             rsync -av /home/bulletgcss/ci/BulletGCSS/UI/ /home/bulletgcss/develop.bulletgcss.outros.net/
             sed -i 's/(UNIQUEID)/${{ env.RUNID }}/g' /home/bulletgcss/develop.bulletgcss.outros.net/basicui.html
             sed -i 's/(VERSION)/${{ env.SHA }}/g' /home/bulletgcss/develop.bulletgcss.outros.net/basicui.html
