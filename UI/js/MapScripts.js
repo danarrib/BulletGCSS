@@ -576,7 +576,7 @@ function updateElevationData(elevData)
             return;
     }
 
-    for(i=0; i<elevData.results.length; i++)
+    for(var i=0; i<elevData.results.length; i++)
     {
         if(elevationProvider == "OpenElevation")
         {
@@ -590,7 +590,7 @@ function updateElevationData(elevData)
         }
 
         // Find the WP with same coordinates
-        for(j=0; j< data.currentMissionWaypoints.length; j++)
+        for(var j=0; j< data.currentMissionWaypoints.length; j++)
         {
             if(typeof data.currentMissionWaypoints[j] == "undefined")
                 continue;
@@ -627,7 +627,7 @@ export function getMissionWaypointsAltitude()
     var locations = "";
     var apiURL = "";
 
-    for(i=1; i < data.currentMissionWaypoints.length; i++)
+    for(var i=1; i < data.currentMissionWaypoints.length; i++)
     {
         if(data.currentMissionWaypoints[i].wpLatitude == 0 && data.currentMissionWaypoints[i].wpLongitude == 0)
             continue;
