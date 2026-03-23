@@ -65,10 +65,10 @@ function bearing(startLat, startLng, destLat, destLng){
     destLat = AngleToRadians(destLat);
     destLng = AngleToRadians(destLng);
 
-    y = Math.sin(destLng - startLng) * Math.cos(destLat);
-    x = Math.cos(startLat) * Math.sin(destLat) -
+    var y = Math.sin(destLng - startLng) * Math.cos(destLat);
+    var x = Math.cos(startLat) * Math.sin(destLat) -
             Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
-    brng = Math.atan2(y, x);
+    var brng = Math.atan2(y, x);
     brng = RadiansToAngle(brng);
     return (brng + 360) % 360;
 }
