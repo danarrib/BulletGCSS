@@ -386,7 +386,7 @@ export function resetDataObject()
         isAutoThrottleActive: 0,
         navState: 0,
         mWhDraw: 0,
-        protocolVersion: 0, // 0 = unknown (firmware predates pv field); set from low-priority message
+        protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
         estimations: {

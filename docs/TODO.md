@@ -12,10 +12,8 @@ The following sequence defines the planned implementation order. Each step is a 
 
 ### ~~Step 2 — Flight Sessions (item F5)~~ ✓ COMPLETE
 
-### Step 3 — Protocol and software version detection (item 7)
-Both firmware and UI need to declare their own versions and understand the other side's version. The firmware already has a natural place for this (`id:0` session start message). The UI side sends its version in the first uplink message (step 4).
-
-Version information is logged to the browser console and firmware serial output for debugging purposes only. No user-facing warnings or enforcement for now — the data is captured so we can act on it in a future release.
+### ~~Step 3 — Protocol version detection (item 7)~~ ✓ COMPLETE
+`pv` field added to the low-priority message (sent every 60 s). UI reads `pv` and stores it as `data.protocolVersion`. Missing `pv` field (old firmware) is treated as version 1. Version information is logged to the browser console for debugging only — no user-facing warnings for now.
 
 ### Step 4 — Bidirectional ping (new, unencrypted)
 Implement the simplest possible uplink message end-to-end:
@@ -83,19 +81,8 @@ Uplink is planned for a future version. When the time comes, design should cover
 
 **Security decision:** uplink messages will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
 
-### 7. Protocol version detection and backwards compatibility
-There is currently no version field in the telemetry messages. If a breaking change is made to the protocol, the UI will silently misparse data from older firmware with no indication that something is wrong.
-
-**What to do:**
-- Add a protocol version field (`pv:<number>`) to the **Session Start message** (`id:0,`). This is sent once when the ESP32 connects, making it the natural place to declare the version. Example: `id:0,pv:2,`
-- The UI reads `pv` from the session start message and stores the active protocol version.
-- Parsing logic is gated on the detected version: new fields introduced in a later version are only expected if `pv` is high enough; unknown fields from newer firmware are already silently ignored by the parser.
-- If no `pv` field is received (old firmware), the UI assumes version 1 and applies the v1 parsing rules.
-
-**Design notes:**
-- The version number is an integer, incremented only on **breaking changes** (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
-- Version information is logged to the browser console and firmware serial output for debugging purposes only. No user-facing warnings or enforcement for now.
-- This is a prerequisite for safely making any breaking changes to the protocol in the future, including the binary protocol migration (item F1).
+### 7. Protocol version detection and backwards compatibility ✓ COMPLETE
+`pv` field added to the low-priority message (sent every 60 s). The UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version information is logged to the browser console only. See `docs/BulletGCSS_protocol.md` for the full field reference.
 
 ---
 
@@ -191,3 +178,4 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 |------|-------------|
 | 10 | **ES Modules refactor** — All UI JS files migrated from global scripts to ES Modules (`import`/`export`). Global state eliminated; `CommScripts.js` owns the central `data` object. Cache-busting added via import map. |
 | F5 | **Flight Sessions** — Every MQTT message is persisted to IndexedDB in real time (two-store schema: `sessions` metadata + `session_messages` log lines). On page load the open session state is restored by fast-forwarding all stored messages through the parser. Sessions can be renamed, replayed with the existing timeline UI, or deleted from the Sessions panel in the sidebar menu. |
+| 7 | **Protocol version detection** — `pv` field added to the low-priority message (every 60 s). UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version 1 is the current protocol. |
