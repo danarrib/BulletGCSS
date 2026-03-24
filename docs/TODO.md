@@ -36,13 +36,8 @@ With a verified, signed bidirectional channel in place, implement actual command
 
 ## Known Bugs
 
-### 1. SIM cards with PIN lock are not supported
-When the SIM card requires a PIN to unlock, the firmware fails to connect — it proceeds directly to network registration without first unlocking the SIM. TinyGSM provides a `modem.simUnlock(pin)` method for this, but it is never called.
-
-**What to do:**
-- Add an optional `SIM_PIN` setting to `Config.h` (empty string by default, meaning no PIN).
-- In `connectToGprsNetwork()`, after modem initialisation, check SIM status with `modem.getSimStatus()`. If the SIM is locked and `SIM_PIN` is configured, call `modem.simUnlock(SIM_PIN)` before attempting network registration.
-- Log a clear error to Serial if the unlock fails (wrong PIN), rather than silently hanging on network registration.
+### ~~1. SIM cards with PIN lock are not supported~~ ✓ FIXED
+`connectToGprsNetwork()` now checks `modem.getSimStatus()` after modem init. If the SIM is locked and `GSM_PIN` is non-empty, it calls `modem.simUnlock()` and checks the return value. On failure it logs a clear error to Serial and restarts, rather than silently hanging on network registration. The redundant unused `simPIN` variable was removed from `Config.h`; `GSM_PIN` is the single setting.
 
 ### 2. User location icon on the map always points north
 The operator's location marker on the map has a fixed orientation — it does not rotate with the phone's compass, so the arrow always points north regardless of which direction the operator is facing.

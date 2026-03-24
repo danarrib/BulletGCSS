@@ -45,16 +45,15 @@ const char* mqttPassword = "your_mqtt_password";
 const char* mqttUplinkTopic = "bulletgcss/telem/your_callsign"; // Telemetry topic — firmware publishes here, UI subscribes
 const char* mqttDownlinkTopic = "bulletgcss/cmd/your_callsign"; // Command topic — UI publishes here, firmware subscribes
 
-// set GSM PIN, if any
+// SIM card PIN — leave empty if your SIM has no PIN lock.
+// If set, the firmware will unlock the SIM before connecting to the network.
+// A wrong PIN will cause the firmware to restart and log an error to Serial.
 #define GSM_PIN ""
 
 // Your GPRS credentials, if any
 const char apn[] = "your.apn.address";
 const char gprsUser[] = "";
 const char gprsPass[] = "";
-
-// SIM card PIN (leave empty, if not defined)
-const char simPIN[] = "";
 
 // Pooling settings
 #define MESSAGE_SEND_INTERVAL         1000  // milliseconds
