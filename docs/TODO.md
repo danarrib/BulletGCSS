@@ -85,6 +85,13 @@ The README gives no indication that the default configuration broadcasts the air
 **What to do:**
 - Add a **Security Notice** section to `README.md` explaining the public broker risk and linking to `docs/Self-Hosting-a-MQTT-server--(broker).md`.
 
+### 9. Documentation screenshots are outdated
+Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes from Step 4, etc.).
+
+**Known files to update:**
+- `docs/Find-a-MQTT-Broker.md` — screenshot of `Config.h` shows old topic structure.
+- Other docs may have stale screenshots — do a full pass before closing this item.
+
 ---
 
 ## Future Features
