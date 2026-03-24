@@ -166,7 +166,7 @@ Useful things to look for:
 
 ## Arduino IDE
 
-Arduino IDE is **not supported**. The main source file was renamed from `ESP32-Modem.ino` to `ESP32-Modem.cpp` to reflect this. Arduino IDE does not process `.cpp` files as sketches and will not open the project correctly.
+Arduino IDE support was **discontinued**. The project originally shipped as an `.ino` sketch, but the main source file was renamed to `ESP32-Modem.cpp` when the build system was migrated to PlatformIO exclusively. Arduino IDE does not process `.cpp` files as sketches and will not open the project correctly.
 
 Use PlatformIO as described above.
 
