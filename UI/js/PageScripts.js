@@ -1,4 +1,4 @@
-import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime } from './CommScripts.js';
+import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
@@ -397,6 +397,7 @@ document.getElementById("btSaveUISettings").addEventListener("click", saveUISett
 document.getElementById("closeLogMenu").addEventListener("click", closeLogMenu);
 document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
 document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
+document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);

@@ -94,7 +94,7 @@ export function replaymqttlog()
  
 }
 
-function stopreplaymqttlog()
+export function stopreplaymqttlog()
 {
     mqttlog = new Array();
     resetDataObject();
