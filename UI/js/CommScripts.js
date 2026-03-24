@@ -386,6 +386,7 @@ export function resetDataObject()
         isAutoThrottleActive: 0,
         navState: 0,
         mWhDraw: 0,
+        protocolVersion: 0, // 0 = unknown (firmware predates pv field); set from low-priority message
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
         estimations: {
@@ -795,6 +796,13 @@ function parseStandardTelemetryMessage(payload)
                 raw = parseInt(arrData[1]);
                 if(inRange(raw, 100, 10000))
                     pageSettings.messageInterval = raw;
+                break;
+            case "pv":
+                raw = parseInt(arrData[1]);
+                if(inRange(raw, 1, 999)) {
+                    data.protocolVersion = raw;
+                    console.log("Protocol version: " + raw);
+                }
                 break;
             default:
                 break;
