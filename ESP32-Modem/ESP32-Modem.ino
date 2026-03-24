@@ -975,6 +975,8 @@ void buildTelemetryMessage(char* message) {
 void buildLowPriorityMessage(char* message) {
   sprintf(message, ""); // messageCounter
 
+  sprintf(message, "%spv:%d,", message, PROTOCOL_VERSION); // protocolVersion
+
   sprintf(message, "%sbcc:%d,", message, uavstatus.batteryCellCount); // batteryCellCount
 
   sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign

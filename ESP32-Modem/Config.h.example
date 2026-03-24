@@ -55,6 +55,10 @@ const char gprsPass[] = "";
 // SIM card PIN (leave empty, if not defined)
 const char simPIN[] = "";
 
+// Protocol version — increment this only on breaking changes to the telemetry format.
+// The UI uses this value to gate version-specific parsing. Version 1 = legacy (no pv field).
+#define PROTOCOL_VERSION              2
+
 // Pooling settings
 #define MESSAGE_SEND_INTERVAL         1000  // milliseconds
 #define TELEMETRY_FETCH_DUTY_CYCLE    200   // Time (in milliseconds) that takes to fetch the telemetry data
