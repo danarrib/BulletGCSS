@@ -9,14 +9,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Two-Component Architecture
 
 ### 1. ESP32-Modem (Embedded Firmware — [ESP32-Modem/](ESP32-Modem/))
-Runs on an ESP32 board aboard the UAV. Communicates with the flight controller via the **MSP v2 protocol** (UART, 115200 baud on Serial2: TX18/RX19), then publishes telemetry as JSON to an **MQTT broker** via WiFi or a cellular modem (SIM800/SIM7600).
+Runs on an ESP32 board aboard the UAV. Communicates with the flight controller via the **MSP v2 protocol** (UART, 115200 baud on Serial2: TX18/RX19), then publishes telemetry as key:value messages to an **MQTT broker** via WiFi or a cellular modem (SIM800/SIM7600).
 
-- [ESP32-Modem.ino](ESP32-Modem/ESP32-Modem.ino): Main sketch — two FreeRTOS tasks: `getTelemetryDataTask` (polls MSP at 200ms) and `sendMessageTask` (publishes MQTT at 1000ms).
+- [ESP32-Modem.cpp](ESP32-Modem/ESP32-Modem.cpp): Main source file — two FreeRTOS tasks: `getTelemetryDataTask` (polls MSP at 200ms) and `sendMessageTask` (publishes MQTT at 1000ms).
 - [Config.h](ESP32-Modem/Config.h): All user-configurable settings: modem type (`USE_WIFI` vs `TINY_GSM_MODEM_SIM7600`/`SIM800`), WiFi/GPRS credentials, MQTT broker/topic/credentials, serial pin assignments, polling intervals.
 - [msp_library.h](ESP32-Modem/msp_library.h) / [msp_library.cpp](ESP32-Modem/msp_library.cpp): MSPv2 protocol implementation (header `$X<`, flags, messageID, payload, CRC8-DVB-S2). Defines all telemetry message types.
 - [uav_status.h](ESP32-Modem/uav_status.h): Central `uav_status` struct holding all parsed telemetry (GPS, altitude, speed, battery, heading, flight mode, waypoints, callsign, etc.).
 
-**Build:** Arduino IDE (board: DOIT ESP32 DEVKIT V1, Flash: 80MHz, Upload: 921600). Required libraries: `PubSubClient`, `TinyGSM`.
+**Build:** PlatformIO only (see [docs/Development-setup.md](docs/Development-setup.md)). Two environments: `esp32-sim800` (SIM800 2G) and `esp32-sim7600` (SIM7600 4G). Required libraries — managed automatically via `platformio.ini`: `PubSubClient`, `TinyGSM`, `SSLClient`.
 
 **Debug:** Monitor Serial at 115200 baud. Use `mosquitto_sub` or similar to inspect MQTT messages.
 
@@ -40,7 +40,7 @@ Static HTML/CSS/JS — no build step. Deployed directly to a web server.
 ```
 Flight Controller (INAV/Betaflight)
   → MSP v2 (Serial2, 115200 baud)
-  → ESP32: parse telemetry → uav_status struct → JSON
+  → ESP32: parse telemetry → uav_status struct → key:value message
   → MQTT Publish (WiFi or cellular)
   → MQTT Broker (default: broker.emqx.io:8883, TLS encrypted)
   → Web UI: MQTT Subscribe over WebSocket
@@ -49,7 +49,7 @@ Flight Controller (INAV/Betaflight)
 
 ## Configuration
 
-All ESP32 settings live in [Config.h](ESP32-Modem/Config.h). To switch between WiFi and GPRS, toggle `#define USE_WIFI`. The MQTT topic format is `bulletgcss/uavs/<callsign>`.
+All ESP32 settings live in [Config.h](ESP32-Modem/Config.h). To switch between WiFi and GPRS, toggle `#define USE_WIFI`. Two MQTT topics are configured: uplink telemetry (`mqttUplinkTopic`, format `bulletgcss/telem/<callsign>`) and downlink commands (`mqttDownlinkTopic`, format `bulletgcss/cmd/<callsign>`).
 
 Web UI settings (MQTT broker, topic, credentials, units) are persisted in browser `localStorage` — no server-side config file. Flight session data (telemetry log lines and session metadata) are persisted in browser `IndexedDB` via `SessionScripts.js`.
 

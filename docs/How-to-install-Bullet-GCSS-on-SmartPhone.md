@@ -1,6 +1,6 @@
 Bullet GCSS User Interface (UI) is a Web App, which means that it doesn't need to be installed, and can be used directly inside the device's Web Browser (like Safari on iOS or Google Chrome on Android).
 
-You can use [Bullet GCSS directly from FPV Sampa Website](https://bulletgcss.fpvsampa.com).
+You can use [Bullet GCSS directly from Outros.net](https://bulletgcss.outros.net).
 
 But you CAN install it and use it like a regular App if you like! The best thing about installing the App this way is that it'll take the whole screen, and will not show any buttons or address bar from the Internet Browser.
 

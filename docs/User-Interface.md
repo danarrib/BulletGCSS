@@ -1,6 +1,6 @@
 The User Interface (UI) is the part of Bullet GCSS that shows information to the UAV pilot.
 
-The Bullet GCSS UI is a Progressive Web App (PWA), with means that it can both run directly on the SmartPhone Web Browser (Apple Safari, Google Chrome), or can be installed as an App on the SmartPhone home screen, and be used as any other regular App. [This is how to do it](https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone). 
+The Bullet GCSS UI is a Progressive Web App (PWA), with means that it can both run directly on the SmartPhone Web Browser (Apple Safari, Google Chrome), or can be installed as an App on the SmartPhone home screen, and be used as any other regular App. [This is how to do it](How-to-install-Bullet-GCSS-on-SmartPhone.md).
 
 It also works fine on PC too (Windows, Mac, Linux).
 
@@ -8,7 +8,7 @@ It works fine both on portrait mode (vertical screen) and landscape mode (horizo
 
 ![Deploy BulletGCSS UI on FPV Sampa](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
 
-You can use [Bullet GCSS directly from FPV Sampa Website](https://bulletgcss.fpvsampa.com), or you can download it and [host on your own Web server](https://github.com/danarrib/BulletGCSS/wiki/Host-the-user-interface).
+You can use [Bullet GCSS directly from Outros.net](https://bulletgcss.outros.net), or you can download it and [host on your own Web server](Host-the-user-interface.md).
 
 > **Note for Mozilla Firefox users with self-hosted Mosquitto MQTT Broker**
 > Mozilla Firefox sometimes has problems to validate the SSL certificate. To fix this:
@@ -77,6 +77,15 @@ Bad | Good
 -- | --
 <img src="https://user-images.githubusercontent.com/17026744/104827702-74299c00-583f-11eb-9ffd-33fb4d256c91.png" width="100"> | <img src="https://user-images.githubusercontent.com/17026744/104827701-73910580-583f-11eb-9c03-c7ec916f7f7e.png" width="100">
 Means that there's some hardware error on the aircraft. Maybe a sensor is missing or not powered, or some calibration that was not done properly. Aircraft probably will not arm on that condition. | Hardware health is good, all sensors are working fine.
+
+#### Downlink Status
+
+Shows whether the firmware on the aircraft is subscribed to the command topic and ready to receive commands from the UI.
+
+Not subscribed | Subscribed
+-- | --
+Grey icon | Green icon
+The firmware has not confirmed it is listening on the command topic. Commands sent now will not be received. | The firmware is subscribed and ready to receive commands. Ping and future commands will work.
 
 ### Information Panel
 
@@ -256,7 +265,12 @@ If the small white gear icon on the top of the screen is clicked or tapped, it'l
 
 #### Broker Settings
 
-It allows user to set up the MQTT Broker details, such as host, port, topic, username and password.
+It allows user to set up the MQTT Broker details: host, port, username, password, and two topics:
+
+- **Telemetry Topic** — the topic the firmware publishes telemetry on (format: `bulletgcss/telem/<callsign>`). The UI subscribes to this topic to receive aircraft data.
+- **Command Topic** — the topic the UI publishes commands on (format: `bulletgcss/cmd/<callsign>`). The firmware subscribes to this topic to receive commands from the UI.
+
+Both topics must use the same callsign suffix and match the values set in `Config.h` on the firmware.
 
 #### UI Settings
 
@@ -283,6 +297,15 @@ The panel shows:
 - **Saved sessions** — a list of all sessions (newest first), showing the session name, start date, and duration. Each closed session has a **Replay** button to review it in the playback UI, and a **Delete** button to remove it permanently.
 
 When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
+
+#### Send command to UAV
+
+Opens the Commands panel, where you can send commands to the aircraft and view the command history.
+
+- **Ping** — sends a ping command to the aircraft. The firmware acknowledges it and the UI marks the command as **received**. If no acknowledgement arrives within 10 subsequent telemetry messages, the command is marked **lost**. This is the primary way to verify the downlink channel is working.
+- **Command history** — shows the list of commands sent in this session, each with its type, timestamp, and status (sent / received / lost).
+
+Commands are only useful when the downlink status icon is green (firmware is subscribed). Check the [Downlink Status](#downlink-status) icon before sending commands.
 
 #### Save log file
 

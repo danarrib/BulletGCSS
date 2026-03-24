@@ -17,7 +17,7 @@ define('MQTT_PORT',      1883);           // 1883 = plain TCP, 8883 = TLS
 define('MQTT_USE_TLS',   false);
 define('MQTT_USERNAME',  'bulletgcss');
 define('MQTT_PASSWORD',  'bulletgcss');
-define('MQTT_TOPIC',     'revspace/sensors/dnrbtelem');
+define('MQTT_TOPIC',     'bulletgcss/telem/your_callsign');
 define('MQTT_CLIENT_ID', 'replayer_' . substr(md5(uniqid()), 0, 8));
 
 define('LOG_FILE',       __DIR__ . '/testflight2.txt');

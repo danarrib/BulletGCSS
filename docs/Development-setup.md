@@ -62,9 +62,10 @@ const char* password = "YourPassword";
 // MQTT broker
 const char* mqttServer = "your.broker.address";
 const int   mqttPort   = 8883; // TLS port — use 1883 if you comment out USE_TLS
-const char* mqttUser   = "your_username";
-const char* mqttPassword = "your_password";
-const char* mqttTopic  = "bulletgcss/uavs/your_callsign";
+const char* mqttUser         = "your_username";
+const char* mqttPassword     = "your_password";
+const char* mqttUplinkTopic  = "bulletgcss/telem/your_callsign";
+const char* mqttDownlinkTopic = "bulletgcss/cmd/your_callsign";
 
 // GPRS credentials (only needed for cellular modem)
 const char apn[]      = "your.apn";
@@ -163,25 +164,11 @@ Useful things to look for:
 
 ---
 
-## Arduino IDE (alternative)
+## Arduino IDE
 
-If you prefer Arduino IDE:
+Arduino IDE support was **discontinued**. The project originally shipped as an `.ino` sketch, but the main source file was renamed to `ESP32-Modem.cpp` when the build system was migrated to PlatformIO exclusively. Arduino IDE does not process `.cpp` files as sketches and will not open the project correctly.
 
-1. Install Arduino IDE 2.x from [arduino.cc](https://www.arduino.cc/en/software).
-2. Add ESP32 board support: go to **File → Preferences**, add this URL to "Additional boards manager URLs":
-   ```
-   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-   ```
-3. Go to **Tools → Board → Boards Manager**, search for `esp32`, install **esp32 by Espressif Systems**.
-4. Install libraries via **Sketch → Include Library → Manage Libraries**:
-   - `PubSubClient` by Nick O'Leary
-   - `TinyGSM` by Volodymyr Shymanskyy
-5. In `Config.h`, **uncomment** the line for your modem type:
-   ```c
-   // #define TINY_GSM_MODEM_SIM800   // T-Call board
-   #define TINY_GSM_MODEM_SIM7600     // T-PCIE board ← uncomment yours
-   ```
-6. Board settings: **Tools → Board → ESP32 Arduino → DOIT ESP32 DEVKIT V1**, Upload Speed: 921600.
+Use PlatformIO as described above.
 
 ---
 
@@ -191,7 +178,7 @@ If you prefer Arduino IDE:
 ESP32-Modem/
 ├── platformio.ini       # PlatformIO build config (environments, libraries)
 ├── Config.h             # User settings (credentials, modem type, intervals)
-├── ESP32-Modem.ino      # Main sketch (FreeRTOS tasks, MQTT, network)
+├── ESP32-Modem.cpp      # Main source file (FreeRTOS tasks, MQTT, network)
 ├── msp_library.h        # MSPv2 protocol interface
 ├── msp_library.cpp      # MSPv2 protocol implementation
 └── uav_status.h         # UAV telemetry data struct

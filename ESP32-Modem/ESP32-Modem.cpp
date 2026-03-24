@@ -1,5 +1,5 @@
 /*
-  ESP32-SIM800L-Modem.ino
+  ESP32-Modem.cpp
 
   This is part of Bullet Ground Control Station System
   https://github.com/danarrib/BulletGCSS
@@ -20,12 +20,13 @@
 */
 
 /*
- * SETTINGS FOR ARDUINO IDE
- * Board: DOIT ESP32 DEVKIT V1
- * Flash Frequency: 80MHz
- * Upload Speed: 921600
- * Core Debug Level: None
+ * SETTINGS (PlatformIO)
+ * Build environments defined in platformio.ini:
+ *   esp32-sim7600  — T-PCIE board with SIM7600 module
+ *   esp32-sim800   — T-Call board with SIM800 module
  */
+
+#include <Arduino.h>
 
 // Set serial for debug console (to the Serial Monitor, default speed 115200)
 #define SerialMon Serial
@@ -88,11 +89,11 @@ HardwareSerial mspSerial(2);
 #define MODEM_PWKEY          4
 
 #ifdef TINY_GSM_MODEM_SIM7600
+#undef MODEM_POWER_ON
 #define MODEM_POWER_ON       25
-#endif
-
-#ifdef TINY_GSM_MODEM_SIM800
+#elif defined(TINY_GSM_MODEM_SIM800)
 #define MODEM_RST            5
+#undef MODEM_POWER_ON
 #define MODEM_POWER_ON       23
 #define I2C_SDA              21
 #define I2C_SCL              22
@@ -153,6 +154,43 @@ uint8_t waypointFetchCounter = 0;
 uint8_t waypointMessageCounter = 0;
 
 uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working fine
+
+// ── Forward declarations ──────────────────────────────────────────────────────
+// Required because .cpp files do not get Arduino IDE's auto-prototype injection.
+
+void mqttCommandCallback(char* topic, byte* payload, unsigned int length);
+
+#ifdef USE_WIFI
+void connectToWifiNetwork();
+#else
+bool setPowerBoostKeepOn(int en);
+void connectToGprsNetwork();
+#endif
+
+void getTelemetryDataTask();
+void getTelemetryData();
+void get_cellSignalStrength();
+void msp_get_gps();
+void msp_get_gps_comp();
+void msp_get_attitude();
+void msp_get_altitude();
+void msp_get_wp_getinfo();
+void msp_get_nav_status();
+void msp2_get_inav_analog();
+void msp_get_sensor_status();
+void msp2_get_misc2();
+void get_all_waypoints();
+void msp_get_wp(uint8_t wp_no);
+void msp_get_boxnames();
+void msp_get_callsign();
+void msp_get_activeboxes();
+void sendMessageTask();
+void sendWaypointsMessage();
+void buildTelemetryMessage(char* message);
+void buildLowPriorityMessage(char* message);
+void sendMessage(char* message);
+void connectToTheBroker();
+// ─────────────────────────────────────────────────────────────────────────────
 
 void connectToTheInternet() {
 
@@ -264,9 +302,22 @@ void connectToTheInternet() {
     SerialMon.println(modemInfo);
   
     // Unlock your SIM card with a PIN if needed
-    if ( GSM_PIN && modem.getSimStatus() != SIM_READY ) {
-      SerialMon.println("Unlocking SIM card");
-      modem.simUnlock(GSM_PIN);
+    if (strlen(GSM_PIN) > 0) {
+      SimStatus simStatus = modem.getSimStatus();
+      if (simStatus == SIM_LOCKED) {
+        SerialMon.println("SIM card is PIN-locked. Attempting to unlock...");
+        if (modem.simUnlock(GSM_PIN)) {
+          SerialMon.println("SIM card unlocked successfully.");
+        } else {
+          SerialMon.println("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
+          // Restart so the user sees the error message repeatedly rather than
+          // silently hanging on network registration with a locked SIM.
+          delay(5000);
+          ESP.restart();
+        }
+      } else if (simStatus == SIM_READY) {
+        SerialMon.println("SIM card is ready (no PIN required).");
+      }
     }
 
     while (!modem.waitForNetwork(600000L))
@@ -308,7 +359,46 @@ void setup()
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
 
   client.setServer(mqttServer, mqttPort);
+  client.setCallback(mqttCommandCallback);
 
+}
+
+// Called by PubSubClient when a message arrives on the downlink (command) topic.
+void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
+  if (length == 0 || length >= 256) return;
+
+  char buf[256];
+  memcpy(buf, payload, length);
+  buf[length] = '\0';
+
+  SerialMon.print("Command received: ");
+  SerialMon.println(buf);
+
+  char cmd[32] = "";
+  char cid[8] = "";
+
+  // Parse comma-separated key:value pairs
+  char* token = strtok(buf, ",");
+  while (token != NULL) {
+    char* colon = strchr(token, ':');
+    if (colon != NULL) {
+      *colon = '\0';
+      char* key = token;
+      char* value = colon + 1;
+      if (strcmp(key, "cmd") == 0) strncpy(cmd, value, sizeof(cmd) - 1);
+      if (strcmp(key, "cid") == 0) strncpy(cid, value, sizeof(cid) - 1);
+    }
+    token = strtok(NULL, ",");
+  }
+
+  // Always acknowledge with the cid if one was provided
+  if (strlen(cid) > 0) {
+    char ack[32];
+    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
+    SerialMon.print("Sending ack: ");
+    SerialMon.println(ack);
+    sendMessage(ack);
+  }
 }
 
 void loop()
@@ -796,7 +886,8 @@ void sendMessageTask() {
     if(msgCounter==0)
     {
       SerialMon.println("Sending first message: id:0");
-      sendMessage("id:0,");
+      char sessionStartMsg[] = "id:0,";
+      sendMessage(sessionStartMsg);
     }
   
     char message[512];
@@ -932,6 +1023,9 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.uavIsArmed != uavstatus.uavIsArmed || msgGroup == 7)
     sprintf(message, "%sarm:%d,", message, uavstatus.uavIsArmed); // uavIsArmed
 
+  if(lastStatus.downlinkStatus != uavstatus.downlinkStatus || msgGroup == 7)
+    sprintf(message, "%sdls:%d,", message, uavstatus.downlinkStatus); // downlinkStatus
+
   if(lastStatus.waypointCount != uavstatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, uavstatus.waypointCount); // waypointCount
 
@@ -1002,7 +1096,7 @@ void buildLowPriorityMessage(char* message) {
 }
 
 void sendMessage(char* message) {
-  if(client.publish(mqttTopic, message))
+  if(client.publish(mqttUplinkTopic, message))
   {
       SerialMon.println("Message sent sucessfully...");
   }
@@ -1023,6 +1117,17 @@ void connectToTheBroker()
     if (client.connect(mqttClientId, mqttUser, mqttPassword))
     {
       SerialMon.println("Connected to the broker!");
+      if (client.subscribe(mqttDownlinkTopic))
+      {
+        uavstatus.downlinkStatus = 1;
+        SerialMon.print("Subscribed to command topic: ");
+        SerialMon.println(mqttDownlinkTopic);
+      }
+      else
+      {
+        uavstatus.downlinkStatus = 0;
+        SerialMon.println("Failed to subscribe to command topic.");
+      }
     }
     else
     {

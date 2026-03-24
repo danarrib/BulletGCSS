@@ -1,4 +1,4 @@
-import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime } from './CommScripts.js';
+import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
@@ -42,7 +42,9 @@ function checkForDefaultSettings()
     if(localStorage.getItem("mqttPort") === null)
         localStorage.setItem("mqttPort", "8084");
     if(localStorage.getItem("mqttTopic") === null)
-        localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+        localStorage.setItem("mqttTopic", "bulletgcss/telem/your_callsign");
+    if(localStorage.getItem("mqttCommandTopic") === null)
+        localStorage.setItem("mqttCommandTopic", "bulletgcss/cmd/your_callsign");
     if(localStorage.getItem("mqttUseTLS") === null)
         localStorage.setItem("mqttUseTLS", "true");
 
@@ -77,6 +79,46 @@ checkForDefaultSettings();
 // ─── Session management ────────────────────────────────────────────────────────
 
 var currentSessionId = null;
+
+function openCommandsMenu() {
+    updateCommandsPanel();
+    document.getElementById("commandsMenu").style.width = "100%";
+    closeNav();
+}
+
+function closeCommandsMenu() {
+    document.getElementById("commandsMenu").style.width = "0";
+}
+
+function updateCommandsPanel() {
+    var downlinkOk = data.downlinkStatus === 1;
+    document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
+    document.getElementById("btSendPing").disabled = !downlinkOk;
+    renderCommandHistory();
+}
+
+function renderCommandHistory() {
+    var container = document.getElementById("commandsList");
+    if (commandHistory.length === 0) {
+        container.innerHTML = '<p style="color:#aaa; margin-left:5vmin;">No commands sent yet.</p>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < commandHistory.length; i++) {
+        var cmd = commandHistory[i];
+        var time = new Date(cmd.timestamp).toLocaleTimeString();
+        var statusClass = 'cmd-status-' + cmd.status;
+        var statusLabel = cmd.status.charAt(0).toUpperCase() + cmd.status.slice(1);
+        html += '<div class="cmd-item">';
+        html += '<div class="cmd-info">';
+        html += '<span class="cmd-type">' + cmd.type + '</span>';
+        html += '<span class="cmd-meta">' + time + ' &bull; ID: ' + cmd.cid + '</span>';
+        html += '</div>';
+        html += '<span class="cmd-status ' + statusClass + '">' + statusLabel + '</span>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
 
 function openSessionsMenu() {
     renderSessionsList().then(function() {
@@ -196,7 +238,6 @@ function openNav() {
 
     // Not implemented yet
     document.getElementById("missionplannerlink").style.display = "none";
-    document.getElementById("senduavcommandlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
 
     // Open menu
@@ -213,6 +254,7 @@ function openBrokerSettings() {
     document.getElementById("brokerUser").value = localStorage.getItem("mqttUser");
     document.getElementById("brokerPass").value = localStorage.getItem("mqttPass");
     document.getElementById("brokerTopic").value = localStorage.getItem("mqttTopic");
+    document.getElementById("brokerCommandTopic").value = localStorage.getItem("mqttCommandTopic");
     document.getElementById("brokerUseTLS").checked = (localStorage.getItem("mqttUseTLS") == "true");
 
     document.getElementById("brokerSettings").style.width = "100%";
@@ -234,6 +276,7 @@ function saveBrokerSettings()
         localStorage.removeItem("mqttPass");
 
     localStorage.setItem("mqttTopic", document.getElementById("brokerTopic").value);
+    localStorage.setItem("mqttCommandTopic", document.getElementById("brokerCommandTopic").value);
     localStorage.setItem("mqttUseTLS", document.getElementById("brokerUseTLS").checked ? "true" : "false");
 
     if(mqttConnected)
@@ -398,6 +441,13 @@ document.getElementById("closeLogMenu").addEventListener("click", closeLogMenu);
 document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
 document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
+document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
+document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
+document.getElementById("btSendPing").addEventListener("click", function() {
+    if (data.downlinkStatus !== 1) return;
+    publishCommand("ping");
+    updateCommandsPanel();
+});
 document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);
@@ -467,6 +517,9 @@ window.addEventListener("DOMContentLoaded", async function() {
         drawAircraftPathOnMap(data);
         drawCourseLineOnMap(data);
         updateDataView(data);
+
+        if (document.getElementById("commandsMenu").style.width === "100%")
+            updateCommandsPanel();
     }, pageSettings.mapAndDataRefreshInterval);
 
     var timerOneSecond = setInterval(function(){

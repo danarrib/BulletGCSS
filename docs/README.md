@@ -45,12 +45,12 @@ The UI fetch all the information from the same MQTT Broker that modem uses to se
 
 ### How can I use it?
 
-* [What do I need?](https://github.com/danarrib/BulletGCSS/wiki/Required-hardware)
-* [How to configure the modem device?](https://github.com/danarrib/BulletGCSS/wiki/Setup-modem)
-* [How to install the modem device on my aircraft?](https://github.com/danarrib/BulletGCSS/wiki/Wiring)
-* [How to Host the UI?](https://github.com/danarrib/BulletGCSS/wiki/Host-the-user-interface)
-* [How to configure the UI?](https://github.com/danarrib/BulletGCSS/wiki/User-interface)
-* [How to find a MQTT Broker](https://github.com/danarrib/BulletGCSS/wiki/Find-a-MQTT-Broker)
+* [What do I need?](Required-hardware.md)
+* [How to configure the modem device?](Setup-modem.md)
+* [How to install the modem device on my aircraft?](Wiring.md)
+* [How to Host the UI?](Host-the-user-interface.md)
+* [How to configure the UI?](User-Interface.md)
+* [How to find a MQTT Broker](Find-a-MQTT-Broker.md)
 
 ### Can I see it?
 

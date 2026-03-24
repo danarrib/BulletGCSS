@@ -15,14 +15,8 @@ The following sequence defines the planned implementation order. Each step is a 
 ### ~~Step 3 — Protocol version detection (item 7)~~ ✓ COMPLETE
 `pv` field added to the low-priority message (sent every 60 s). UI reads `pv` and stores it as `data.protocolVersion`. Missing `pv` field (old firmware) is treated as version 1. Version information is logged to the browser console for debugging only — no user-facing warnings for now.
 
-### Step 4 — Bidirectional ping (new, unencrypted)
-Implement the simplest possible uplink message end-to-end:
-- Define the uplink MQTT topic: `bulletgcss/cmd/<callsign>`.
-- UI publishes: `cmd:ping,`
-- Firmware subscribes to the command topic, detects the ping, and replies on the telemetry topic: `id:pong,`
-- UI receives the pong and confirms the channel is working.
-
-This validates the full round-trip before adding any complexity. The UI version (step 3) can be included in the ping payload.
+### ~~Step 4 — Bidirectional channel setup + ping~~ ✓ COMPLETE
+Two MQTT topics configured separately — uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`). Firmware subscribes to downlink on connect, reports `dls:0/1` in telemetry. UI shows a downlink status icon. Commands carry a 6-character random `cid`; firmware echoes it back in `id:ack,cid:...,`. UI tracks pending commands and marks them received or lost (no ack after 10 messages). "Send command to UAV" panel in the sidebar has a Ping button and a live command history list.
 
 ### Step 5 — Key pair setup and distribution
 UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
@@ -42,13 +36,8 @@ With a verified, signed bidirectional channel in place, implement actual command
 
 ## Known Bugs
 
-### 1. SIM cards with PIN lock are not supported
-When the SIM card requires a PIN to unlock, the firmware fails to connect — it proceeds directly to network registration without first unlocking the SIM. TinyGSM provides a `modem.simUnlock(pin)` method for this, but it is never called.
-
-**What to do:**
-- Add an optional `SIM_PIN` setting to `Config.h` (empty string by default, meaning no PIN).
-- In `connectToGprsNetwork()`, after modem initialisation, check SIM status with `modem.getSimStatus()`. If the SIM is locked and `SIM_PIN` is configured, call `modem.simUnlock(SIM_PIN)` before attempting network registration.
-- Log a clear error to Serial if the unlock fails (wrong PIN), rather than silently hanging on network registration.
+### ~~1. SIM cards with PIN lock are not supported~~ ✓ FIXED
+`connectToGprsNetwork()` now checks `modem.getSimStatus()` after modem init. If the SIM is locked and `GSM_PIN` is non-empty, it calls `modem.simUnlock()` and checks the return value. On failure it logs a clear error to Serial and restarts, rather than silently hanging on network registration. The redundant unused `simPIN` variable was removed from `Config.h`; `GSM_PIN` is the single setting.
 
 ### 2. User location icon on the map always points north
 The operator's location marker on the map has a fixed orientation — it does not rotate with the phone's compass, so the arrow always points north regardless of which direction the operator is facing.
@@ -63,8 +52,8 @@ The operator's location marker on the map has a fixed orientation — it does no
 
 ## Security
 
-### 3. No authentication on the telemetry stream ⚠️ Won't fix / by design
-Bullet GCSS is a **receive-only** system — it does not send commands to the aircraft. The worst a bad actor can do by injecting messages is display incorrect telemetry on the UI; they cannot affect the flight. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented.
+### 3. No authentication on the telemetry stream ⚠️ Partially mitigated — see roadmap
+The telemetry uplink is unauthenticated by design: a bad actor injecting messages can only display incorrect data on the UI, not affect the flight. However, now that a command downlink exists, injected command messages are a real concern. This is addressed in the roadmap via Ed25519 signing (Steps 5–6) — the firmware will reject any unsigned command. Until Steps 5–6 are complete, using a private broker is strongly recommended for anyone using the command channel. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented in `README.md`.
 
 ---
 
@@ -76,10 +65,12 @@ JSON was considered but rejected — it adds overhead compared to the current ke
 ### 5. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
 QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
 
-### 6. Data flow is one-way — no uplink capability ⏳ Deferred
-Uplink is planned for a future version. When the time comes, design should cover: a dedicated MQTT command topic (`bulletgcss/cmd/<callsign>`), an authentication strategy, and a command acknowledgment mechanism. The firmware already defines `MSP_SET_WP` and `msp_set_wp_t`, and `BOXGCSNAV` exists in the MSP enum, so the groundwork is there.
+### 6. Flight controller commands over the uplink ⏳ Deferred (channel infrastructure complete)
+The bidirectional MQTT channel is now in place (Step 4 complete): separate uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`) topics, firmware subscribes and acknowledges commands with a `cid`, UI tracks pending commands and marks them received or lost. The Ping command is implemented end-to-end.
 
-**Security decision:** uplink messages will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
+What remains is actual **flight controller commands** — RTH, mission upload, arm/disarm — which depend on Steps 5–6 (key pair setup and signed ping). The firmware already defines `MSP_SET_WP`, `msp_set_wp_t`, and `BOXGCSNAV` in the MSP enum, so the MSP groundwork is there.
+
+**Security decision:** all commands will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
 
 ### 7. Protocol version detection and backwards compatibility ✓ COMPLETE
 `pv` field added to the low-priority message (sent every 60 s). The UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version information is logged to the browser console only. See `docs/BulletGCSS_protocol.md` for the full field reference.
@@ -93,6 +84,13 @@ The README gives no indication that the default configuration broadcasts the air
 
 **What to do:**
 - Add a **Security Notice** section to `README.md` explaining the public broker risk and linking to `docs/Self-Hosting-a-MQTT-server--(broker).md`.
+
+### 9. Documentation screenshots are outdated
+Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes from Step 4, etc.).
+
+**Known files to update:**
+- `docs/Find-a-MQTT-Broker.md` — screenshot of `Config.h` shows old topic structure.
+- Other docs may have stale screenshots — do a full pass before closing this item.
 
 ---
 
