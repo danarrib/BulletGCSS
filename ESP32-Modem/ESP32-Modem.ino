@@ -46,6 +46,11 @@
 #include "msp_library.h"
 #include "uav_status.h"
 
+// Protocol version — increment this only on breaking changes to the telemetry format.
+// The UI uses this value to gate version-specific parsing.
+// Version 1 = current protocol. Missing pv field is also treated as version 1 by the UI.
+#define PROTOCOL_VERSION 1
+
 HardwareSerial mspSerial(2);
 
 #ifdef USE_WIFI
