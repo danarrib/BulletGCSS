@@ -154,6 +154,8 @@ uint8_t waypointMessageCounter = 0;
 
 uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working fine
 
+void mqttCommandCallback(char* topic, byte* payload, unsigned int length); // forward declaration
+
 void connectToTheInternet() {
 
   #ifdef USE_WIFI
@@ -308,7 +310,46 @@ void setup()
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
 
   client.setServer(mqttServer, mqttPort);
+  client.setCallback(mqttCommandCallback);
 
+}
+
+// Called by PubSubClient when a message arrives on the downlink (command) topic.
+void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
+  if (length == 0 || length >= 256) return;
+
+  char buf[256];
+  memcpy(buf, payload, length);
+  buf[length] = '\0';
+
+  SerialMon.print("Command received: ");
+  SerialMon.println(buf);
+
+  char cmd[32] = "";
+  char cid[8] = "";
+
+  // Parse comma-separated key:value pairs
+  char* token = strtok(buf, ",");
+  while (token != NULL) {
+    char* colon = strchr(token, ':');
+    if (colon != NULL) {
+      *colon = '\0';
+      char* key = token;
+      char* value = colon + 1;
+      if (strcmp(key, "cmd") == 0) strncpy(cmd, value, sizeof(cmd) - 1);
+      if (strcmp(key, "cid") == 0) strncpy(cid, value, sizeof(cid) - 1);
+    }
+    token = strtok(NULL, ",");
+  }
+
+  // Always acknowledge with the cid if one was provided
+  if (strlen(cid) > 0) {
+    char ack[32];
+    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
+    SerialMon.print("Sending ack: ");
+    SerialMon.println(ack);
+    sendMessage(ack);
+  }
 }
 
 void loop()
@@ -932,6 +973,9 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.uavIsArmed != uavstatus.uavIsArmed || msgGroup == 7)
     sprintf(message, "%sarm:%d,", message, uavstatus.uavIsArmed); // uavIsArmed
 
+  if(lastStatus.downlinkStatus != uavstatus.downlinkStatus || msgGroup == 7)
+    sprintf(message, "%sdls:%d,", message, uavstatus.downlinkStatus); // downlinkStatus
+
   if(lastStatus.waypointCount != uavstatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, uavstatus.waypointCount); // waypointCount
 
@@ -1002,7 +1046,7 @@ void buildLowPriorityMessage(char* message) {
 }
 
 void sendMessage(char* message) {
-  if(client.publish(mqttTopic, message))
+  if(client.publish(mqttUplinkTopic, message))
   {
       SerialMon.println("Message sent sucessfully...");
   }
@@ -1023,6 +1067,17 @@ void connectToTheBroker()
     if (client.connect(mqttClientId, mqttUser, mqttPassword))
     {
       SerialMon.println("Connected to the broker!");
+      if (client.subscribe(mqttDownlinkTopic))
+      {
+        uavstatus.downlinkStatus = 1;
+        SerialMon.print("Subscribed to command topic: ");
+        SerialMon.println(mqttDownlinkTopic);
+      }
+      else
+      {
+        uavstatus.downlinkStatus = 0;
+        SerialMon.println("Failed to subscribe to command topic.");
+      }
     }
     else
     {

@@ -193,7 +193,8 @@ body {
   /* Position and style the close button (top right corner) */
   .sidebar .closebtn,
   #brokerSettings .closebtn,
-  #uiSettings .closebtn
+  #uiSettings .closebtn,
+  #commandsMenu .closebtn
   {
     position: absolute;
     top: 0;
@@ -205,7 +206,8 @@ body {
 #brokerSettings,
 #uiSettings,
 #logMenu,
-#sessionsMenu
+#sessionsMenu,
+#commandsMenu
 {
     height: 100%;
     width: 0;
@@ -223,7 +225,8 @@ body {
 
 #brokerSettings p,
 #uiSettings p,
-#sessionsMenu p
+#sessionsMenu p,
+#commandsMenu p
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -233,7 +236,8 @@ body {
 
 #brokerSettings h3,
 #uiSettings h3,
-#sessionsMenu h3
+#sessionsMenu h3,
+#commandsMenu h3
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -249,6 +253,7 @@ body {
 #uiSettings input[type=password],
 #sessionsMenu input[type=text],
 #sessionsMenu input[type=button],
+#commandsMenu input[type=button],
 select
 {
     font-size: 1em;
@@ -257,7 +262,8 @@ select
 
 #brokerSettings input[type=button],
 #uiSettings input[type=button],
-#sessionsMenu input[type=button]
+#sessionsMenu input[type=button],
+#commandsMenu input[type=button]
 {
     font-size: 1em;
     width: 90%;
@@ -329,7 +335,8 @@ select
         
         .sidebar a,
         #brokerSettings a,
-        #uiSettings a
+        #uiSettings a,
+        #commandsMenu a
         {
             padding-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
@@ -337,7 +344,9 @@ select
         #brokerSettings p,
         #brokerSettings h3,
         #uiSettings p,
-        #uiSettings h3
+        #uiSettings h3,
+        #commandsMenu p,
+        #commandsMenu h3
         {
             margin-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
@@ -605,3 +614,39 @@ select
 .session-btn-delete:hover {
     background: #633;
 }
+
+.cmd-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1.5vmin 4vmin;
+    border-bottom: 1px solid #555;
+    font-size: 1.1em;
+}
+
+.cmd-info {
+    flex: 1;
+}
+
+.cmd-type {
+    display: block;
+    font-size: 1.1em;
+}
+
+.cmd-meta {
+    display: block;
+    font-size: 0.75em;
+    color: #aaa;
+    margin-top: 0.2em;
+}
+
+.cmd-status {
+    font-size: 1em;
+    font-weight: bold;
+    padding-left: 2vmin;
+    white-space: nowrap;
+}
+
+.cmd-status-sent    { color: #aaa; }
+.cmd-status-received { color: #6d6; }
+.cmd-status-lost    { color: #d66; }

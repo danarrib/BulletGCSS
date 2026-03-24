@@ -89,6 +89,7 @@
 				<tr>
 					<td colspan="4" class="statusIconBar">
 						<img alt="Connection status icon" class="statusIcon" id="connectionIcon" src="img/connection_broken.png" />
+						<img alt="Downlink status icon" class="statusIcon" id="downlinkIcon" src="img/connection_broken.png" />
 						<img alt="Cellular network signal icon" class="statusIcon" id="cellIcon" src="img/cell_broken.png" />
 						<img alt="RC signal icon" class="statusIcon" id="radioIcon" src="img/rx_bad.png" />
 						<img alt="Battery remaining capacity icon" class="statusIcon" id="batteryIcon" src="img/battery_0.png" />
@@ -163,7 +164,7 @@
 		<a href="javascript:void(0)" id="navSessionsMenu">Sessions...</a>
 		<a href="javascript:void(0)" id="navLogOptions">Log options...</a>
 		<a href="#" id="missionplannerlink">Mission planner</a>
-		<a href="#" id="senduavcommandlink">Send command to UAV</a>
+		<a href="javascript:void(0)" id="senduavcommandlink">Send command to UAV...</a>
 		<a href="#" id="inavsettingslink">INAV settings...</a>
 		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help - Online manual</a>
 		<a href="javascript:void(0)" id="navRefreshApp" class="notification">
@@ -186,6 +187,18 @@
 			<div id="maxPlaybackTime">00:00</div>
 			<input type="range" min="0" max="100" value="0" step="0.1" class="slider" id="sldrReplay">
 		</div>
+	</div>
+
+	<div id="commandsMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" id="closeCommandsMenu">&times;</a>
+		<h3>Send Command</h3>
+		<div class="settingsRow">
+			<div class="settingsColumn">
+				<p><input type="button" id="btSendPing" value="Ping" /></p>
+			</div>
+		</div>
+		<h3>Command History</h3>
+		<div id="commandsList"></div>
 	</div>
 
 	<div id="sessionsMenu" class="sidebar">
@@ -219,7 +232,8 @@
 				<p>Password<br /><input type="password" id="brokerPass" /></p>
 			</div>
 			<div class="settingsColumn">
-				<p>Topic<br /><input type="text" id="brokerTopic" /></p>
+				<p>Uplink Topic<br /><input type="text" id="brokerTopic" /></p>
+				<p>Downlink Topic<br /><input type="text" id="brokerCommandTopic" /></p>
 				<p>
 					<label class="checkboxtext" for="brokerUseTLS">Use TLS?
 						<input type="checkbox" id="brokerUseTLS" value="1" />

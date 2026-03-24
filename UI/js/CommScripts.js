@@ -1,13 +1,14 @@
 // Setup MQTT
 
 // Declare connection variables (re-read from localStorage in MQTTconnect)
-let host, port, useTLS, topic, username, password, cleansession, path;
+let host, port, useTLS, topic, commandTopic, username, password, cleansession, path;
 
 export function MQTTSetDefaultSettings()
 {
     localStorage.setItem("mqttHost", "broker.emqx.io");
     localStorage.setItem("mqttPort", "8084");
     localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+    localStorage.setItem("mqttCommandTopic", "bulletgcss/cmd/your_callsign");
     localStorage.setItem("mqttUseTLS", "true");
     localStorage.removeItem("mqttUser");
     localStorage.removeItem("mqttPass");
@@ -254,7 +255,8 @@ export function MQTTconnect() {
     host = localStorage.getItem("mqttHost");	// hostname or IP address
     port = parseInt(localStorage.getItem("mqttPort"));
     useTLS = (localStorage.getItem("mqttUseTLS") == "true");
-    topic = localStorage.getItem("mqttTopic");		// topic to subscribe to
+    topic = localStorage.getItem("mqttTopic");		// uplink topic (telemetry) to subscribe to
+    commandTopic = localStorage.getItem("mqttCommandTopic");	// downlink topic (commands) to publish to
     username = localStorage.getItem("mqttUser");
     password = localStorage.getItem("mqttPass");
     cleansession = true;
@@ -295,13 +297,73 @@ export function MQTTconnect() {
 }
 
 function onConnect() {
-    var errmsg = 'Connected to ' + host + ':' + port + path; 
+    var errmsg = 'Connected to ' + host + ':' + port + path;
     console.log(errmsg);
-    // Connection succeeded; subscribe to our topic
+    // Subscribe to uplink (telemetry) topic
     mqtt.subscribe(topic, {qos: 0});
-    console.log(topic);
+    console.log('Uplink topic: ' + topic);
+    console.log('Downlink topic: ' + commandTopic);
     mqttlogevent(errmsg + ' - ' + topic);
     mqttConnected = true;
+}
+
+// ── Command tracking ─────────────────────────────────────────────────────────
+
+function generateCid() {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var result = '';
+    for (var i = 0; i < 6; i++)
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    return result;
+}
+
+// pendingCommands: { [cid]: { type, messageCount } }
+var pendingCommands = {};
+
+// commandHistory: array of { cid, type, timestamp, status } — newest first
+export var commandHistory = [];
+
+export function publishCommand(cmdType) {
+    if (!mqttConnected || !commandTopic) return null;
+    var cid = generateCid();
+    var payload = 'cmd:' + cmdType + ',cid:' + cid + ',';
+    var entry = { cid: cid, type: cmdType, timestamp: Date.now(), status: 'sent' };
+    pendingCommands[cid] = { type: cmdType, messageCount: 0 };
+    commandHistory.unshift(entry);
+    var message = new Paho.MQTT.Message(payload);
+    message.destinationName = commandTopic;
+    message.qos = 0;
+    mqtt.send(message);
+    console.log('Command sent: ' + payload);
+    return cid;
+}
+
+function resolveCommandAck(cid) {
+    if (!pendingCommands[cid]) return;
+    delete pendingCommands[cid];
+    for (var i = 0; i < commandHistory.length; i++) {
+        if (commandHistory[i].cid === cid) {
+            commandHistory[i].status = 'received';
+            break;
+        }
+    }
+    console.log('Command acknowledged: ' + cid);
+}
+
+function checkCommandTimeouts() {
+    for (var cid in pendingCommands) {
+        pendingCommands[cid].messageCount++;
+        if (pendingCommands[cid].messageCount >= 10) {
+            delete pendingCommands[cid];
+            for (var i = 0; i < commandHistory.length; i++) {
+                if (commandHistory[i].cid === cid) {
+                    commandHistory[i].status = 'lost';
+                    break;
+                }
+            }
+            console.log('Command lost (no ack after 10 messages): ' + cid);
+        }
+    }
 }
 
 function onConnectionLost(response) {
@@ -327,7 +389,8 @@ function onMessageArrived(message) {
         var line = new Date().getTime().toString() + '|' + payload;
         mqttlog.push(line);
         lastMessageDate = new Date();
-        parseTelemetryData(payload);
+        parseTelemetryData(payload);  // may resolve a pending cid
+        checkCommandTimeouts();
         if (onMessageCallback) onMessageCallback(line);
     }
 };
@@ -387,6 +450,7 @@ export function resetDataObject()
         navState: 0,
         mWhDraw: 0,
         protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
+        downlinkStatus: 0, // 0 = firmware not subscribed to command topic, 1 = subscribed ok
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
         estimations: {
@@ -732,6 +796,11 @@ function parseStandardTelemetryMessage(payload)
                 if(raw === 0 || raw === 1)
                     data.uavIsArmed = raw;
                 break;
+            case "dls":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.downlinkStatus = raw;
+                break;
             case "wpv":
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1)
@@ -841,17 +910,32 @@ function parseStandardTelemetryMessage(payload)
     }
 }
 
+function parseCommandMessage(payload) {
+    var arrPayload = payload.split(",");
+    var cmd = null;
+    var cid = null;
+
+    for (var i = 0; i < arrPayload.length; i++) {
+        var arrData = arrPayload[i].split(":");
+        if (arrData.length < 2) continue;
+        if (arrData[0] === "cmd") cmd = arrData[1];
+        if (arrData[0] === "cid") cid = arrData[1];
+    }
+
+    if (cmd === "ack" && cid) resolveCommandAck(cid);
+}
+
 export function parseTelemetryData(payload) {
     var arrPayload = payload.split(",");
 
     if(arrPayload.length > 0) {
-        // Check if it's a Waypoint frame or a regular telemetry frame
         if(payload.startsWith("wpno:"))
             parseWaypointMessage(payload);
+        else if(payload.startsWith("cmd:"))
+            parseCommandMessage(payload);
         else
             parseStandardTelemetryMessage(payload);
     }
-
 
     data.dataTimestamp = new Date();
 }

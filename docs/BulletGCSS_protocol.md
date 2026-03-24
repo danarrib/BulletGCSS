@@ -6,10 +6,14 @@ This document describes the full communication protocol between the ESP32 modem 
 
 ## Overview
 
-Communication is **one-way**: the ESP32 publishes telemetry; the UI only subscribes and displays. No commands are ever sent from the UI to the aircraft.
+Communication is **bidirectional**:
+
+- **Uplink (telemetry):** ESP32 publishes telemetry on `bulletgcss/uavs/<callsign>`; the UI subscribes.
+- **Downlink (commands):** UI publishes commands on `bulletgcss/cmd/<callsign>`; the ESP32 subscribes.
 
 ```
-Flight Controller  ──MSPv2 (UART)──►  ESP32 Modem  ──MQTT──►  MQTT Broker  ──MQTT──►  Web UI
+Flight Controller  ──MSPv2 (UART)──►  ESP32 Modem  ──MQTT (uplink)──►  MQTT Broker  ──MQTT──►  Web UI
+                                       ESP32 Modem  ◄─MQTT (downlink)─  MQTT Broker  ◄─MQTT──  Web UI
 ```
 
 ---
@@ -26,9 +30,11 @@ Flight Controller  ──MSPv2 (UART)──►  ESP32 Modem  ──MQTT──►
 
 **QoS note:** All messages use QoS 0 (fire-and-forget) by design. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display at most; the 10-second force-refresh cycle (see Standard Telemetry Message below) re-syncs all fields automatically when connectivity returns. The UI's stale-data indicator signals loss of connection; this is normal operating behaviour, not an error condition.
 
-**Topic format:** `bulletgcss/uavs/<callsign>`
+**Topic format:**
+- Uplink (telemetry): `bulletgcss/uavs/<callsign>` — firmware publishes, UI subscribes.
+- Downlink (commands): `bulletgcss/cmd/<callsign>` — UI publishes, firmware subscribes.
 
-The callsign is read from the flight controller at startup via MSP and used as the topic suffix. The UI subscribes to the configured topic stored in browser `localStorage`.
+The callsign is read from the flight controller at startup via MSP and used as the topic suffix. Both topics are configured independently in `Config.h` (firmware) and in the browser settings (UI).
 
 ---
 
@@ -48,7 +54,7 @@ There is no message envelope, no length prefix, and no message-level checksum. E
 
 ## Message Types
 
-There are four distinct message types, distinguished by their content.
+There are six distinct message types, distinguished by their content.
 
 ### 1. Session Start Message
 
@@ -101,7 +107,41 @@ pv:1,bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:120
 
 ---
 
-### 4. Waypoint Message
+### 4. Command Message (Downlink — UI → Firmware)
+
+Sent by the UI on the **downlink topic** (`bulletgcss/cmd/<callsign>`).
+
+```
+cmd:ping,cid:ABC123,
+```
+
+| Field | Description |
+|---|---|
+| `cmd` | Command type (e.g. `ping`) |
+| `cid` | Command ID — 6-character random alphanumeric string, unique per command |
+
+The firmware always replies with an **Acknowledge Message** on the uplink topic.
+
+---
+
+### 5. Acknowledge Message (Firmware → UI)
+
+Sent by the firmware on the **uplink topic** in response to any valid command. Identified by the `cmd:` prefix, same as command messages.
+
+```
+cmd:ack,cid:ABC123,
+```
+
+| Field | Description |
+|---|---|
+| `cmd` | Value `ack` identifies this as an acknowledge |
+| `cid` | Echoes back the `cid` from the received command |
+
+The UI detects the `cmd:` prefix, routes the message to `parseCommandMessage()` (not the standard telemetry parser), matches the `cid` against its pending command list, and marks the command as **received**. If no ack arrives within 10 subsequent telemetry messages, the command is marked **lost**.
+
+---
+
+### 6. Waypoint Message
 
 Sent **every 30 cycles** (every ~30 seconds) when the aircraft has a waypoint mission loaded (`waypointCount > 0`).
 
@@ -188,6 +228,7 @@ Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
 | `arm` | Aircraft armed | `0` / `1` | `data.uavIsArmed` | 0 or 1 |
 | `fs` | Failsafe active | `0` / `1` | `data.isFailsafeActive` | 0 or 1 |
 | `hwh` | Hardware healthy | `0` / `1` | `data.isHardwareHealthy` | 0 or 1 |
+| `dls` | Downlink status | `0` = not subscribed, `1` = subscribed ok | `data.downlinkStatus` | 0 or 1 |
 | `css` | Cellular/WiFi signal strength | `0`–`3` | `data.cellSignalStrength` | 0 to 3 |
 | `rsi` | RC link RSSI | Percent | `data.rssiPercent` | 0 to 100 |
 

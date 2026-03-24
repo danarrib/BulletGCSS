@@ -64,7 +64,8 @@ struct uav_status
     uint8_t throttlePercent;
     uint8_t autoThrottle; 
     uint8_t navState;
-    uint8_t isWpMissionValid; 
+    uint8_t isWpMissionValid;
+    uint8_t downlinkStatus; // 1 = subscribed to command topic ok, 0 = not subscribed
 
     // Low priority information
     uint32_t onTime; 

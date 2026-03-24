@@ -15,14 +15,8 @@ The following sequence defines the planned implementation order. Each step is a 
 ### ~~Step 3 — Protocol version detection (item 7)~~ ✓ COMPLETE
 `pv` field added to the low-priority message (sent every 60 s). UI reads `pv` and stores it as `data.protocolVersion`. Missing `pv` field (old firmware) is treated as version 1. Version information is logged to the browser console for debugging only — no user-facing warnings for now.
 
-### Step 4 — Bidirectional ping (new, unencrypted)
-Implement the simplest possible uplink message end-to-end:
-- Define the uplink MQTT topic: `bulletgcss/cmd/<callsign>`.
-- UI publishes: `cmd:ping,`
-- Firmware subscribes to the command topic, detects the ping, and replies on the telemetry topic: `id:pong,`
-- UI receives the pong and confirms the channel is working.
-
-This validates the full round-trip before adding any complexity. The UI version (step 3) can be included in the ping payload.
+### ~~Step 4 — Bidirectional channel setup + ping~~ ✓ COMPLETE
+Two MQTT topics configured separately — uplink (`bulletgcss/uavs/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`). Firmware subscribes to downlink on connect, reports `dls:0/1` in telemetry. UI shows a downlink status icon. Commands carry a 6-character random `cid`; firmware echoes it back in `id:ack,cid:...,`. UI tracks pending commands and marks them received or lost (no ack after 10 messages). "Send command to UAV" panel in the sidebar has a Ping button and a live command history list.
 
 ### Step 5 — Key pair setup and distribution
 UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
