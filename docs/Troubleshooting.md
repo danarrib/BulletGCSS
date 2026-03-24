@@ -69,10 +69,10 @@ If you have `mosquitto-clients` installed, you can subscribe to the same topic f
 
 ```bash
 # Plain (no TLS)
-mosquitto_sub -h broker.emqx.io -p 1883 -t "bulletgcss/uavs/your_callsign" -v
+mosquitto_sub -h broker.emqx.io -p 1883 -t "bulletgcss/telem/your_callsign" -v
 
 # With TLS (skip certificate verification)
-mosquitto_sub -h broker.emqx.io -p 8883 --insecure -t "bulletgcss/uavs/your_callsign" -v
+mosquitto_sub -h broker.emqx.io -p 8883 --insecure -t "bulletgcss/telem/your_callsign" -v
 ```
 
 Replace `broker.emqx.io` and `your_callsign` with your actual broker and topic. If messages appear here but not in the UI, the problem is in the UI configuration.
@@ -87,7 +87,7 @@ Work through these checks in order:
 
 1. **Is the broker address correct?** Open the sidebar → **Broker settings** and confirm the host, port, and topic match what is configured in `Config.h`.
 2. **Is TLS enabled consistently?** If the ESP32 uses port 8883 (TLS), the UI must also use a TLS WebSocket port (typically 8084). If one side uses TLS and the other does not, messages will not flow.
-3. **Is the topic exactly right?** Topic names are case-sensitive. `bulletgcss/uavs/MyPlane` and `bulletgcss/uavs/myplane` are different topics.
+3. **Is the topic exactly right?** Topic names are case-sensitive. `bulletgcss/telem/MyPlane` and `bulletgcss/telem/myplane` are different topics.
 4. **Is the UI connected to the broker?** Watch the connection icon in the status bar — if it shows disconnected, the UI cannot reach the broker. Check the browser console for WebSocket errors.
 5. **Is the ESP32 publishing?** Use `mosquitto_sub` (see above) to confirm messages are arriving at the broker independently of the UI.
 6. **Is the page running over HTTPS?** Browsers block WebSocket connections from HTTPS pages to non-TLS brokers. If you see the protocol warning on load, that is the issue — use a TLS-enabled broker port.

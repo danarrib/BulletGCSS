@@ -26,7 +26,7 @@ To change the MQTT parameters on the modem, edit the `Config.h` file before [fla
 * Port: `8883` (TLS encrypted port — the firmware encrypts the connection automatically)
 * Username: (any username will work)
 * Password: (any password will work)
-* Topic: (any topic that was at least 3 levels. Example: `bulletgcss/uavs/myaircraftname`)
+* Topic: (any topic that was at least 3 levels. Example: `bulletgcss/telem/myaircraftname`)
 
 ### On the User Interface:
 

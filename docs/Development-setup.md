@@ -64,7 +64,7 @@ const char* mqttServer = "your.broker.address";
 const int   mqttPort   = 8883; // TLS port — use 1883 if you comment out USE_TLS
 const char* mqttUser   = "your_username";
 const char* mqttPassword = "your_password";
-const char* mqttTopic  = "bulletgcss/uavs/your_callsign";
+const char* mqttTopic  = "bulletgcss/telem/your_callsign";
 
 // GPRS credentials (only needed for cellular modem)
 const char apn[]      = "your.apn";

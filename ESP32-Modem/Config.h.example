@@ -42,7 +42,7 @@ const char* mqttServer = "broker.emqx.io";
 const int mqttPort = 8883; // TLS port
 const char* mqttUser = "your_mqtt_username";
 const char* mqttPassword = "your_mqtt_password";
-const char* mqttUplinkTopic = "bulletgcss/uavs/your_callsign"; // Telemetry topic — firmware publishes here, UI subscribes
+const char* mqttUplinkTopic = "bulletgcss/telem/your_callsign"; // Telemetry topic — firmware publishes here, UI subscribes
 const char* mqttDownlinkTopic = "bulletgcss/cmd/your_callsign"; // Command topic — UI publishes here, firmware subscribes
 
 // set GSM PIN, if any

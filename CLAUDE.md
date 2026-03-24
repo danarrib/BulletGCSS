@@ -49,7 +49,7 @@ Flight Controller (INAV/Betaflight)
 
 ## Configuration
 
-All ESP32 settings live in [Config.h](ESP32-Modem/Config.h). To switch between WiFi and GPRS, toggle `#define USE_WIFI`. Two MQTT topics are configured: uplink telemetry (`mqttUplinkTopic`, format `bulletgcss/uavs/<callsign>`) and downlink commands (`mqttDownlinkTopic`, format `bulletgcss/cmd/<callsign>`).
+All ESP32 settings live in [Config.h](ESP32-Modem/Config.h). To switch between WiFi and GPRS, toggle `#define USE_WIFI`. Two MQTT topics are configured: uplink telemetry (`mqttUplinkTopic`, format `bulletgcss/telem/<callsign>`) and downlink commands (`mqttDownlinkTopic`, format `bulletgcss/cmd/<callsign>`).
 
 Web UI settings (MQTT broker, topic, credentials, units) are persisted in browser `localStorage` — no server-side config file. Flight session data (telemetry log lines and session metadata) are persisted in browser `IndexedDB` via `SessionScripts.js`.
 

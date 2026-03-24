@@ -8,7 +8,7 @@ This document describes the full communication protocol between the ESP32 modem 
 
 Communication is **bidirectional**:
 
-- **Uplink (telemetry):** ESP32 publishes telemetry on `bulletgcss/uavs/<callsign>`; the UI subscribes.
+- **Uplink (telemetry):** ESP32 publishes telemetry on `bulletgcss/telem/<callsign>`; the UI subscribes.
 - **Downlink (commands):** UI publishes commands on `bulletgcss/cmd/<callsign>`; the ESP32 subscribes.
 
 ```
@@ -31,7 +31,7 @@ Flight Controller  ──MSPv2 (UART)──►  ESP32 Modem  ──MQTT (uplink)
 **QoS note:** All messages use QoS 0 (fire-and-forget) by design. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display at most; the 10-second force-refresh cycle (see Standard Telemetry Message below) re-syncs all fields automatically when connectivity returns. The UI's stale-data indicator signals loss of connection; this is normal operating behaviour, not an error condition.
 
 **Topic format:**
-- Uplink (telemetry): `bulletgcss/uavs/<callsign>` — firmware publishes, UI subscribes.
+- Uplink (telemetry): `bulletgcss/telem/<callsign>` — firmware publishes, UI subscribes.
 - Downlink (commands): `bulletgcss/cmd/<callsign>` — UI publishes, firmware subscribes.
 
 The callsign is read from the flight controller at startup via MSP and used as the topic suffix. Both topics are configured independently in `Config.h` (firmware) and in the browser settings (UI).

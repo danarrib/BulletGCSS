@@ -7,7 +7,7 @@ export function MQTTSetDefaultSettings()
 {
     localStorage.setItem("mqttHost", "broker.emqx.io");
     localStorage.setItem("mqttPort", "8084");
-    localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+    localStorage.setItem("mqttTopic", "bulletgcss/telem/your_callsign");
     localStorage.setItem("mqttCommandTopic", "bulletgcss/cmd/your_callsign");
     localStorage.setItem("mqttUseTLS", "true");
     localStorage.removeItem("mqttUser");

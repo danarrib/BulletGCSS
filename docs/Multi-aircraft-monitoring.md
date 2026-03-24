@@ -9,7 +9,7 @@
 Each ESP32 modem reads the aircraft's callsign from the flight controller at startup and publishes telemetry to:
 
 ```
-bulletgcss/uavs/<callsign>
+bulletgcss/telem/<callsign>
 ```
 
 The UI subscribes to one topic at a time (configured in **Broker settings**). To monitor a different aircraft you must change the topic and reconnect — you cannot watch two aircraft in the same browser tab simultaneously.

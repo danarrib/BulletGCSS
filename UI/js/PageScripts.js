@@ -42,7 +42,7 @@ function checkForDefaultSettings()
     if(localStorage.getItem("mqttPort") === null)
         localStorage.setItem("mqttPort", "8084");
     if(localStorage.getItem("mqttTopic") === null)
-        localStorage.setItem("mqttTopic", "revspace/sensors/dnrbtelem");
+        localStorage.setItem("mqttTopic", "bulletgcss/telem/your_callsign");
     if(localStorage.getItem("mqttCommandTopic") === null)
         localStorage.setItem("mqttCommandTopic", "bulletgcss/cmd/your_callsign");
     if(localStorage.getItem("mqttUseTLS") === null)
