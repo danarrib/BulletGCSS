@@ -56,8 +56,9 @@ const char gprsPass[] = "";
 const char simPIN[] = "";
 
 // Protocol version — increment this only on breaking changes to the telemetry format.
-// The UI uses this value to gate version-specific parsing. Version 1 = legacy (no pv field).
-#define PROTOCOL_VERSION              2
+// The UI uses this value to gate version-specific parsing.
+// Version 1 = current protocol. Missing pv field is also treated as version 1 by the UI.
+#define PROTOCOL_VERSION              1
 
 // Pooling settings
 #define MESSAGE_SEND_INTERVAL         1000  // milliseconds

@@ -93,10 +93,10 @@ The following fields are **only sent when changed** and are never force-refreshe
 
 Sent **every 60 seconds** (`LOW_PRIORITY_MESSAGE_INTERVAL` in `Config.h`), always including all fields regardless of change.
 
-Contains slow-changing or static data: home coordinates, cell count, callsign, flight times, and message frequency.
+Contains slow-changing or static data: protocol version, home coordinates, cell count, callsign, flight times, and message frequency.
 
 ```
-bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:1200,ftm:9,mfr:1000,
+pv:1,bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:1200,ftm:9,mfr:1000,
 ```
 
 ---
@@ -219,6 +219,7 @@ Flight mode ID values:
 
 | Key | Description | Unit / Scale | JS field | Valid Range |
 |---|---|---|---|---|
+| `pv` | Protocol version | Integer | `data.protocolVersion` | 1 to 999 |
 | `bcc` | Battery cell count | Count | `data.batteryCellCount` | 1 to 12 |
 | `cs` | Aircraft callsign | String (alphanumeric, `_`, `-`) | `data.callsign` | 1–16 chars; pattern `^[A-Za-z0-9_-]+$` |
 | `hla` | Home latitude | Degrees × 10,000,000 | `data.homeLatitude` | -900000000 to 900000000 |
@@ -229,6 +230,7 @@ Flight mode ID values:
 | `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
 | `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
 
+> `pv` was introduced in protocol version 1. Firmware that predates this field sends no `pv` key; the UI treats a missing `pv` as version 1 (same as the current protocol). The version is an integer incremented only on breaking changes (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
 > `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
 > `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
 > `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
