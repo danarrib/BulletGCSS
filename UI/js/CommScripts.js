@@ -84,6 +84,7 @@ export function replaymqttlog()
 
             // Update UI
             document.getElementById("playbackcontainer").style.display = "inherit";
+            document.getElementById("btStopReplay").style.display = "block";
             resetDataObject();
           });
           
@@ -102,6 +103,7 @@ export function stopreplaymqttlog()
     replayIndex = 0;
     mqttConnected = false;
     document.getElementById("playbackcontainer").style.display = "none";
+    document.getElementById("btStopReplay").style.display = "none";
     MQTTconnect();
     if (onReplayStopCallback) onReplayStopCallback();
 }
@@ -118,6 +120,7 @@ export function replayFromSessionMessages(lines) {
     mqttlog = lines.slice();
     replayIndex = 0;
     document.getElementById("playbackcontainer").style.display = "inherit";
+    document.getElementById("btStopReplay").style.display = "block";
     resetDataObject();
 }
 
