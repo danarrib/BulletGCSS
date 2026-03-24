@@ -18,7 +18,7 @@ By default, Bullet GCSS uses the service provided for free by [EQM](https://www.
 
 ### On the modem device:
 
-To change the MQTT parameters on the modem, edit the `Config.h` file before [flashing the firmware](https://github.com/danarrib/BulletGCSS/wiki/Setup-modem).
+To change the MQTT parameters on the modem, edit the `Config.h` file before [flashing the firmware](Setup-modem.md).
 
 ![image](https://user-images.githubusercontent.com/17026744/104539414-3ab51e80-55fc-11eb-8d15-e778d69ca5b2.png)
 
@@ -47,7 +47,7 @@ As you may noticed, this is a public broker, which means that your aircraft will
 
 **If privacy is a concern for you, then you should NOT use public brokers.**
 
-> Note: For now, Bullet GCSS doesn't control the aircraft, so there's no risk of someone interfering on the actual flight.
+> Note: Bullet GCSS has a bidirectional command channel. Injected messages will be received by the firmware, but future versions will require commands to be cryptographically signed — unsigned commands will be rejected. Until signing is implemented, using a private broker is strongly recommended if you plan to use commands.
 
 ## What if I want to use another MQTT broker provider?
 

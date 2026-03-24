@@ -52,8 +52,8 @@ The operator's location marker on the map has a fixed orientation — it does no
 
 ## Security
 
-### 3. No authentication on the telemetry stream ⚠️ Won't fix / by design
-Bullet GCSS is a **receive-only** system — it does not send commands to the aircraft. The worst a bad actor can do by injecting messages is display incorrect telemetry on the UI; they cannot affect the flight. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented.
+### 3. No authentication on the telemetry stream ⚠️ Partially mitigated — see roadmap
+The telemetry uplink is unauthenticated by design: a bad actor injecting messages can only display incorrect data on the UI, not affect the flight. However, now that a command downlink exists, injected command messages are a real concern. This is addressed in the roadmap via Ed25519 signing (Steps 5–6) — the firmware will reject any unsigned command. Until Steps 5–6 are complete, using a private broker is strongly recommended for anyone using the command channel. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented in `README.md`.
 
 ---
 
@@ -65,10 +65,12 @@ JSON was considered but rejected — it adds overhead compared to the current ke
 ### 5. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
 QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
 
-### 6. Data flow is one-way — no uplink capability ⏳ Deferred
-Uplink is planned for a future version. When the time comes, design should cover: a dedicated MQTT command topic (`bulletgcss/cmd/<callsign>`), an authentication strategy, and a command acknowledgment mechanism. The firmware already defines `MSP_SET_WP` and `msp_set_wp_t`, and `BOXGCSNAV` exists in the MSP enum, so the groundwork is there.
+### 6. Flight controller commands over the uplink ⏳ Deferred (channel infrastructure complete)
+The bidirectional MQTT channel is now in place (Step 4 complete): separate uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`) topics, firmware subscribes and acknowledges commands with a `cid`, UI tracks pending commands and marks them received or lost. The Ping command is implemented end-to-end.
 
-**Security decision:** uplink messages will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
+What remains is actual **flight controller commands** — RTH, mission upload, arm/disarm — which depend on Steps 5–6 (key pair setup and signed ping). The firmware already defines `MSP_SET_WP`, `msp_set_wp_t`, and `BOXGCSNAV` in the MSP enum, so the MSP groundwork is there.
+
+**Security decision:** all commands will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
 
 ### 7. Protocol version detection and backwards compatibility ✓ COMPLETE
 `pv` field added to the low-priority message (sent every 60 s). The UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version information is logged to the browser console only. See `docs/BulletGCSS_protocol.md` for the full field reference.
