@@ -24,11 +24,12 @@ Runs on an ESP32 board aboard the UAV. Communicates with the flight controller v
 Static HTML/CSS/JS — no build step. Deployed directly to a web server.
 
 - [basicui.html](UI/basicui.html): Single-page app entry point. Status icon bar (connection, signal, battery, GPS), three views: Data, Map, Sidebar/Settings.
-- [js/CommScripts.js](UI/js/CommScripts.js): MQTT over WebSocket (Paho MQTT). Handles connect/subscribe/publish, message replay/logging, localStorage settings persistence.
+- [js/CommScripts.js](UI/js/CommScripts.js): MQTT over WebSocket (Paho MQTT). Handles connect/subscribe/publish, message replay/logging, localStorage settings persistence. Exposes session recording hooks (`setOnMessageCallback`, `setOnReplayStop`) and replay/restore functions for IndexedDB sessions.
+- [js/SessionScripts.js](UI/js/SessionScripts.js): IndexedDB persistence layer for flight sessions. Two-store schema: `sessions` (metadata) and `session_messages` (log lines). Level 0 — no imports from other app modules.
 - [js/MapScripts.js](UI/js/MapScripts.js): OpenLayers-based map. Renders aircraft icon, real-time position updates, waypoint visualization, track/manual pan modes.
 - [js/EfisScripts.js](UI/js/EfisScripts.js): Artificial horizon, heading indicator, altitude/speed gauges — canvas-based EFIS instruments.
 - [js/InfoPanelScripts.js](UI/js/InfoPanelScripts.js): Telemetry data panels (battery, GPS, navigation, flight times).
-- [js/PageScripts.js](UI/js/PageScripts.js): Viewport, NoSleep, sidebar menu, unit conversion preferences (speed/altitude/distance).
+- [js/PageScripts.js](UI/js/PageScripts.js): Viewport, NoSleep, sidebar menu, unit conversion preferences (speed/altitude/distance). Async `DOMContentLoaded` initialises IndexedDB, restores open session state, wires session recording and replay-stop callbacks.
 
 **Key libraries bundled in repo:** OpenLayers ([UI/ol/](UI/ol/)), Paho MQTT JS, NoSleep, Open Location Code.
 
@@ -50,7 +51,7 @@ Flight Controller (INAV/Betaflight)
 
 All ESP32 settings live in [Config.h](ESP32-Modem/Config.h). To switch between WiFi and GPRS, toggle `#define USE_WIFI`. The MQTT topic format is `bulletgcss/uavs/<callsign>`.
 
-Web UI settings (MQTT broker, topic, credentials, units) are persisted in browser `localStorage` — no server-side config file.
+Web UI settings (MQTT broker, topic, credentials, units) are persisted in browser `localStorage` — no server-side config file. Flight session data (telemetry log lines and session metadata) are persisted in browser `IndexedDB` via `SessionScripts.js`.
 
 ## Important Notes
 
