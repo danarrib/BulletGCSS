@@ -1,4 +1,5 @@
-import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes } from './CommScripts.js';
+import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime } from './CommScripts.js';
+import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
@@ -72,6 +73,121 @@ function checkForDefaultSettings()
     }
 
 checkForDefaultSettings();
+
+// ─── Session management ────────────────────────────────────────────────────────
+
+var currentSessionId = null;
+
+function openSessionsMenu() {
+    renderSessionsList().then(function() {
+        document.getElementById("sessionsMenu").style.width = "100%";
+        closeNav();
+    });
+}
+
+function closeSessionsMenu() {
+    document.getElementById("sessionsMenu").style.width = "0";
+}
+
+async function renameCurrentSession() {
+    if (currentSessionId === null) return;
+    var newName = document.getElementById("currentSessionName").value.trim();
+    if (!newName) return;
+    await renameSession(currentSessionId, newName);
+    await renderSessionsList();
+}
+
+async function newSession() {
+    if (currentSessionId !== null) {
+        await closeSession(currentSessionId);
+    }
+    var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
+    currentSessionId = await createSession(defaultName);
+    await renderSessionsList();
+}
+
+async function replaySession(id) {
+    closeSessionsMenu();
+    var messages = await getSessionMessages(id);
+    var lines = messages.map(function(m) { return m.line; });
+    replayFromSessionMessages(lines);
+    openLogMenu();
+}
+
+async function deleteSessionAndRefresh(id) {
+    if (id === currentSessionId) {
+        alert("Cannot delete the current session.");
+        return;
+    }
+    if (!confirm("Delete this session? This cannot be undone.")) return;
+    await deleteSession(id);
+    await renderSessionsList();
+}
+
+async function renderSessionsList() {
+    var sessions = await listSessions();
+
+    var current = sessions.find(function(s) { return s.id === currentSessionId; });
+    if (current) {
+        document.getElementById("currentSessionName").value = current.name;
+    }
+
+    var container = document.getElementById("sessionsList");
+    container.innerHTML = "";
+
+    sessions.forEach(function(session) {
+        var isOpen = session.status === 'open';
+        var duration = isOpen
+            ? Date.now() - session.startTime
+            : session.lastUpdate - session.startTime;
+        var durationStr = secondsToNiceTime(Math.max(0, Math.floor(duration / 1000)));
+        var dateStr = new Date(session.startTime).toLocaleString();
+
+        var item = document.createElement('div');
+        item.className = 'session-item';
+
+        var info = document.createElement('div');
+        info.className = 'session-info';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'session-name';
+        nameSpan.textContent = (isOpen ? '\u25cf ' : '') + session.name;
+
+        var metaSpan = document.createElement('span');
+        metaSpan.className = 'session-meta';
+        metaSpan.textContent = dateStr + ' \u00b7 ' + durationStr;
+
+        info.appendChild(nameSpan);
+        info.appendChild(metaSpan);
+
+        var actions = document.createElement('div');
+        actions.className = 'session-actions';
+
+        if (!isOpen) {
+            var replayBtn = document.createElement('button');
+            replayBtn.className = 'session-btn';
+            replayBtn.textContent = 'Replay';
+            replayBtn.addEventListener('click', (function(sid) {
+                return function() { replaySession(sid); };
+            })(session.id));
+            actions.appendChild(replayBtn);
+        }
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.className = 'session-btn session-btn-delete';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', (function(sid) {
+            return function() { deleteSessionAndRefresh(sid); };
+        })(session.id));
+        actions.appendChild(deleteBtn);
+
+        item.appendChild(info);
+        item.appendChild(actions);
+        container.appendChild(item);
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 // Setup Sidebar
 function openNav() {
@@ -281,10 +397,53 @@ document.getElementById("btSaveUISettings").addEventListener("click", saveUISett
 document.getElementById("closeLogMenu").addEventListener("click", closeLogMenu);
 document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
 document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
+document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
+document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
+document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);
+document.getElementById("btNewSession").addEventListener("click", newSession);
 
 // Modules are deferred — use DOMContentLoaded instead of window.onload
 // to guarantee the handler runs even if the page loaded before the module executed.
-window.addEventListener("DOMContentLoaded", function() {
+window.addEventListener("DOMContentLoaded", async function() {
+    // Initialize flight session storage
+    try {
+        await openDB();
+        var openSession = await getOpenSession();
+        if (openSession) {
+            currentSessionId = openSession.id;
+            var storedMessages = await getSessionMessages(openSession.id);
+            var storedLines = storedMessages.map(function(m) { return m.line; });
+            restoreFromSessionMessages(storedLines);
+            console.log("Session restored: " + openSession.name + " (" + storedLines.length + " messages)");
+        } else {
+            var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
+            currentSessionId = await createSession(defaultName);
+            console.log("New session created: " + defaultName);
+        }
+    } catch (e) {
+        console.error("Session storage init failed:", e);
+    }
+
+    // Record every live MQTT message into the active session
+    setOnMessageCallback(function(line) {
+        if (currentSessionId !== null) {
+            appendMessage(currentSessionId, line);
+        }
+    });
+
+    // After a session replay ends, restore the live session state
+    setOnReplayStop(async function() {
+        if (currentSessionId !== null) {
+            try {
+                var msgs = await getSessionMessages(currentSessionId);
+                var lns = msgs.map(function(m) { return m.line; });
+                restoreFromSessionMessages(lns);
+            } catch (e) {
+                console.error("Session restore after replay failed:", e);
+            }
+        }
+    });
+
     MQTTconnect();
     renderEFIS(data);
     updateDataView(data);

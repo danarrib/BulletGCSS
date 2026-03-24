@@ -29,6 +29,15 @@ cleansession = true;
 let mqttlog = new Array();
 export let isPlayingLogFile = false;
 
+// Called by PageScripts for each live MQTT message (line = "timestamp|payload").
+// Used to record messages into the active session.
+let onMessageCallback = null;
+export function setOnMessageCallback(fn) { onMessageCallback = fn; }
+
+// Called by PageScripts when a session replay ends.
+let onReplayStopCallback = null;
+export function setOnReplayStop(fn) { onReplayStopCallback = fn; }
+
 function mqttlogevent(eventDescription)
 {
     var nowDate = new Date();
@@ -94,6 +103,35 @@ function stopreplaymqttlog()
     mqttConnected = false;
     document.getElementById("playbackcontainer").style.display = "none";
     MQTTconnect();
+    if (onReplayStopCallback) onReplayStopCallback();
+}
+
+// Start a replay from an array of "timestamp|payload" lines (loaded from IndexedDB).
+export function replayFromSessionMessages(lines) {
+    if (!lines || lines.length === 0) {
+        alert("This session has no recorded messages.");
+        return;
+    }
+    mqttConnected = true;
+    isPlayingLogFile = true;
+    if (mqtt) mqtt.disconnect();
+    mqttlog = lines.slice();
+    replayIndex = 0;
+    document.getElementById("playbackcontainer").style.display = "inherit";
+    resetDataObject();
+}
+
+// Fast-forward all session lines through the parser to restore the last known state.
+export function restoreFromSessionMessages(lines) {
+    resetDataObject();
+    if (!lines || lines.length === 0) return;
+    for (var i = 0; i < lines.length; i++) {
+        var parts = lines[i].split('|');
+        if (parts.length < 2) continue;
+        var payload = parts[1];
+        if (!payload || payload.startsWith('Connect')) continue;
+        parseTelemetryData(payload);
+    }
 }
 
 function setplaybackpercent(percent)
@@ -283,9 +321,11 @@ function onMessageArrived(message) {
         var payload = message.payloadString;
 
         console.log(payload);
-        mqttlogevent(payload);
+        var line = new Date().getTime().toString() + '|' + payload;
+        mqttlog.push(line);
         lastMessageDate = new Date();
         parseTelemetryData(payload);
+        if (onMessageCallback) onMessageCallback(line);
     }
 };
 

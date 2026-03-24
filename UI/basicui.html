@@ -160,6 +160,7 @@
 		<a href="javascript:void(0)" id="navBrokerSettings">Broker settings...</a>
 		<a href="javascript:void(0)" id="uisettingslink">UI settings...</a>
 		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
+		<a href="javascript:void(0)" id="navSessionsMenu">Sessions...</a>
 		<a href="javascript:void(0)" id="navLogOptions">Log options...</a>
 		<a href="#" id="missionplannerlink">Mission planner</a>
 		<a href="#" id="senduavcommandlink">Send command to UAV</a>
@@ -184,6 +185,26 @@
 			<div id="maxPlaybackTime">00:00</div>
 			<input type="range" min="0" max="100" value="0" step="0.1" class="slider" id="sldrReplay">
 		</div>
+	</div>
+
+	<div id="sessionsMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" id="closeSessionsMenu">&times;</a>
+		<h3>Flight Sessions</h3>
+		<div class="settingsRow">
+			<div class="settingsColumn">
+				<p>Current session<br />
+					<input type="text" id="currentSessionName" placeholder="Session name" />
+				</p>
+				<p>
+					<input type="button" id="btRenameSession" value="Rename" />
+				</p>
+				<p>
+					<input type="button" id="btNewSession" value="New Session" />
+				</p>
+			</div>
+		</div>
+		<h3>Saved sessions</h3>
+		<div id="sessionsList"></div>
 	</div>
 
 	<div id="brokerSettings">
@@ -288,7 +309,8 @@
 			"./js/CommScripts.js": "./js/CommScripts.js?uid=(UNIQUEID)",
 			"./js/EfisScripts.js": "./js/EfisScripts.js?uid=(UNIQUEID)",
 			"./js/MapScripts.js": "./js/MapScripts.js?uid=(UNIQUEID)",
-			"./js/InfoPanelScripts.js": "./js/InfoPanelScripts.js?uid=(UNIQUEID)"
+			"./js/InfoPanelScripts.js": "./js/InfoPanelScripts.js?uid=(UNIQUEID)",
+			"./js/SessionScripts.js": "./js/SessionScripts.js?uid=(UNIQUEID)"
 		}
 	}
 	</script>
