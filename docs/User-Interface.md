@@ -274,6 +274,20 @@ This feature doesn't work so well on Apple devices (iPhones and iPads). So it's 
 
 It'll reload the app. Useful when a new version is deployed and you want to get it. Usually the app updates by itself, but if you're using it while a new version is released, then you'll need to use this option to get the new version.
 
+#### Sessions...
+
+Opens the Sessions panel, where you can manage recorded flight sessions. Every MQTT message received during a live flight is automatically saved to a local database (IndexedDB) in the browser. Sessions persist across page refreshes and browser restarts.
+
+The panel shows:
+- **Current session** — the name of the active session. You can rename it and tap "Rename" to save, or tap "New Session" to close the current session and start a fresh one.
+- **Saved sessions** — a list of all sessions (newest first), showing the session name, start date, and duration. Each closed session has a **Replay** button to review it in the playback UI, and a **Delete** button to remove it permanently.
+
+When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
+
 #### Save log file
 
-When used, this option will create a TXT file with all MQTT messages received by the app. It's useful to detect problems and to ask for support. It'll be used to "replay" a session in the future, then a log replayer is released.
+When used, this option will create a TXT file with all MQTT messages received by the app since the page was loaded. It's useful for debugging or for sharing a flight log.
+
+#### Replay log file...
+
+Opens a file picker to load a previously saved log file and play it back. During playback, a timeline slider appears showing the current position and total duration. A **Stop Replay** menu item also appears — clicking it ends the replay immediately and returns to live monitoring.

@@ -19,7 +19,8 @@ All three areas are driven by a central `data` object that is populated by parse
 ```
 basicui.html
 └── PageScripts.js          ← ES module entry point (type="module")
-    ├── CommScripts.js      ← Level 0: data, MQTT, shared utilities
+    ├── CommScripts.js      ← Level 0: data, MQTT, shared utilities, session hooks
+    ├── SessionScripts.js   ← Level 0: IndexedDB flight session persistence
     ├── EfisScripts.js      ← Level 1: imports CommScripts
     │   └── CommScripts.js
     ├── MapScripts.js       ← Level 2: imports CommScripts + EfisScripts
@@ -43,10 +44,11 @@ The lowest-level module. Has no imports from other app modules.
 
 **Responsibilities:**
 - MQTT connection lifecycle via Paho MQTT over WebSocket
-- MQTT message log: recording, saving to file, replaying from file
-- Telemetry parsing: deserialises incoming JSON into the `data` object
+- MQTT message log: recording, saving to file, replaying from file or from IndexedDB session
+- Telemetry parsing: deserialises incoming messages into the `data` object
 - Dead reckoning: `estimatePosition()` and `estimateEfis()` fill in values between telemetry updates
 - localStorage: read/write of MQTT broker settings
+- Session hooks: fires callbacks set by PageScripts for message recording and replay-stop events
 
 **Key exports:**
 
@@ -64,20 +66,51 @@ The lowest-level module. Has no imports from other app modules.
 | `MQTTconnect()` | function | Initialise and connect the MQTT client |
 | `MQTTSetDefaultSettings()` | function | Reset broker settings in localStorage |
 | `resetDataObject()` | function | Re-initialise `data` to default values |
-| `parseTelemetryData(payload)` | function | Parse a JSON telemetry string into `data` |
+| `parseTelemetryData(payload)` | function | Parse a telemetry string into `data` |
 | `estimatePosition()` | function | Dead-reckoning position update |
 | `estimateEfis()` | function | Dead-reckoning EFIS attitude update |
 | `savemqttlog()` | function | Download the current session log as a text file |
 | `replaymqttlog()` | function | Open a file picker and replay a previously saved log |
+| `stopreplaymqttlog()` | function | Stop an active replay, reconnect MQTT, fire onReplayStop callback |
+| `replayFromSessionMessages(lines)` | function | Start replay from an array of `"timestamp\|payload"` strings (from IndexedDB) |
+| `restoreFromSessionMessages(lines)` | function | Fast-forward all lines through the parser to restore last known state |
+| `setOnMessageCallback(fn)` | function | Register a callback fired for each live MQTT message line (used by PageScripts for session recording) |
+| `setOnReplayStop(fn)` | function | Register a callback fired when replay ends (used by PageScripts to restore live session state) |
 | `getDistanceBetweenTwoPoints()` | function | Haversine distance between two GPS coordinates (metres) |
 | `DestinationCoordinates()` | function | Calculate a destination point given bearing and distance |
 | `secondsToNiceTime(s)` | function | Format a number of seconds as `"1h 23m 45s"` |
-| `inRange(val, min, max)` | function | Clamp a value to a range |
-| `rangeNumbers(min, max, step)` | function | Generate array of numbers in a range |
-| `rangeNumbers360(center, spread, step)` | function | Range of numbers wrapping around 0/360 |
+| `inRange(val, min, max)` | function | Validate a value falls within a range |
+| `rangeNumbers(...)` | function | Linear interpolation between two values |
+| `rangeNumbers360(...)` | function | Linear interpolation wrapping around 0/360 |
 
 **Internal timers:**
 - `timerReplay` (1000 ms): advances the log replay frame-by-frame when `isPlayingLogFile` is true.
+
+---
+
+### `SessionScripts.js` — Flight Session Persistence (Level 0)
+
+The IndexedDB layer. Has no imports from other app modules.
+
+**Responsibilities:**
+- Opens/creates the `BulletGCSS` IndexedDB database with two object stores:
+  - `sessions` — metadata: `{ id, name, status ('open'|'closed'), startTime, lastUpdate }`
+  - `session_messages` — log lines: `{ id, sessionId, line }` where `line` is `"timestamp|payload"`
+- Provides async CRUD operations consumed by PageScripts
+
+**Key exports:**
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `openDB()` | async function | Open/create the database; must be called once before any other function |
+| `createSession(name)` | async function | Create a new open session; returns the new session id |
+| `closeSession(id)` | async function | Mark a session as closed and record its end time |
+| `appendMessage(sessionId, line)` | function | Fire-and-forget: append a log line to a session |
+| `getOpenSession()` | async function | Return the current open session object, or null |
+| `listSessions()` | async function | Return all sessions sorted by start time (newest first) |
+| `getSessionMessages(sessionId)` | async function | Return all message objects for a session |
+| `deleteSession(sessionId)` | async function | Delete a session and all its messages |
+| `renameSession(sessionId, name)` | async function | Update a session's display name |
 
 ---
 
@@ -166,19 +199,27 @@ The lowest-level module. Has no imports from other app modules.
 
 ### `PageScripts.js` — Application Entry Point (Top Level)
 
-**Imports:** All four modules above.
+**Imports:** All five modules above.
 
 This is the only `<script type="module">` tag in `basicui.html`. It is the wiring layer — it does not contain rendering logic, only orchestration.
 
 **Responsibilities:**
 - Viewport size management (`UpdateViewPortSize`)
 - NoSleep integration (prevent screen sleep on mobile)
-- Sidebar and settings panel open/close logic
+- Sidebar and settings panel open/close logic (including Sessions panel)
+- Flight session lifecycle: initialise IndexedDB on load, restore open session state, record live messages, handle replay stop
 - MQTT broker settings UI (save, reset)
 - UI settings UI (unit preferences save)
 - Version check against `uiversion.json`
 - Event listener registration for all interactive elements (replaces inline `onclick`)
 - All application timers
+
+**Session lifecycle (on DOMContentLoaded):**
+1. `openDB()` → `getOpenSession()`
+2. If an open session exists: restore `data` state by fast-forwarding all stored messages through `parseTelemetryData()`
+3. If no open session: create one with a timestamp-based default name
+4. Register `setOnMessageCallback` → appends every live MQTT message to IndexedDB
+5. Register `setOnReplayStop` → restores open session state when replay ends
 
 **Timers started on `DOMContentLoaded`:**
 
@@ -216,6 +257,15 @@ MapScripts   ──exports──▶  user_moved_map (read by PageScripts)
              ──exports──▶  setUserMovedMap(val)  ◀── called by PageScripts timer
 ```
 
+### Session hooks (owned by CommScripts, wired by PageScripts)
+
+`CommScripts` fires callbacks into PageScripts for session-related events, avoiding any upward dependency:
+
+```
+CommScripts  ──exports──▶  setOnMessageCallback(fn)  ◀── PageScripts: fn appends line to IndexedDB
+             ──exports──▶  setOnReplayStop(fn)        ◀── PageScripts: fn restores open session state
+```
+
 ---
 
 ## Functions Moved to Break Circular Dependencies
@@ -232,7 +282,7 @@ Used by both `InfoPanelScripts` (to calculate user-to-aircraft distance) and `Co
 
 ### `secondsToNiceTime` — was InfoPanelScripts, now CommScripts
 
-Used by `CommScripts` to format playback timestamps in the log replay timer. Since CommScripts cannot import InfoPanelScripts, the function was moved to CommScripts. InfoPanelScripts imports it back.
+Used by `CommScripts` to format playback timestamps in the log replay timer and by `PageScripts` to format session durations in the Sessions panel. Since CommScripts cannot import InfoPanelScripts, the function was moved to CommScripts. InfoPanelScripts imports it back.
 
 ### `pageSettings` — was PageScripts, now CommScripts
 
@@ -267,7 +317,8 @@ The deploy pipeline replaces the `(UNIQUEID)` placeholder in `basicui.html` with
     "./js/CommScripts.js":      "./js/CommScripts.js?uid=(UNIQUEID)",
     "./js/EfisScripts.js":      "./js/EfisScripts.js?uid=(UNIQUEID)",
     "./js/MapScripts.js":       "./js/MapScripts.js?uid=(UNIQUEID)",
-    "./js/InfoPanelScripts.js": "./js/InfoPanelScripts.js?uid=(UNIQUEID)"
+    "./js/InfoPanelScripts.js": "./js/InfoPanelScripts.js?uid=(UNIQUEID)",
+    "./js/SessionScripts.js":   "./js/SessionScripts.js?uid=(UNIQUEID)"
   }
 }
 </script>
@@ -315,17 +366,18 @@ Key fields:
 
 ```
 body
-├── #mainContainer          ← Full screen, flex layout
-│   ├── #dataView           ← Telemetry table (Data tab)
-│   ├── #map                ← OpenLayers map canvas (Map tab)
+├── #container              ← Full screen, flex layout
+│   ├── #dataview           ← Telemetry table
+│   ├── #mapview            ← OpenLayers map canvas
 │   └── #hudview            ← EFIS canvas (#cvsEFIS)
-├── #sideMenu               ← Slide-in navigation sidebar
-├── #logMenu                ← Log save/replay panel
-├── #brokerSettings         ← MQTT broker configuration panel
-└── #uiSettings             ← Unit preferences panel
+├── #sideMenu               ← Slide-in navigation sidebar (z-index 1)
+├── #logMenu                ← Log save/replay panel (z-index 2)
+├── #sessionsMenu           ← Flight sessions panel (z-index 2)
+├── #brokerSettings         ← MQTT broker configuration panel (z-index 2)
+└── #uiSettings             ← Unit preferences panel (z-index 2)
 ```
 
-Tab switching between Data/Map/EFIS views is done by toggling visibility of `#dataView`, `#map`, and `#hudview`.
+The secondary panels (logMenu, sessionsMenu, brokerSettings, uiSettings) all slide in over the primary sideMenu using z-index 2.
 
 ---
 

@@ -10,8 +10,7 @@ The following sequence defines the planned implementation order. Each step is a 
 
 ### ~~Step 1 — ES Modules refactor~~ ✓ COMPLETE
 
-### Step 2 — Persistent flight data (item F5)
-Once the module boundaries are clean, add `localStorage` persistence for telemetry state and GPS track. This also establishes the pattern for storing sensitive data (encryption keys) in the browser — step 5 will build on this foundation.
+### ~~Step 2 — Flight Sessions (item F5)~~ ✓ COMPLETE
 
 ### Step 3 — Protocol and software version detection (item 7)
 Both firmware and UI need to declare their own versions and understand the other side's version. The firmware already has a natural place for this (`id:0` session start message). The UI side sends its version in the first uplink message (step 4).
@@ -158,15 +157,6 @@ OpenAIP provides free aviation overlay data (airspace classes, airfields, NOTAMs
 
 **Migration scope:** `UI/js/MapScripts.js` will largely be a rewrite. Core operations to reimplement: map initialisation, aircraft marker with heading rotation, flight track polyline, waypoint markers, track/pan mode, home position marker. OpenLayers (`UI/ol/`) can be removed from the repository once migration is complete.
 
-### F5. Persistent flight data across page refreshes
-If the browser tab is accidentally closed or the page refreshes mid-flight, all telemetry data and the flight track are lost.
-
-**Design considerations:**
-- Periodically write the current `data` object and the accumulated GPS track to `localStorage` (e.g. every 5 seconds).
-- On page load, check for stored state. If found and recent enough (e.g. less than 30 minutes old), restore it as the starting point before new telemetry arrives.
-- Include a TTL so stale data from a previous flight session is not mistakenly restored.
-- Be mindful of `localStorage` size limits (~5 MB) — consider storing only the last N track points, or downsampling older points on long flights.
-
 ### F6. Mission planner
 Allow the operator to plan a waypoint mission directly in the UI, rather than requiring a separate ground control application.
 
@@ -200,3 +190,4 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 | Item | Description |
 |------|-------------|
 | 10 | **ES Modules refactor** — All UI JS files migrated from global scripts to ES Modules (`import`/`export`). Global state eliminated; `CommScripts.js` owns the central `data` object. Cache-busting added via import map. |
+| F5 | **Flight Sessions** — Every MQTT message is persisted to IndexedDB in real time (two-store schema: `sessions` metadata + `session_messages` log lines). On page load the open session state is restored by fast-forwarding all stored messages through the parser. Sessions can be renamed, replayed with the existing timeline UI, or deleted from the Sessions panel in the sidebar menu. |

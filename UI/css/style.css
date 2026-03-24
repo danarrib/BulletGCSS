@@ -204,7 +204,8 @@ body {
   
 #brokerSettings,
 #uiSettings,
-#logMenu
+#logMenu,
+#sessionsMenu
 {
     height: 100%;
     width: 0;
@@ -213,14 +214,16 @@ body {
     top: 0;
     left: 0;
     background-color: #666;
-    overflow-x: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding-top: 4vmin;
     transition: 0.5s;
     font-size: 0.9em;
 }
 
 #brokerSettings p,
-#uiSettings p
+#uiSettings p,
+#sessionsMenu p
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -229,7 +232,8 @@ body {
 }
 
 #brokerSettings h3,
-#uiSettings h3
+#uiSettings h3,
+#sessionsMenu h3
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -243,6 +247,8 @@ body {
 #uiSettings input[type=text],
 #uiSettings input[type=button],
 #uiSettings input[type=password],
+#sessionsMenu input[type=text],
+#sessionsMenu input[type=button],
 select
 {
     font-size: 1em;
@@ -250,7 +256,8 @@ select
 }
 
 #brokerSettings input[type=button],
-#uiSettings input[type=button]
+#uiSettings input[type=button],
+#sessionsMenu input[type=button]
 {
     font-size: 1em;
     width: 90%;
@@ -537,4 +544,64 @@ select
 
 #maxPlaybackTime {
   float:right;
+}
+
+/* Session list items */
+.session-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5vmin 4vmin;
+    border-bottom: 1px solid #555;
+}
+
+.session-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.session-name {
+    display: block;
+    font-size: 1.3em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-meta {
+    display: block;
+    font-size: 0.75em;
+    color: #aaa;
+    margin-top: 0.2em;
+}
+
+.session-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 1vmin;
+    margin-left: 2vmin;
+}
+
+.session-btn {
+    font-size: 1em;
+    padding: 0.4em 0.8em;
+    background: #444;
+    color: #fff;
+    border: 1px solid #777;
+    border-radius: 3px;
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+}
+
+.session-btn:hover {
+    background: #555;
+}
+
+.session-btn-delete {
+    border-color: #933;
+}
+
+.session-btn-delete:hover {
+    background: #633;
 }
