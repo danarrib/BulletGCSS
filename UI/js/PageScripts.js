@@ -81,13 +81,20 @@ checkForDefaultSettings();
 var currentSessionId = null;
 
 function openCommandsMenu() {
-    renderCommandHistory();
+    updateCommandsPanel();
     document.getElementById("commandsMenu").style.width = "100%";
     closeNav();
 }
 
 function closeCommandsMenu() {
     document.getElementById("commandsMenu").style.width = "0";
+}
+
+function updateCommandsPanel() {
+    var downlinkOk = data.downlinkStatus === 1;
+    document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
+    document.getElementById("btSendPing").disabled = !downlinkOk;
+    renderCommandHistory();
 }
 
 function renderCommandHistory() {
@@ -436,7 +443,11 @@ document.getElementById("navReplayLog").addEventListener("click", replaymqttlog)
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
 document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
-document.getElementById("btSendPing").addEventListener("click", function() { publishCommand("ping"); renderCommandHistory(); });
+document.getElementById("btSendPing").addEventListener("click", function() {
+    if (data.downlinkStatus !== 1) return;
+    publishCommand("ping");
+    updateCommandsPanel();
+});
 document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);
@@ -508,7 +519,7 @@ window.addEventListener("DOMContentLoaded", async function() {
         updateDataView(data);
 
         if (document.getElementById("commandsMenu").style.width === "100%")
-            renderCommandHistory();
+            updateCommandsPanel();
     }, pageSettings.mapAndDataRefreshInterval);
 
     var timerOneSecond = setInterval(function(){
