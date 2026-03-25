@@ -21,6 +21,14 @@ The firmware prints diagnostic messages to the serial port at **115200 baud**. T
 | `GPRS connected!` | Cellular data connection established |
 | `Connected to the broker!` | MQTT connection to the broker succeeded |
 | `MSP connected` | Flight controller communication working |
+| `Loaded lastSeq from NVS: N` | Replay-protection sequence number loaded from flash (shown on every boot) |
+| `Command received: ...` | A command message arrived on the downlink topic |
+| `Command verified and accepted. Sending ack: ...` | Signature valid — command executed and acknowledged |
+| `Command rejected: no public key configured in Config.h` | `commandPublicKey` is all zeros — paste the key from the Security panel and re-flash |
+| `Command rejected: missing or malformed security fields` | Command is missing `seq` or `sig`, or `sig` is not 88 characters — likely an old UI version |
+| `Command rejected: seq N <= lastSeq M` | Replayed or out-of-order command — normal if an old signed message is re-sent |
+| `Command rejected: signature base64 decode failed` | `sig` field contains invalid base64 characters |
+| `Command rejected: invalid signature` | Signature did not verify — key mismatch between UI and firmware |
 | `Failed to connect to broker, rc=...` | MQTT connection failed — check broker address, port, and credentials |
 | `Modem not responding` | SIM card or modem hardware issue |
 
@@ -76,6 +84,19 @@ mosquitto_sub -h broker.emqx.io -p 8883 --insecure -t "bulletgcss/telem/your_cal
 ```
 
 Replace `broker.emqx.io` and `your_callsign` with your actual broker and topic. If messages appear here but not in the UI, the problem is in the UI configuration.
+
+---
+
+---
+
+### Commands are sent but never acknowledged
+
+1. Check the serial monitor — look for `Command received:` followed by a rejection reason.
+2. **`Command rejected: no public key configured`** — you have not pasted the public key into `Config.h` and re-flashed. Go to the UI Security panel, copy the declaration, paste it into `Config.h`, and reflash.
+3. **`Command rejected: invalid signature`** — the UI's key pair does not match the key in the firmware. Either the key was regenerated in the UI without re-flashing, or the wrong key was pasted into `Config.h`. Regenerate the key pair in the Security panel and re-flash.
+4. **`Command rejected: missing or malformed security fields`** — the command is missing the `seq` or `sig` fields. This can happen if an old version of the UI is being used.
+5. Check the **Downlink Status** icon in the UI — if it is grey, the firmware has not confirmed it is subscribed to the command topic yet. Wait for the next low-priority telemetry message (sent every 60 s).
+6. Check the **Security panel** status line — it must show **✓ Keys match** before commands can be accepted.
 
 ---
 

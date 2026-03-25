@@ -97,6 +97,115 @@ function updateCommandsPanel() {
     renderCommandHistory();
 }
 
+function openSecurityMenu() {
+    loadSecurityPanel();
+    document.getElementById("securityMenu").style.width = "100%";
+    closeNav();
+}
+
+function closeSecurityMenu() {
+    document.getElementById("securityMenu").style.width = "0";
+}
+
+function loadSecurityPanel() {
+    var hasKey     = localStorage.getItem("commandPrivateKey") !== null;
+    var uiBase64   = localStorage.getItem("commandPublicKeyBase64");
+
+    // Migration: derive base64 from hex if key was generated before base64 storage was added
+    if (hasKey && !uiBase64) {
+        var hexStr = localStorage.getItem("commandPublicKeyHex");
+        if (hexStr) {
+            var hexBytes = hexStr.split(',').map(function(h) { return parseInt(h.trim(), 16); });
+            if (hexBytes.length === 32) {
+                uiBase64 = btoa(String.fromCharCode.apply(null, hexBytes));
+                localStorage.setItem("commandPublicKeyBase64", uiBase64);
+            }
+        }
+    }
+
+    var fwBase64   = data.firmwarePublicKey; // "" = not yet received from firmware
+    var allZeros   = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // base64 of 32 zero bytes
+
+    var statusEl   = document.getElementById("securityKeyStatus");
+    var statusText, statusColor;
+
+    if (!hasKey && (!fwBase64 || fwBase64 === allZeros)) {
+        statusText  = "No key pair configured. Generate one below.";
+        statusColor = "#aaa";
+    } else if (!hasKey && fwBase64 && fwBase64 !== allZeros) {
+        statusText  = "\u26a0 Firmware has a key but the UI key is missing (localStorage cleared?). Regenerate and re-flash.";
+        statusColor = "#f90";
+    } else if (hasKey && !fwBase64) {
+        statusText  = "Key pair ready. Waiting for firmware telemetry\u2026";
+        statusColor = "#aaa";
+    } else if (hasKey && fwBase64 === allZeros) {
+        statusText  = "\u26a0 Firmware has no key. Paste the public key into Config.h and re-flash.";
+        statusColor = "#f90";
+    } else if (hasKey && fwBase64 === uiBase64) {
+        statusText  = "\u2713 Keys match. Firmware is ready for signed commands.";
+        statusColor = "#3f3";
+    } else {
+        statusText  = "\u2717 Key mismatch! Re-flash the firmware with the current public key.";
+        statusColor = "#f44";
+    }
+    statusEl.textContent = statusText;
+    statusEl.style.color = statusColor;
+
+    var pubKeyHex = localStorage.getItem("commandPublicKeyHex");
+    document.getElementById("securityPublicKeyArea").value = hasKey && pubKeyHex
+        ? "const uint8_t commandPublicKey[32] = { " + pubKeyHex + " };"
+        : "";
+    document.getElementById("btCopyPublicKey").style.display = hasKey ? "block" : "none";
+    document.getElementById("securityKeyHint").style.display = hasKey ? "block" : "none";
+    document.getElementById("btGenerateKey").value = hasKey ? "Regenerate key pair" : "Generate key pair";
+}
+
+async function generateKeyPair() {
+    var hasKey = localStorage.getItem("commandPrivateKey") !== null;
+    if (hasKey) {
+        if (!confirm("Generating a new key pair will require re-flashing the firmware with the new public key. The existing key pair will be lost.\n\nContinue?")) {
+            return;
+        }
+    }
+    try {
+        var keyPair = await window.crypto.subtle.generateKey(
+            { name: "Ed25519" },
+            true,
+            ["sign", "verify"]
+        );
+        var privateKeyJwk = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
+        localStorage.setItem("commandPrivateKey", JSON.stringify(privateKeyJwk));
+
+        var publicKeyRaw = await window.crypto.subtle.exportKey("raw", keyPair.publicKey);
+        var bytes = new Uint8Array(publicKeyRaw);
+        var hexArray = Array.from(bytes).map(function(b) {
+            return '0x' + b.toString(16).padStart(2, '0');
+        }).join(', ');
+        localStorage.setItem("commandPublicKeyHex", hexArray);
+
+        var base64Key = btoa(String.fromCharCode.apply(null, bytes));
+        localStorage.setItem("commandPublicKeyBase64", base64Key);
+
+        loadSecurityPanel();
+    } catch(e) {
+        alert("Error generating key pair: " + e.message + "\n\nYour browser may not support Ed25519. Please use Chrome 113+, Firefox 130+, or Safari 17+.");
+    }
+}
+
+async function copyPublicKey() {
+    var text = document.getElementById("securityPublicKeyArea").value;
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("btCopyPublicKey").value = "Copied!";
+        setTimeout(function() {
+            document.getElementById("btCopyPublicKey").value = "Copy to clipboard";
+        }, 2000);
+    } catch(e) {
+        document.getElementById("securityPublicKeyArea").select();
+    }
+}
+
 function renderCommandHistory() {
     var container = document.getElementById("commandsList");
     if (commandHistory.length === 0) {
@@ -442,6 +551,10 @@ document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
 document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
+document.getElementById("navSecurityMenu").addEventListener("click", openSecurityMenu);
+document.getElementById("closeSecurityMenu").addEventListener("click", closeSecurityMenu);
+document.getElementById("btGenerateKey").addEventListener("click", generateKeyPair);
+document.getElementById("btCopyPublicKey").addEventListener("click", copyPublicKey);
 document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
 document.getElementById("btSendPing").addEventListener("click", function() {
     if (data.downlinkStatus !== 1) return;
@@ -520,6 +633,8 @@ window.addEventListener("DOMContentLoaded", async function() {
 
         if (document.getElementById("commandsMenu").style.width === "100%")
             updateCommandsPanel();
+        if (document.getElementById("securityMenu").style.width === "100%")
+            loadSecurityPanel();
     }, pageSettings.mapAndDataRefreshInterval);
 
     var timerOneSecond = setInterval(function(){

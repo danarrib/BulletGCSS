@@ -40,6 +40,8 @@
 // #define DUMP_AT_COMMANDS
 
 #include <PubSubClient.h>
+#include <Ed25519.h>
+#include <Preferences.h>
 
 #include <HardwareSerial.h>
 
@@ -155,10 +157,14 @@ uint8_t waypointMessageCounter = 0;
 
 uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working fine
 
+Preferences prefs;
+uint32_t lastSeq = 0; // Last accepted command sequence number (loaded from NVS, replay protection)
+
 // ── Forward declarations ──────────────────────────────────────────────────────
 // Required because .cpp files do not get Arduino IDE's auto-prototype injection.
 
 void mqttCommandCallback(char* topic, byte* payload, unsigned int length);
+bool base64Decode64(const char* input, uint8_t* output);
 
 #ifdef USE_WIFI
 void connectToWifiNetwork();
@@ -188,9 +194,43 @@ void sendMessageTask();
 void sendWaypointsMessage();
 void buildTelemetryMessage(char* message);
 void buildLowPriorityMessage(char* message);
+void base64Encode32(const uint8_t* input, char* output);
 void sendMessage(char* message);
 void connectToTheBroker();
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Decode a standard base64 character to its 6-bit value, or -1 if invalid.
+static int b64CharVal(char c) {
+  if (c >= 'A' && c <= 'Z') return c - 'A';
+  if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+  if (c >= '0' && c <= '9') return c - '0' + 52;
+  if (c == '+') return 62;
+  if (c == '/') return 63;
+  return -1;
+}
+
+// Decode exactly 88 base64 characters to 64 bytes (one Ed25519 signature).
+// Returns true on success, false if the input is malformed.
+bool base64Decode64(const char* input, uint8_t* output) {
+  int out = 0;
+  // 21 full 4-char groups → 63 bytes
+  for (int i = 0; i < 84; i += 4) {
+    int a = b64CharVal(input[i]);
+    int b = b64CharVal(input[i+1]);
+    int c = b64CharVal(input[i+2]);
+    int d = b64CharVal(input[i+3]);
+    if (a < 0 || b < 0 || c < 0 || d < 0) return false;
+    output[out++] = (uint8_t)((a << 2) | (b >> 4));
+    output[out++] = (uint8_t)(((b & 0x0f) << 4) | (c >> 2));
+    output[out++] = (uint8_t)(((c & 0x03) << 6) | d);
+  }
+  // Last group: 2 data chars + "==" padding → 1 byte
+  int a = b64CharVal(input[84]);
+  int b = b64CharVal(input[85]);
+  if (a < 0 || b < 0 || input[86] != '=' || input[87] != '=') return false;
+  output[out++] = (uint8_t)((a << 2) | (b >> 4));
+  return (out == 64);
+}
 
 void connectToTheInternet() {
 
@@ -351,10 +391,17 @@ void setup()
   SerialMon.begin(115200);
   delay(100);
 
+  // Load the last accepted command sequence number from NVS (replay protection).
+  prefs.begin("bulletgcss", true); // read-only
+  lastSeq = prefs.getUInt("lastSeq", 0);
+  prefs.end();
+  SerialMon.print("Loaded lastSeq from NVS: ");
+  SerialMon.println(lastSeq);
+
   #ifndef USE_WIFI
     connectToGprsNetwork();
   #endif
-  
+
   msp.begin(mspSerial, 750);
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
 
@@ -374,31 +421,80 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   SerialMon.print("Command received: ");
   SerialMon.println(buf);
 
-  char cmd[32] = "";
-  char cid[8] = "";
+  // ── Step 1: Reject immediately if no public key is configured ───────────────
+  static const uint8_t zeroKey[32] = {0};
+  if (memcmp(commandPublicKey, zeroKey, 32) == 0) {
+    SerialMon.println("Command rejected: no public key configured in Config.h");
+    return;
+  }
 
-  // Parse comma-separated key:value pairs
+  // ── Step 2: Parse all fields ─────────────────────────────────────────────────
+  char cmd[32]  = "";
+  char cid[8]   = "";
+  char seqStr[12] = "";  // uint32 max = 10 digits
+  char sig[89]  = "";    // Ed25519 base64 signature = 88 chars + null
+
   char* token = strtok(buf, ",");
   while (token != NULL) {
     char* colon = strchr(token, ':');
     if (colon != NULL) {
       *colon = '\0';
-      char* key = token;
+      char* key   = token;
       char* value = colon + 1;
-      if (strcmp(key, "cmd") == 0) strncpy(cmd, value, sizeof(cmd) - 1);
-      if (strcmp(key, "cid") == 0) strncpy(cid, value, sizeof(cid) - 1);
+      if (strcmp(key, "cmd") == 0) strncpy(cmd,    value, sizeof(cmd)    - 1);
+      if (strcmp(key, "cid") == 0) strncpy(cid,    value, sizeof(cid)    - 1);
+      if (strcmp(key, "seq") == 0) strncpy(seqStr, value, sizeof(seqStr) - 1);
+      if (strcmp(key, "sig") == 0) strncpy(sig,    value, sizeof(sig)    - 1);
     }
     token = strtok(NULL, ",");
   }
 
-  // Always acknowledge with the cid if one was provided
-  if (strlen(cid) > 0) {
-    char ack[32];
-    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
-    SerialMon.print("Sending ack: ");
-    SerialMon.println(ack);
-    sendMessage(ack);
+  // ── Step 3: Require all security fields to be present ────────────────────────
+  if (strlen(cmd) == 0 || strlen(cid) == 0 || strlen(seqStr) == 0 || strlen(sig) != 88) {
+    SerialMon.println("Command rejected: missing or malformed security fields");
+    return;
   }
+
+  // ── Step 4: Replay protection — seq must be strictly greater than lastSeq ────
+  uint32_t seq = (uint32_t)strtoul(seqStr, NULL, 10);
+  if (seq <= lastSeq) {
+    SerialMon.print("Command rejected: seq ");
+    SerialMon.print(seq);
+    SerialMon.print(" <= lastSeq ");
+    SerialMon.println(lastSeq);
+    return;
+  }
+
+  // ── Step 5: Verify Ed25519 signature ─────────────────────────────────────────
+  // The signed payload is the canonical string: "cmd:<cmd>,cid:<cid>,seq:<seq>"
+  char canonical[128];
+  snprintf(canonical, sizeof(canonical), "cmd:%s,cid:%s,seq:%u", cmd, cid, seq);
+
+  uint8_t sigBytes[64];
+  if (!base64Decode64(sig, sigBytes)) {
+    SerialMon.println("Command rejected: signature base64 decode failed");
+    return;
+  }
+
+  if (!Ed25519::verify(sigBytes, commandPublicKey, canonical, strlen(canonical))) {
+    SerialMon.println("Command rejected: invalid signature");
+    return;
+  }
+
+  // ── Step 6: Accept — update lastSeq and acknowledge ──────────────────────────
+  lastSeq = seq;
+  prefs.begin("bulletgcss", false); // read/write
+  prefs.putUInt("lastSeq", lastSeq);
+  prefs.end();
+
+  char ack[32];
+  snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
+  SerialMon.print("Command verified and accepted. Sending ack: ");
+  SerialMon.println(ack);
+  sendMessage(ack);
+
+  // ── Step 7: Execute the command ───────────────────────────────────────────────
+  // (additional commands will be dispatched here in future steps)
 }
 
 void loop()
@@ -1091,8 +1187,31 @@ void buildLowPriorityMessage(char* message) {
   sprintf(message, "%sflt:%d,", message, uavstatus.flightTime); // flightTime
 
   sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
-  
+
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
+
+  char pkBase64[45];
+  base64Encode32(commandPublicKey, pkBase64);
+  sprintf(message, "%spk:%s,", message, pkBase64); // public key (Ed25519, base64)
+}
+
+// Encode exactly 32 bytes as base64 (output must be at least 45 bytes: 44 chars + null).
+// 32 bytes = 10 complete 3-byte groups (30 bytes) + 1 partial group of 2 bytes.
+void base64Encode32(const uint8_t* input, char* output) {
+  static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  int out = 0;
+  for (int i = 0; i < 30; i += 3) {
+    output[out++] = b64[input[i] >> 2];
+    output[out++] = b64[((input[i] & 0x03) << 4) | (input[i+1] >> 4)];
+    output[out++] = b64[((input[i+1] & 0x0f) << 2) | (input[i+2] >> 6)];
+    output[out++] = b64[input[i+2] & 0x3f];
+  }
+  // Remaining 2 bytes (indices 30, 31)
+  output[out++] = b64[input[30] >> 2];
+  output[out++] = b64[((input[30] & 0x03) << 4) | (input[31] >> 4)];
+  output[out++] = b64[(input[31] & 0x0f) << 2];
+  output[out++] = '=';
+  output[out]   = '\0';
 }
 
 void sendMessage(char* message) {

@@ -81,6 +81,27 @@ If your SIM card has a PIN lock, set it here (leave the string empty if not):
 #define GSM_PIN "1234"
 ```
 
+#### Command signing public key
+
+```c
+const uint8_t commandPublicKey[32] = {
+    0x00, 0x00, ...
+};
+```
+
+This is the Ed25519 public key used by the firmware to verify that commands sent from the UI are authentic. Without it, the firmware will reject all commands (including Ping).
+
+**Setup steps:**
+1. Open the Bullet GCSS UI and go to **Settings → Security…**
+2. Click **Generate key pair** (requires Chrome 113+, Firefox 130+, or Safari 17+).
+3. Copy the `const uint8_t commandPublicKey[32] = { ... };` declaration shown in the panel.
+4. Paste it into `Config.h`, replacing the all-zeros placeholder.
+5. Re-flash the firmware.
+
+Once the firmware is running with the new key, the Security panel will show **✓ Keys match** confirming that signed commands will be accepted.
+
+> **Note:** If you regenerate the key pair in the UI, you must re-flash the firmware with the new public key. The old key will no longer work.
+
 #### Polling settings
 
 These control how often telemetry is fetched from the flight controller and published to the broker. The defaults work well for most use cases:

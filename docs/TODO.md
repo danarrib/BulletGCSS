@@ -18,19 +18,30 @@ The following sequence defines the planned implementation order. Each step is a 
 ### ~~Step 4 — Bidirectional channel setup + ping~~ ✓ COMPLETE
 Two MQTT topics configured separately — uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`). Firmware subscribes to downlink on connect, reports `dls:0/1` in telemetry. UI shows a downlink status icon. Commands carry a 6-character random `cid`; firmware echoes it back in `id:ack,cid:...,`. UI tracks pending commands and marks them received or lost (no ack after 10 messages). "Send command to UAV" panel in the sidebar has a Ping button and a live command history list.
 
-### Step 5 — Key pair setup and distribution
-UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
+### ~~Step 5 — Key pair setup and distribution~~ ✓ COMPLETE
+UI generates an Ed25519 key pair using the Web Crypto API. Private key stored as JWK in `localStorage`; public key stored as hex. A new **Security** panel in the sidebar displays the ready-to-paste C declaration (`const uint8_t commandPublicKey[32] = { ... };`) with a copy button. `Config.h.example` now includes the `commandPublicKey` field (all zeros until the user generates and pastes a real key). The chosen approach is **Manual (Option A)** — the public key never travels over any network.
 
-**Chosen approach: Manual (Option A)**
-The UI displays the generated public key and provides a copy button. The user pastes it into `Config.h` and re-flashes the firmware. Fully secure — the public key never travels over any network. Requires re-flashing if the operator changes devices or regenerates the key pair, which is acceptable for this use case.
+### ~~Step 6 — Encrypted ping~~ ✓ COMPLETE
+All commands (starting with ping) use Ed25519 message signing. UI signs every command with the private key; firmware verifies with the stored `commandPublicKey` before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks, and the last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot. Commands with a bad signature, missing fields, replayed sequence numbers, or sent without a configured public key are silently dropped (no ack).
 
-### Step 6 — Encrypted ping
-Change the ping implementation to use Ed25519 message signing. UI signs the ping with the private key; firmware verifies with the stored public key before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks.
-
-This is the foundation for all future uplink commands — once signed ping works reliably, adding new command types is straightforward.
+This is the foundation for all future uplink commands — adding new command types only requires dispatching on `cmd` in `mqttCommandCallback` after the shared verification logic passes.
 
 ### After step 6 — Flight controller commands
-With a verified, signed bidirectional channel in place, implement actual commands: RTH, mission upload, arm/disarm, and eventually ESP32-Cam trigger. Each command follows the same signing pattern established in step 6.
+With a verified, signed bidirectional channel in place, implement actual commands. Each command follows the same signing pattern established in step 6.
+
+Planned commands (all require Step 6 complete):
+
+| Command | Description |
+|---------|-------------|
+| RTH on/off | Activate or cancel Return to Home |
+| Mission Mode on/off | Engage or disengage autonomous waypoint mission |
+| Mission Upload | Upload a full waypoint mission to the flight controller |
+| Change current WP | Jump to a specific waypoint number within an active mission |
+| Cruise Mode on/off | Engage or disengage cruise mode |
+| Altitude Hold on/off | Engage or disengage altitude hold |
+| Change target altitude | Set a new target altitude while in altitude hold |
+| Change target course | Set a new target heading while in cruise mode |
+| Beeper on/off | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
 
 ---
 

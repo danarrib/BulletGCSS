@@ -298,14 +298,30 @@ The panel shows:
 
 When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
 
+#### Security...
+
+Opens the Security panel, where you manage the Ed25519 key pair used to authenticate commands sent to the aircraft.
+
+- **Status line** — shows the current key state:
+  - *No key pair configured* — no key has been generated yet.
+  - *Key pair ready. Waiting for firmware telemetry…* — a key exists in the browser but the firmware's public key field (`pk`) has not been received yet.
+  - *⚠ Firmware has no key* — the firmware is broadcasting an all-zeros public key. Paste the public key declaration into `Config.h` and re-flash.
+  - *⚠ Firmware has a key but the UI key is missing* — the browser's key was cleared. Regenerate and re-flash.
+  - *✗ Key mismatch* — the firmware has a different key than the UI. Re-flash with the current public key.
+  - *✓ Keys match* — both sides share the same key; signed commands will be accepted.
+- **Generate key pair** — creates a new Ed25519 key pair using the browser's Web Crypto API. The private key is stored in `localStorage` (never leaves the device); the public key is stored as hex and base64.
+- **Public Key for Config.h** — a ready-to-paste C declaration for the `commandPublicKey` array. Copy it into `Config.h` and re-flash the firmware to enable command verification.
+
+> **Browser support:** Ed25519 requires Chrome 113+, Firefox 130+, or Safari 17+.
+
 #### Send command to UAV
 
 Opens the Commands panel, where you can send commands to the aircraft and view the command history.
 
-- **Ping** — sends a ping command to the aircraft. The firmware acknowledges it and the UI marks the command as **received**. If no acknowledgement arrives within 10 subsequent telemetry messages, the command is marked **lost**. This is the primary way to verify the downlink channel is working.
+- **Ping** — sends a signed ping command to the aircraft. The firmware verifies the Ed25519 signature and sequence number before acknowledging. The UI marks the command as **received** on acknowledgement, or **lost** if no acknowledgement arrives within 10 subsequent telemetry messages. This is the primary way to verify the downlink channel is working.
 - **Command history** — shows the list of commands sent in this session, each with its type, timestamp, and status (sent / received / lost).
 
-Commands are only useful when the downlink status icon is green (firmware is subscribed). Check the [Downlink Status](#downlink-status) icon before sending commands.
+Commands require a private key to be configured in the Security panel — if none is present, the command will not be sent. Commands are also only useful when the downlink status icon is green (firmware is subscribed). Check the [Security](#security) and [Downlink Status](#downlink-status) panels before sending commands.
 
 #### Save log file
 

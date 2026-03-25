@@ -43,11 +43,11 @@ Settings will be saved on your device, so next time you open Bullet GCSS, it'll 
 * Topic: (The same topic used on the modem)
 * Use TLS: Yes (keep the checkbox checked)
 
-As you may noticed, this is a public broker, which means that your aircraft will send the flight telemetry to a place where anyone can read. Also, other people can even send messages to this same topic. This messages will be sent to the UI running on your SmartPhone and may show you incorrect telemetry data. 
+As you may noticed, this is a public broker, which means that your aircraft will send the flight telemetry to a place where anyone can read. Also, other people can even send messages to this same topic. This messages will be sent to the UI running on your SmartPhone and may show you incorrect telemetry data.
 
 **If privacy is a concern for you, then you should NOT use public brokers.**
 
-> Note: Bullet GCSS has a bidirectional command channel. Injected messages will be received by the firmware, but future versions will require commands to be cryptographically signed — unsigned commands will be rejected. Until signing is implemented, using a private broker is strongly recommended if you plan to use commands.
+> **Command security:** Bullet GCSS has a bidirectional command channel. All commands sent from the UI are signed with an Ed25519 private key; the firmware verifies the signature using the matching public key stored in `Config.h`. Commands with an invalid or missing signature are silently dropped — even on a public broker, nobody can forge or replay commands to your aircraft. However, the telemetry uplink is still unauthenticated: anyone subscribed to the topic can see your aircraft's GPS position and telemetry data. For full privacy, use a private broker.
 
 ## What if I want to use another MQTT broker provider?
 

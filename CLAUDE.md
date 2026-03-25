@@ -16,7 +16,7 @@ Runs on an ESP32 board aboard the UAV. Communicates with the flight controller v
 - [msp_library.h](ESP32-Modem/msp_library.h) / [msp_library.cpp](ESP32-Modem/msp_library.cpp): MSPv2 protocol implementation (header `$X<`, flags, messageID, payload, CRC8-DVB-S2). Defines all telemetry message types.
 - [uav_status.h](ESP32-Modem/uav_status.h): Central `uav_status` struct holding all parsed telemetry (GPS, altitude, speed, battery, heading, flight mode, waypoints, callsign, etc.).
 
-**Build:** PlatformIO only (see [docs/Development-setup.md](docs/Development-setup.md)). Two environments: `esp32-sim800` (SIM800 2G) and `esp32-sim7600` (SIM7600 4G). Required libraries — managed automatically via `platformio.ini`: `PubSubClient`, `TinyGSM`, `SSLClient`.
+**Build:** PlatformIO only (see [docs/Development-setup.md](docs/Development-setup.md)). Two environments: `esp32-sim800` (SIM800 2G) and `esp32-sim7600` (SIM7600 4G). Required libraries — managed automatically via `platformio.ini`: `PubSubClient`, `TinyGSM`, `SSLClient`, `Crypto` (Rhys Weatherley's arduinolibs — Ed25519 signature verification).
 
 **Debug:** Monitor Serial at 115200 baud. Use `mosquitto_sub` or similar to inspect MQTT messages.
 
@@ -29,7 +29,7 @@ Static HTML/CSS/JS — no build step. Deployed directly to a web server.
 - [js/MapScripts.js](UI/js/MapScripts.js): OpenLayers-based map. Renders aircraft icon, real-time position updates, waypoint visualization, track/manual pan modes.
 - [js/EfisScripts.js](UI/js/EfisScripts.js): Artificial horizon, heading indicator, altitude/speed gauges — canvas-based EFIS instruments.
 - [js/InfoPanelScripts.js](UI/js/InfoPanelScripts.js): Telemetry data panels (battery, GPS, navigation, flight times).
-- [js/PageScripts.js](UI/js/PageScripts.js): Viewport, NoSleep, sidebar menu, unit conversion preferences (speed/altitude/distance). Async `DOMContentLoaded` initialises IndexedDB, restores open session state, wires session recording and replay-stop callbacks.
+- [js/PageScripts.js](UI/js/PageScripts.js): Viewport, NoSleep, sidebar menu, unit conversion preferences (speed/altitude/distance). Async `DOMContentLoaded` initialises IndexedDB, restores open session state, wires session recording and replay-stop callbacks. Also owns the Security panel — Ed25519 key pair generation (Web Crypto API), key storage in `localStorage`, and key status display (5 states: no key, waiting, mismatch, UI-only, match).
 
 **Key libraries bundled in repo:** OpenLayers ([UI/ol/](UI/ol/)), Paho MQTT JS, NoSleep, Open Location Code.
 
@@ -56,6 +56,7 @@ Web UI settings (MQTT broker, topic, credentials, units) are persisted in browse
 ## Important Notes
 
 - The MQTT broker is public by default (`broker.emqx.io`). Production deployments should use a private broker with authentication.
+- All downlink commands are signed with Ed25519 (Web Crypto API in the UI, `arduinolibs` `Ed25519::verify()` in firmware). The operator generates a key pair in the UI Security panel, pastes the public key into `Config.h`, and re-flashes. The firmware rejects any command with a missing, invalid, or replayed signature. The last accepted sequence number is persisted to ESP32 NVS so replay protection survives reboots.
 - The UI is designed mobile-first for outdoor use (dark theme, large touch targets).
 - Multiple browser clients can simultaneously monitor the same aircraft by subscribing to the same MQTT topic.
 - The PWA caches assets for offline use after first load.

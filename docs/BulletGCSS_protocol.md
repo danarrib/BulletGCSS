@@ -112,21 +112,25 @@ pv:1,bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:120
 Sent by the UI on the **downlink topic** (`bulletgcss/cmd/<callsign>`).
 
 ```
-cmd:ping,cid:ABC123,
+cmd:ping,cid:ABC123,seq:42,sig:base64base64...==,
 ```
 
 | Field | Description |
 |---|---|
 | `cmd` | Command type (e.g. `ping`) |
 | `cid` | Command ID — 6-character random alphanumeric string, unique per command |
+| `seq` | Monotonically increasing sequence number (uint32, stored in `localStorage`). Used by the firmware to reject replayed commands. |
+| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. |
 
-The firmware always replies with an **Acknowledge Message** on the uplink topic.
+The firmware verifies the signature against the stored `commandPublicKey` (32 bytes, configured in `Config.h`). Commands with an invalid signature, a missing `sig` field, a sequence number ≤ the last accepted sequence number, or sent while no public key is configured are **silently dropped** — no ack is sent. The last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot.
+
+The UI only sends commands if a private key is present in `localStorage`. See the Security panel in the UI sidebar.
 
 ---
 
 ### 5. Acknowledge Message (Firmware → UI)
 
-Sent by the firmware on the **uplink topic** in response to any valid command. Identified by the `cmd:` prefix, same as command messages.
+Sent by the firmware on the **uplink topic** in response to a verified, accepted command. Identified by the `cmd:` prefix, same as command messages.
 
 ```
 cmd:ack,cid:ABC123,
@@ -270,11 +274,13 @@ Flight mode ID values:
 | `flt` | Flight time (time since arm) | Seconds | `data.flightTime` | 0 to 86400 |
 | `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
 | `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
+| `pk` | Command signing public key (Ed25519) | Base64 (44 chars) | `data.firmwarePublicKey` | 44-char base64 string |
 
 > `pv` was introduced in protocol version 1. Firmware that predates this field sends no `pv` key; the UI treats a missing `pv` as version 1 (same as the current protocol). The version is an integer incremented only on breaking changes (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
 > `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
 > `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
 > `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
+> `pk` is always sent, including when the key is all zeros (base64 `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`), which means signing is not yet configured. The UI uses this field to verify that its stored public key matches the one flashed to the firmware. Public keys are safe to broadcast — they can only be used to verify signatures, not forge them.
 
 ---
 

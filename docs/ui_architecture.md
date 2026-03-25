@@ -82,6 +82,8 @@ The lowest-level module. Has no imports from other app modules.
 | `inRange(val, min, max)` | function | Validate a value falls within a range |
 | `rangeNumbers(...)` | function | Linear interpolation between two values |
 | `rangeNumbers360(...)` | function | Linear interpolation wrapping around 0/360 |
+| `publishCommand(cmdType)` | async function | Sign with Ed25519 and publish a command to the downlink MQTT topic. Returns the `cid` or `null` (if no private key or connection). Requires `commandPrivateKey` in `localStorage`. |
+| `commandHistory` | array | Array of `{ cid, type, timestamp, status }` objects (newest first). Statuses: `'sent'`, `'received'`, `'lost'`. |
 
 **Internal timers:**
 - `timerReplay` (1000 ms): advances the log replay frame-by-frame when `isPlayingLogFile` is true.
@@ -206,11 +208,12 @@ This is the only `<script type="module">` tag in `basicui.html`. It is the wirin
 **Responsibilities:**
 - Viewport size management (`UpdateViewPortSize`)
 - NoSleep integration (prevent screen sleep on mobile)
-- Sidebar and settings panel open/close logic (including Sessions panel)
+- Sidebar and settings panel open/close logic (including Sessions and Security panels)
 - Flight session lifecycle: initialise IndexedDB on load, restore open session state, record live messages, handle replay stop
 - MQTT broker settings UI (save, reset)
 - UI settings UI (unit preferences save)
 - Version check against `uiversion.json`
+- Security panel: Ed25519 key pair generation (`crypto.subtle`), key status display (5 states), `localStorage` migration for pre-base64 keys
 - Event listener registration for all interactive elements (replaces inline `onclick`)
 - All application timers
 
@@ -357,6 +360,9 @@ Key fields:
 | `currentMissionWaypoints` | array | Waypoint objects from the flight controller |
 | `currentFlightWaypoints` | array | GPS track recorded since arm |
 | `estimations` | object | Dead-reckoned values between telemetry frames |
+| `downlinkStatus` | 0/1 | Whether the firmware is subscribed to the command topic (`dls` field) |
+| `firmwarePublicKey` | string | Ed25519 public key broadcast by the firmware (`pk` field, base64, 44 chars). Empty string if not yet received. |
+| `protocolVersion` | number | Protocol version reported by firmware (`pv` field). Defaults to 1 if missing. |
 
 ---
 
@@ -373,11 +379,13 @@ body
 ├── #sideMenu               ← Slide-in navigation sidebar (z-index 1)
 ├── #logMenu                ← Log save/replay panel (z-index 2)
 ├── #sessionsMenu           ← Flight sessions panel (z-index 2)
+├── #commandsMenu           ← Send command / command history panel (z-index 2)
+├── #securityMenu           ← Ed25519 key pair management panel (z-index 2)
 ├── #brokerSettings         ← MQTT broker configuration panel (z-index 2)
 └── #uiSettings             ← Unit preferences panel (z-index 2)
 ```
 
-The secondary panels (logMenu, sessionsMenu, brokerSettings, uiSettings) all slide in over the primary sideMenu using z-index 2.
+The secondary panels all slide in over the primary sideMenu using z-index 2.
 
 ---
 
