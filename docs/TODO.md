@@ -27,7 +27,20 @@ Change the ping implementation to use Ed25519 message signing. UI signs the ping
 This is the foundation for all future uplink commands — once signed ping works reliably, adding new command types is straightforward.
 
 ### After step 6 — Flight controller commands
-With a verified, signed bidirectional channel in place, implement actual commands: RTH, mission upload, arm/disarm, and eventually ESP32-Cam trigger. Each command follows the same signing pattern established in step 6.
+With a verified, signed bidirectional channel in place, implement actual commands. Each command follows the same signing pattern established in step 6.
+
+Planned commands (all require Step 6 complete):
+
+| Command | Description |
+|---------|-------------|
+| RTH on/off | Activate or cancel Return to Home |
+| Mission Mode on/off | Engage or disengage autonomous waypoint mission |
+| Mission Upload | Upload a full waypoint mission to the flight controller |
+| Change current WP | Jump to a specific waypoint number within an active mission |
+| Cruise Mode on/off | Engage or disengage cruise mode |
+| Altitude Hold on/off | Engage or disengage altitude hold |
+| Change target altitude | Set a new target altitude while in altitude hold |
+| Change target course | Set a new target heading while in cruise mode |
 
 ---
 

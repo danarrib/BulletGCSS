@@ -110,6 +110,19 @@ function closeSecurityMenu() {
 function loadSecurityPanel() {
     var hasKey     = localStorage.getItem("commandPrivateKey") !== null;
     var uiBase64   = localStorage.getItem("commandPublicKeyBase64");
+
+    // Migration: derive base64 from hex if key was generated before base64 storage was added
+    if (hasKey && !uiBase64) {
+        var hexStr = localStorage.getItem("commandPublicKeyHex");
+        if (hexStr) {
+            var hexBytes = hexStr.split(',').map(function(h) { return parseInt(h.trim(), 16); });
+            if (hexBytes.length === 32) {
+                uiBase64 = btoa(String.fromCharCode.apply(null, hexBytes));
+                localStorage.setItem("commandPublicKeyBase64", uiBase64);
+            }
+        }
+    }
+
     var fwBase64   = data.firmwarePublicKey; // "" = not yet received from firmware
     var allZeros   = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // base64 of 32 zero bytes
 
