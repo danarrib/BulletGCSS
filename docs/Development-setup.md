@@ -9,7 +9,7 @@ This guide explains how to set up a local development environment for the Bullet
 PlatformIO replaces Arduino IDE for development. Key advantages:
 
 - **Cross-platform** — same workflow on Windows, macOS, and Linux.
-- **Dependency management** — libraries (`PubSubClient`, `TinyGSM`) are declared in `platformio.ini` and downloaded automatically. No manual library installation.
+- **Dependency management** — libraries (`PubSubClient`, `TinyGSM`, `SSLClient`, `Crypto`) are declared in `platformio.ini` and downloaded automatically. No manual library installation.
 - **Multiple build targets** — separate environments for SIM7600 (4G) and SIM800 (2G) in a single config file.
 - **CLI support** — works headlessly for CI/CD.
 
@@ -66,6 +66,15 @@ const char* mqttUser         = "your_username";
 const char* mqttPassword     = "your_password";
 const char* mqttUplinkTopic  = "bulletgcss/telem/your_callsign";
 const char* mqttDownlinkTopic = "bulletgcss/cmd/your_callsign";
+
+// Command signing public key (Ed25519, 32 bytes)
+// Generate in the UI Security panel, paste here, then re-flash.
+const uint8_t commandPublicKey[32] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
 
 // GPRS credentials (only needed for cellular modem)
 const char apn[]      = "your.apn";

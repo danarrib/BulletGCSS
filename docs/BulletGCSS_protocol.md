@@ -112,21 +112,25 @@ pv:1,bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:120
 Sent by the UI on the **downlink topic** (`bulletgcss/cmd/<callsign>`).
 
 ```
-cmd:ping,cid:ABC123,
+cmd:ping,cid:ABC123,seq:42,sig:base64base64...==,
 ```
 
 | Field | Description |
 |---|---|
 | `cmd` | Command type (e.g. `ping`) |
 | `cid` | Command ID — 6-character random alphanumeric string, unique per command |
+| `seq` | Monotonically increasing sequence number (uint32, stored in `localStorage`). Used by the firmware to reject replayed commands. |
+| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. |
 
-The firmware always replies with an **Acknowledge Message** on the uplink topic.
+The firmware verifies the signature against the stored `commandPublicKey` (32 bytes, configured in `Config.h`). Commands with an invalid signature, a missing `sig` field, a sequence number ≤ the last accepted sequence number, or sent while no public key is configured are **silently dropped** — no ack is sent. The last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot.
+
+The UI only sends commands if a private key is present in `localStorage`. See the Security panel in the UI sidebar.
 
 ---
 
 ### 5. Acknowledge Message (Firmware → UI)
 
-Sent by the firmware on the **uplink topic** in response to any valid command. Identified by the `cmd:` prefix, same as command messages.
+Sent by the firmware on the **uplink topic** in response to a verified, accepted command. Identified by the `cmd:` prefix, same as command messages.
 
 ```
 cmd:ack,cid:ABC123,

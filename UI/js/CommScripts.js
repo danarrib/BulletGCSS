@@ -323,10 +323,50 @@ var pendingCommands = {};
 // commandHistory: array of { cid, type, timestamp, status } — newest first
 export var commandHistory = [];
 
-export function publishCommand(cmdType) {
+function getNextCommandSeq() {
+    var seq = parseInt(localStorage.getItem("commandSeq") || "0", 10) + 1;
+    localStorage.setItem("commandSeq", String(seq));
+    return seq;
+}
+
+async function signCanonical(canonical) {
+    var privateKeyJwk = localStorage.getItem("commandPrivateKey");
+    if (!privateKeyJwk) throw new Error("No private key in localStorage");
+    var privateKey = await window.crypto.subtle.importKey(
+        "jwk",
+        JSON.parse(privateKeyJwk),
+        { name: "Ed25519" },
+        false,
+        ["sign"]
+    );
+    var sigBytes = await window.crypto.subtle.sign(
+        { name: "Ed25519" },
+        privateKey,
+        new TextEncoder().encode(canonical)
+    );
+    var bytes = new Uint8Array(sigBytes);
+    var binary = "";
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
+export async function publishCommand(cmdType) {
     if (!mqttConnected || !commandTopic) return null;
+    if (!localStorage.getItem("commandPrivateKey")) {
+        console.warn("publishCommand: no private key configured — command not sent");
+        return null;
+    }
     var cid = generateCid();
-    var payload = 'cmd:' + cmdType + ',cid:' + cid + ',';
+    var seq = getNextCommandSeq();
+    var canonical = "cmd:" + cmdType + ",cid:" + cid + ",seq:" + seq;
+    var sig;
+    try {
+        sig = await signCanonical(canonical);
+    } catch (e) {
+        console.error("publishCommand: signing failed:", e);
+        return null;
+    }
+    var payload = canonical + ",sig:" + sig + ",";
     var entry = { cid: cid, type: cmdType, timestamp: Date.now(), status: 'sent' };
     pendingCommands[cid] = { type: cmdType, messageCount: 0 };
     commandHistory.unshift(entry);
@@ -334,7 +374,7 @@ export function publishCommand(cmdType) {
     message.destinationName = commandTopic;
     message.qos = 0;
     mqtt.send(message);
-    console.log('Command sent: ' + payload);
+    console.log("Command sent: " + payload);
     return cid;
 }
 

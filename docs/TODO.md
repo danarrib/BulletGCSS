@@ -21,10 +21,10 @@ Two MQTT topics configured separately — uplink (`bulletgcss/telem/<callsign>`)
 ### ~~Step 5 — Key pair setup and distribution~~ ✓ COMPLETE
 UI generates an Ed25519 key pair using the Web Crypto API. Private key stored as JWK in `localStorage`; public key stored as hex. A new **Security** panel in the sidebar displays the ready-to-paste C declaration (`const uint8_t commandPublicKey[32] = { ... };`) with a copy button. `Config.h.example` now includes the `commandPublicKey` field (all zeros until the user generates and pastes a real key). The chosen approach is **Manual (Option A)** — the public key never travels over any network.
 
-### Step 6 — Encrypted ping
-Change the ping implementation to use Ed25519 message signing. UI signs the ping with the private key; firmware verifies with the stored public key before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks.
+### ~~Step 6 — Encrypted ping~~ ✓ COMPLETE
+All commands (starting with ping) use Ed25519 message signing. UI signs every command with the private key; firmware verifies with the stored `commandPublicKey` before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks, and the last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot. Commands with a bad signature, missing fields, replayed sequence numbers, or sent without a configured public key are silently dropped (no ack).
 
-This is the foundation for all future uplink commands — once signed ping works reliably, adding new command types is straightforward.
+This is the foundation for all future uplink commands — adding new command types only requires dispatching on `cmd` in `mqttCommandCallback` after the shared verification logic passes.
 
 ### After step 6 — Flight controller commands
 With a verified, signed bidirectional channel in place, implement actual commands. Each command follows the same signing pattern established in step 6.
