@@ -18,11 +18,8 @@ The following sequence defines the planned implementation order. Each step is a 
 ### ~~Step 4 — Bidirectional channel setup + ping~~ ✓ COMPLETE
 Two MQTT topics configured separately — uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`). Firmware subscribes to downlink on connect, reports `dls:0/1` in telemetry. UI shows a downlink status icon. Commands carry a 6-character random `cid`; firmware echoes it back in `id:ack,cid:...,`. UI tracks pending commands and marks them received or lost (no ack after 10 messages). "Send command to UAV" panel in the sidebar has a Ping button and a live command history list.
 
-### Step 5 — Key pair setup and distribution
-UI generates an Ed25519 key pair. Private key stored in `localStorage` (foundation laid in step 2). Public key must reach the firmware securely so it can verify signed commands.
-
-**Chosen approach: Manual (Option A)**
-The UI displays the generated public key and provides a copy button. The user pastes it into `Config.h` and re-flashes the firmware. Fully secure — the public key never travels over any network. Requires re-flashing if the operator changes devices or regenerates the key pair, which is acceptable for this use case.
+### ~~Step 5 — Key pair setup and distribution~~ ✓ COMPLETE
+UI generates an Ed25519 key pair using the Web Crypto API. Private key stored as JWK in `localStorage`; public key stored as hex. A new **Security** panel in the sidebar displays the ready-to-paste C declaration (`const uint8_t commandPublicKey[32] = { ... };`) with a copy button. `Config.h.example` now includes the `commandPublicKey` field (all zeros until the user generates and pastes a real key). The chosen approach is **Manual (Option A)** — the public key never travels over any network.
 
 ### Step 6 — Encrypted ping
 Change the ping implementation to use Ed25519 message signing. UI signs the ping with the private key; firmware verifies with the stored public key before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks.

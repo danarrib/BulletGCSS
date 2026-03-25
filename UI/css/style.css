@@ -194,7 +194,8 @@ body {
   .sidebar .closebtn,
   #brokerSettings .closebtn,
   #uiSettings .closebtn,
-  #commandsMenu .closebtn
+  #commandsMenu .closebtn,
+  #securityMenu .closebtn
   {
     position: absolute;
     top: 0;
@@ -207,7 +208,8 @@ body {
 #uiSettings,
 #logMenu,
 #sessionsMenu,
-#commandsMenu
+#commandsMenu,
+#securityMenu
 {
     height: 100%;
     width: 0;
@@ -226,7 +228,8 @@ body {
 #brokerSettings p,
 #uiSettings p,
 #sessionsMenu p,
-#commandsMenu p
+#commandsMenu p,
+#securityMenu p
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -237,7 +240,8 @@ body {
 #brokerSettings h3,
 #uiSettings h3,
 #sessionsMenu h3,
-#commandsMenu h3
+#commandsMenu h3,
+#securityMenu h3
 {
     margin-left: 5vmin;
     font-size: 1.5em;
@@ -254,6 +258,8 @@ body {
 #sessionsMenu input[type=text],
 #sessionsMenu input[type=button],
 #commandsMenu input[type=button],
+#securityMenu input[type=button],
+#securityMenu textarea,
 select
 {
     font-size: 1em;
@@ -263,11 +269,22 @@ select
 #brokerSettings input[type=button],
 #uiSettings input[type=button],
 #sessionsMenu input[type=button],
-#commandsMenu input[type=button]
+#commandsMenu input[type=button],
+#securityMenu input[type=button]
 {
     font-size: 1em;
     width: 90%;
     height: 2em;
+}
+
+#securityMenu textarea {
+    font-family: monospace;
+    font-size: 0.75em;
+    height: 7em;
+    resize: none;
+    background-color: #444;
+    color: #eee;
+    border: 1px solid #888;
 }
 
 .settingsColumn {
@@ -336,7 +353,8 @@ select
         .sidebar a,
         #brokerSettings a,
         #uiSettings a,
-        #commandsMenu a
+        #commandsMenu a,
+        #securityMenu a
         {
             padding-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }
@@ -346,7 +364,9 @@ select
         #uiSettings p,
         #uiSettings h3,
         #commandsMenu p,
-        #commandsMenu h3
+        #commandsMenu h3,
+        #securityMenu p,
+        #securityMenu h3
         {
             margin-left: calc(5vmin + max(0px, env(safe-area-inset-left)));
         }

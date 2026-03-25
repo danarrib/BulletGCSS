@@ -97,6 +97,73 @@ function updateCommandsPanel() {
     renderCommandHistory();
 }
 
+function openSecurityMenu() {
+    loadSecurityPanel();
+    document.getElementById("securityMenu").style.width = "100%";
+    closeNav();
+}
+
+function closeSecurityMenu() {
+    document.getElementById("securityMenu").style.width = "0";
+}
+
+function loadSecurityPanel() {
+    var hasKey = localStorage.getItem("commandPrivateKey") !== null;
+    document.getElementById("securityKeyStatus").textContent = hasKey
+        ? "Key pair stored. Copy the public key below into Config.h."
+        : "No key pair generated yet.";
+    var pubKeyHex = localStorage.getItem("commandPublicKeyHex");
+    document.getElementById("securityPublicKeyArea").value = hasKey && pubKeyHex
+        ? "const uint8_t commandPublicKey[32] = { " + pubKeyHex + " };"
+        : "";
+    document.getElementById("btCopyPublicKey").style.display = hasKey ? "block" : "none";
+    document.getElementById("securityKeyHint").style.display = hasKey ? "block" : "none";
+    document.getElementById("btGenerateKey").value = hasKey ? "Regenerate key pair" : "Generate key pair";
+}
+
+async function generateKeyPair() {
+    var hasKey = localStorage.getItem("commandPrivateKey") !== null;
+    if (hasKey) {
+        if (!confirm("Generating a new key pair will require re-flashing the firmware with the new public key. The existing key pair will be lost.\n\nContinue?")) {
+            return;
+        }
+    }
+    try {
+        var keyPair = await window.crypto.subtle.generateKey(
+            { name: "Ed25519" },
+            true,
+            ["sign", "verify"]
+        );
+        var privateKeyJwk = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
+        localStorage.setItem("commandPrivateKey", JSON.stringify(privateKeyJwk));
+
+        var publicKeyRaw = await window.crypto.subtle.exportKey("raw", keyPair.publicKey);
+        var bytes = new Uint8Array(publicKeyRaw);
+        var hexArray = Array.from(bytes).map(function(b) {
+            return '0x' + b.toString(16).padStart(2, '0');
+        }).join(', ');
+        localStorage.setItem("commandPublicKeyHex", hexArray);
+
+        loadSecurityPanel();
+    } catch(e) {
+        alert("Error generating key pair: " + e.message + "\n\nYour browser may not support Ed25519. Please use Chrome 113+, Firefox 130+, or Safari 17+.");
+    }
+}
+
+async function copyPublicKey() {
+    var text = document.getElementById("securityPublicKeyArea").value;
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("btCopyPublicKey").value = "Copied!";
+        setTimeout(function() {
+            document.getElementById("btCopyPublicKey").value = "Copy to clipboard";
+        }, 2000);
+    } catch(e) {
+        document.getElementById("securityPublicKeyArea").select();
+    }
+}
+
 function renderCommandHistory() {
     var container = document.getElementById("commandsList");
     if (commandHistory.length === 0) {
@@ -442,6 +509,10 @@ document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
 document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
+document.getElementById("navSecurityMenu").addEventListener("click", openSecurityMenu);
+document.getElementById("closeSecurityMenu").addEventListener("click", closeSecurityMenu);
+document.getElementById("btGenerateKey").addEventListener("click", generateKeyPair);
+document.getElementById("btCopyPublicKey").addEventListener("click", copyPublicKey);
 document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
 document.getElementById("btSendPing").addEventListener("click", function() {
     if (data.downlinkStatus !== 1) return;

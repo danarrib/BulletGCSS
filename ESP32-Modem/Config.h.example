@@ -45,6 +45,17 @@ const char* mqttPassword = "your_mqtt_password";
 const char* mqttUplinkTopic = "bulletgcss/telem/your_callsign"; // Telemetry topic — firmware publishes here, UI subscribes
 const char* mqttDownlinkTopic = "bulletgcss/cmd/your_callsign"; // Command topic — UI publishes here, firmware subscribes
 
+// Command signing public key (Ed25519, 32 bytes)
+// Generate this in the UI Security panel, then paste the declaration here and re-flash.
+// All zeros means signing is not yet configured — command verification will be
+// enforced in a future firmware update (Step 6 of the roadmap).
+const uint8_t commandPublicKey[32] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
 // SIM card PIN — leave empty if your SIM has no PIN lock.
 // If set, the firmware will unlock the SIM before connecting to the network.
 // A wrong PIN will cause the firmware to restart and log an error to Serial.

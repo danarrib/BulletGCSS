@@ -165,6 +165,7 @@
 		<a href="javascript:void(0)" id="navLogOptions">Log options...</a>
 		<a href="#" id="missionplannerlink">Mission planner</a>
 		<a href="javascript:void(0)" id="senduavcommandlink">Send command to UAV...</a>
+		<a href="javascript:void(0)" id="navSecurityMenu">Security...</a>
 		<a href="#" id="inavsettingslink">INAV settings...</a>
 		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help - Online manual</a>
 		<a href="javascript:void(0)" id="navRefreshApp" class="notification">
@@ -200,6 +201,17 @@
 		</div>
 		<h3>Command History</h3>
 		<div id="commandsList"></div>
+	</div>
+
+	<div id="securityMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" id="closeSecurityMenu">&times;</a>
+		<h3>Command Security</h3>
+		<p id="securityKeyStatus">No key pair generated yet.</p>
+		<p><input type="button" id="btGenerateKey" value="Generate key pair" /></p>
+		<h3>Public Key for Config.h</h3>
+		<p><textarea id="securityPublicKeyArea" readonly rows="5" placeholder="Generate a key pair first."></textarea></p>
+		<p><input type="button" id="btCopyPublicKey" value="Copy to clipboard" style="display:none;" /></p>
+		<p id="securityKeyHint" style="display:none; color:#aaa;">Paste this line into Config.h and re-flash the firmware to enable command verification.</p>
 	</div>
 
 	<div id="sessionsMenu" class="sidebar">
