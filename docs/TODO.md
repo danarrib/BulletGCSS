@@ -41,6 +41,7 @@ Planned commands (all require Step 6 complete):
 | Altitude Hold on/off | Engage or disengage altitude hold |
 | Change target altitude | Set a new target altitude while in altitude hold |
 | Change target course | Set a new target heading while in cruise mode |
+| Beeper on/off | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
 
 ---
 
