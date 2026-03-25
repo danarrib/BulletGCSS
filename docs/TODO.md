@@ -31,17 +31,19 @@ With a verified, signed bidirectional channel in place, implement actual command
 
 Planned commands (all require Step 6 complete):
 
-| Command | Description |
-|---------|-------------|
-| RTH on/off | Activate or cancel Return to Home |
-| Mission Mode on/off | Engage or disengage autonomous waypoint mission |
-| Mission Upload | Upload a full waypoint mission to the flight controller |
-| Change current WP | Jump to a specific waypoint number within an active mission |
-| Cruise Mode on/off | Engage or disengage cruise mode |
-| Altitude Hold on/off | Engage or disengage altitude hold |
-| Change target altitude | Set a new target altitude while in altitude hold |
-| Change target course | Set a new target heading while in cruise mode |
-| Beeper on/off | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
+| Command | MSP command | Description |
+|---------|-------------|-------------|
+| RTH on/off | TBD | Activate or cancel Return to Home |
+| Mission Mode on/off | TBD | Engage or disengage autonomous waypoint mission |
+| Mission Upload | `MSP_SET_WP` | Upload a full waypoint mission to the flight controller. `MSP_SET_WP` is already defined in `msp_library.h` along with the `msp_set_wp_t` struct — read that definition before implementing. |
+| Change current WP | TBD | Jump to a specific waypoint number within an active mission |
+| Cruise Mode on/off | TBD | Engage or disengage cruise mode |
+| Altitude Hold on/off | TBD | Engage or disengage altitude hold |
+| Change target altitude | TBD | Set a new target altitude while in altitude hold |
+| Change target course | TBD | Set a new target heading while in cruise mode |
+| Beeper on/off | TBD | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
+
+> **MSP note:** Before implementing any flight controller command, read the relevant MSP message definition in `msp_library.h` to understand the required payload structure. `MSP_SET_WP` and `msp_set_wp_t` are already defined there and can serve as a reference for how other write commands should be structured.
 
 ---
 
