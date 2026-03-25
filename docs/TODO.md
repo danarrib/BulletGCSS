@@ -33,17 +33,19 @@ Planned commands (all require Step 6 complete):
 
 | Command | MSP command | Description |
 |---------|-------------|-------------|
-| RTH on/off | TBD | Activate or cancel Return to Home |
-| Mission Mode on/off | TBD | Engage or disengage autonomous waypoint mission |
+| RTH on/off | `MSP_SET_RAW_RC` | Activate or cancel Return to Home |
+| Mission Mode on/off | `MSP_SET_RAW_RC` | Engage or disengage autonomous waypoint mission |
 | Mission Upload | `MSP_SET_WP` | Upload a full waypoint mission to the flight controller. `MSP_SET_WP` is already defined in `msp_library.h` along with the `msp_set_wp_t` struct — read that definition before implementing. |
 | Change current WP | TBD | Jump to a specific waypoint number within an active mission |
-| Cruise Mode on/off | TBD | Engage or disengage cruise mode |
-| Altitude Hold on/off | TBD | Engage or disengage altitude hold |
+| Cruise Mode on/off | `MSP_SET_RAW_RC` | Engage or disengage cruise mode |
+| Altitude Hold on/off | `MSP_SET_RAW_RC` | Engage or disengage altitude hold |
 | Change target altitude | TBD | Set a new target altitude while in altitude hold |
 | Change target course | TBD | Set a new target heading while in cruise mode |
 | Beeper on/off | TBD | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
 
 > **MSP note:** Before implementing any flight controller command, read the relevant MSP message definition in `msp_library.h` to understand the required payload structure. `MSP_SET_WP` and `msp_set_wp_t` are already defined there and can serve as a reference for how other write commands should be structured.
+>
+> **Flight mode switching via `MSP_SET_RAW_RC`:** INAV flight modes (RTH, Waypoint, Cruise, Altitude Hold, etc.) are activated by setting RC channel values that fall within the mode's configured range in INAV's mode settings. For example, if RTH is assigned to CH6 with a range of 1500–2000, sending `MSP_SET_RAW_RC` with CH6 = 1750 (midpoint) activates RTH; setting CH6 back to 1000 (below the range) cancels it. The firmware must read the current RC channel values first (`MSP_RC`), then overwrite only the target channel, and send all channels back with `MSP_SET_RAW_RC`. The specific channel and range for each mode are configured by the user in INAV and must either be communicated to the ground station or made user-configurable in `Config.h`.
 
 ---
 
