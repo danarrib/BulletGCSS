@@ -43,6 +43,10 @@ Planned commands (all require Step 6 complete):
 | Change target course | `MSP_SET_HEAD` (211) | ✗ Missing | Need to add `#define MSP_SET_HEAD 211` and a 2-byte `uint16_t heading` struct to `msp_library.h` |
 | Beeper on/off | `MSP_SET_RAW_RC` (200) | ✓ | No dedicated beeper MSP command exists. Use BOXBEEPERON (box index 11) via RC channel — already defined in `msp_library.h` |
 
+#### Reference implementation
+
+- [stronnag/msp_set_rx](https://github.com/stronnag/msp_set_rx) — reference implementation demonstrating `MSP_SET_RAW_RC` usage for INAV/Betaflight. Read this before implementing any RC channel commands.
+
 #### MSP implementation notes (from INAV source research)
 
 **Prerequisites — INAV configuration:**
