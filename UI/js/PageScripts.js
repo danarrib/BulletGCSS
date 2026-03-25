@@ -108,10 +108,36 @@ function closeSecurityMenu() {
 }
 
 function loadSecurityPanel() {
-    var hasKey = localStorage.getItem("commandPrivateKey") !== null;
-    document.getElementById("securityKeyStatus").textContent = hasKey
-        ? "Key pair stored. Copy the public key below into Config.h."
-        : "No key pair generated yet.";
+    var hasKey     = localStorage.getItem("commandPrivateKey") !== null;
+    var uiBase64   = localStorage.getItem("commandPublicKeyBase64");
+    var fwBase64   = data.firmwarePublicKey; // "" = not yet received from firmware
+    var allZeros   = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // base64 of 32 zero bytes
+
+    var statusEl   = document.getElementById("securityKeyStatus");
+    var statusText, statusColor;
+
+    if (!hasKey && (!fwBase64 || fwBase64 === allZeros)) {
+        statusText  = "No key pair configured. Generate one below.";
+        statusColor = "#aaa";
+    } else if (!hasKey && fwBase64 && fwBase64 !== allZeros) {
+        statusText  = "\u26a0 Firmware has a key but the UI key is missing (localStorage cleared?). Regenerate and re-flash.";
+        statusColor = "#f90";
+    } else if (hasKey && !fwBase64) {
+        statusText  = "Key pair ready. Waiting for firmware telemetry\u2026";
+        statusColor = "#aaa";
+    } else if (hasKey && fwBase64 === allZeros) {
+        statusText  = "\u26a0 Firmware has no key. Paste the public key into Config.h and re-flash.";
+        statusColor = "#f90";
+    } else if (hasKey && fwBase64 === uiBase64) {
+        statusText  = "\u2713 Keys match. Firmware is ready for signed commands.";
+        statusColor = "#3f3";
+    } else {
+        statusText  = "\u2717 Key mismatch! Re-flash the firmware with the current public key.";
+        statusColor = "#f44";
+    }
+    statusEl.textContent = statusText;
+    statusEl.style.color = statusColor;
+
     var pubKeyHex = localStorage.getItem("commandPublicKeyHex");
     document.getElementById("securityPublicKeyArea").value = hasKey && pubKeyHex
         ? "const uint8_t commandPublicKey[32] = { " + pubKeyHex + " };"
@@ -143,6 +169,9 @@ async function generateKeyPair() {
             return '0x' + b.toString(16).padStart(2, '0');
         }).join(', ');
         localStorage.setItem("commandPublicKeyHex", hexArray);
+
+        var base64Key = btoa(String.fromCharCode.apply(null, bytes));
+        localStorage.setItem("commandPublicKeyBase64", base64Key);
 
         loadSecurityPanel();
     } catch(e) {
@@ -591,6 +620,8 @@ window.addEventListener("DOMContentLoaded", async function() {
 
         if (document.getElementById("commandsMenu").style.width === "100%")
             updateCommandsPanel();
+        if (document.getElementById("securityMenu").style.width === "100%")
+            loadSecurityPanel();
     }, pageSettings.mapAndDataRefreshInterval);
 
     var timerOneSecond = setInterval(function(){

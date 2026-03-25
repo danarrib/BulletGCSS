@@ -270,11 +270,13 @@ Flight mode ID values:
 | `flt` | Flight time (time since arm) | Seconds | `data.flightTime` | 0 to 86400 |
 | `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
 | `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
+| `pk` | Command signing public key (Ed25519) | Base64 (44 chars) | `data.firmwarePublicKey` | 44-char base64 string |
 
 > `pv` was introduced in protocol version 1. Firmware that predates this field sends no `pv` key; the UI treats a missing `pv` as version 1 (same as the current protocol). The version is an integer incremented only on breaking changes (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
 > `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
 > `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
 > `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
+> `pk` is always sent, including when the key is all zeros (base64 `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`), which means signing is not yet configured. The UI uses this field to verify that its stored public key matches the one flashed to the firmware. Public keys are safe to broadcast — they can only be used to verify signatures, not forge them.
 
 ---
 

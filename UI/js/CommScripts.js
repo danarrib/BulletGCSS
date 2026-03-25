@@ -451,6 +451,7 @@ export function resetDataObject()
         mWhDraw: 0,
         protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
         downlinkStatus: 0, // 0 = firmware not subscribed to command topic, 1 = subscribed ok
+        firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
         estimations: {
@@ -872,6 +873,11 @@ function parseStandardTelemetryMessage(payload)
                     data.protocolVersion = raw;
                     console.log("Protocol version: " + raw);
                 }
+                break;
+            case "pk":
+                // Base64-encoded Ed25519 public key (44 chars: 43 base64 chars + 1 '=' padding)
+                if (/^[A-Za-z0-9+/]{43}=$/.test(arrData[1]))
+                    data.firmwarePublicKey = arrData[1];
                 break;
             default:
                 break;

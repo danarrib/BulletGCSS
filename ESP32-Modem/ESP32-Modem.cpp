@@ -188,6 +188,7 @@ void sendMessageTask();
 void sendWaypointsMessage();
 void buildTelemetryMessage(char* message);
 void buildLowPriorityMessage(char* message);
+void base64Encode32(const uint8_t* input, char* output);
 void sendMessage(char* message);
 void connectToTheBroker();
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1091,8 +1092,31 @@ void buildLowPriorityMessage(char* message) {
   sprintf(message, "%sflt:%d,", message, uavstatus.flightTime); // flightTime
 
   sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
-  
+
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
+
+  char pkBase64[45];
+  base64Encode32(commandPublicKey, pkBase64);
+  sprintf(message, "%spk:%s,", message, pkBase64); // public key (Ed25519, base64)
+}
+
+// Encode exactly 32 bytes as base64 (output must be at least 45 bytes: 44 chars + null).
+// 32 bytes = 10 complete 3-byte groups (30 bytes) + 1 partial group of 2 bytes.
+void base64Encode32(const uint8_t* input, char* output) {
+  static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  int out = 0;
+  for (int i = 0; i < 30; i += 3) {
+    output[out++] = b64[input[i] >> 2];
+    output[out++] = b64[((input[i] & 0x03) << 4) | (input[i+1] >> 4)];
+    output[out++] = b64[((input[i+1] & 0x0f) << 2) | (input[i+2] >> 6)];
+    output[out++] = b64[input[i+2] & 0x3f];
+  }
+  // Remaining 2 bytes (indices 30, 31)
+  output[out++] = b64[input[30] >> 2];
+  output[out++] = b64[((input[30] & 0x03) << 4) | (input[31] >> 4)];
+  output[out++] = b64[(input[31] & 0x0f) << 2];
+  output[out++] = '=';
+  output[out]   = '\0';
 }
 
 void sendMessage(char* message) {
