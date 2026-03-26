@@ -33,55 +33,47 @@ Planned commands (all require Step 6 complete):
 
 | Command | MSP command | In msp_library.h? | Notes |
 |---------|-------------|-------------------|-------|
-| RTH on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set BOXNAVRTH RC channel to 1750 (on) or 1000 (off) |
-| Mission Mode on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set BOXNAVWP RC channel to 1750 (on) or 1000 (off) |
+| RTH on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdRth` in the active boxes bitmask |
+| Mission Mode on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdWaypoint` in the active boxes bitmask |
 | Mission Upload | `MSP_SET_WP` (209) | ✓ | Send waypoints sequentially; `msp_set_wp_t` struct already defined |
-| Change current WP | `MSP_SET_WP` (209) | ✓ | Use `action = 0x06` (JUMP) with `param1` = target waypoint index |
-| Cruise Mode on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set BOXNAVCRUISE RC channel to 1750 (on) or 1000 (off) |
-| Altitude Hold on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set BOXNAVALTHOLD RC channel to 1750 (on) or 1000 (off) |
-| Change target altitude | `MSP_SET_WP` (209) | ✓ | No direct altitude set command — create a waypoint at the desired altitude and jump to it |
-| Change target course | `MSP_SET_HEAD` (211) | ✗ Missing | Need to add `#define MSP_SET_HEAD 211` and a 2-byte `uint16_t heading` struct to `msp_library.h` |
-| Beeper on/off | `MSP_SET_RAW_RC` (200) | ✓ | No dedicated beeper MSP command exists. Use BOXBEEPERON (box index 11) via RC channel — already defined in `msp_library.h` |
+| Change current WP | TBD | TBD | Needs further research |
+| Cruise Mode on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdCruise` in the active boxes bitmask |
+| Altitude Hold on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdAltHold` in the active boxes bitmask |
+| Change target altitude | TBD | TBD | Needs further research |
+| Change target course | TBD | TBD | Needs further research |
+| Beeper on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for the BEEPER box in the active boxes bitmask |
 
 #### Reference implementation
 
-- [stronnag/msp_set_rx](https://github.com/stronnag/msp_set_rx) — reference implementation demonstrating `MSP_SET_RAW_RC` usage for INAV/Betaflight. Read this before implementing any RC channel commands.
+- [stronnag/msp_set_rx](https://github.com/stronnag/msp_set_rx) — reference implementation demonstrating MSP RC/box commands for INAV/Betaflight. Read this before implementing.
 
-#### MSP implementation notes (from INAV source research)
+#### MSP implementation notes
 
-**Prerequisites — INAV configuration:**
-- `MSP_SET_RAW_RC` requires the **MSP RX** receiver type to be selected in INAV configurator (Receiver tab → Receiver type → MSP). Without this, the FC ignores `MSP_SET_RAW_RC` entirely.
-- Once MSP RX is active, the FC treats the MSP channel values as its RC input. The physical RC receiver is bypassed. This is safe for autonomous commands but means the real RC stick input is also overridden while MSP RX is active.
+**How INAV flight mode (BOX) activation works:**
 
-**MSP_SET_RAW_RC (200) — flight mode switching:**
-- Payload: array of `uint16_t` channel values (little-endian), 2 bytes each, up to 16–18 channels.
-- Must send **all channels** in one message, not just the one being changed. Read current values first with `MSP_RC` (105), modify only the target channel, then send all back.
-- Channel PWM values: 1000 = off/low, 1500 = mid, 2000 = high. Use 1750 to activate a mode mapped to the upper half of the range.
-- The channel-to-mode mapping is set by the user in INAV and is not readable via MSP at runtime. This mapping must be made configurable in `Config.h` (one entry per command: channel index + activation PWM value).
-- Both `MSP_RC` and `MSP_SET_RAW_RC` are already defined in `msp_library.h`.
+The firmware already uses this mechanism for reading — the same pattern runs in reverse for writing:
 
-**MSP_SET_WP (209) — waypoint upload and jump:**
-- Payload: 21 bytes (`msp_set_wp_t`, already defined).
-- Waypoint action values (add as enum to `msp_library.h`):
-  - `0x01` = fly to waypoint
-  - `0x03` = hold position for `param1` seconds
-  - `0x04` = RTH (`param1 = 1` to land)
-  - `0x06` = **JUMP** to waypoint index in `param1` (use for "change current WP")
-  - `0x07` = set heading to `param1` degrees
-  - `0x08` = land
-- Flag byte: `0xA5` = last waypoint in mission, `0x00` = normal, `0x48` = home position.
+1. On startup, `MSP_BOXNAMES` is called. INAV returns a list of box names in index order. The firmware walks this list and records the index of each mode it cares about (`boxIdRth`, `boxIdWaypoint`, `boxIdCruise`, `boxIdAltHold`, etc.) as global `uint8_t` variables. These are already populated in `ESP32-Modem.cpp`.
+
+2. `MSP_ACTIVEBOXES` returns a 64-bit bitmask. Bit N is set if the box at index N is currently active. The firmware reads this bitmask and checks `(boxes64 & (1LL << boxIdRth))` etc. to determine the current flight mode.
+
+3. To **activate** a flight mode, send `MSP_SET_BOX` (203) with the same 64-bit bitmask, but with the target bit set. To **deactivate**, send the bitmask with that bit cleared.
+
+**Implementation approach for mode commands:**
+- Read the current bitmask with `MSP_ACTIVEBOXES`.
+- Set or clear the relevant bit using the already-stored `boxId*` variable.
+- Send the modified bitmask back with `MSP_SET_BOX`.
+- No RC channel mapping configuration needed — the box indices are discovered automatically at startup via `MSP_BOXNAMES`.
+
+**What needs to be added to `msp_library.h`:**
+- `#define MSP_SET_BOX 203` — not currently defined.
+- The payload for `MSP_SET_BOX` mirrors `MSP_ACTIVEBOXES`: a 64-bit (or variable-width) bitmask. Confirm the exact payload format from the INAV source before implementing.
+
+**MSP_SET_WP (209) — waypoint upload:**
+- Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
 - Coordinates: degrees × 10⁷ (int32). Altitude: centimetres (int32).
-- Send waypoints sequentially (index 1, 2, 3 … N), last one with flag `0xA5`.
-
-**MSP_SET_HEAD (211) — set heading hold target:**
-- Payload: 2 bytes — `uint16_t heading` (0–359°, little-endian).
-- Only effective when a heading-hold mode (e.g. HEADINGHOLD, MAG) is active.
-- **Not yet defined in `msp_library.h`** — must add `#define MSP_SET_HEAD 211` and a matching packed struct before implementing.
-
-**What needs to be added to `msp_library.h` before implementation:**
-1. `#define MSP_SET_HEAD 211` with a `msp_set_head_t { uint16_t heading; }` struct.
-2. Waypoint action enum (`NAV_WP_ACTION_WAYPOINT`, `NAV_WP_ACTION_JUMP`, etc.) for readability.
-3. Navigation mode/state enums if needed for status reading.
+- Send waypoints sequentially (index 1, 2, … N). Mark the last one with flag `0xA5`.
+- Waypoint action enum values to add for readability: `0x01` = fly to WP, `0x03` = hold, `0x04` = RTH, `0x06` = jump, `0x07` = set heading, `0x08` = land.
 
 ---
 
