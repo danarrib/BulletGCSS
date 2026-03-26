@@ -66,6 +66,7 @@ struct uav_status
     uint8_t navState;
     uint8_t isWpMissionValid;
     uint8_t downlinkStatus; // 1 = subscribed to command topic ok, 0 = not subscribed
+    uint8_t mspRcOverride;  // 1 = MSP RC Override flight mode is active, 0 = not active
 
     // Low priority information
     uint32_t onTime; 
