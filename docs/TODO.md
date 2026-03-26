@@ -52,26 +52,62 @@ Planned commands (all require Step 6 complete):
 **Why `MSP_SET_RAW_RC` and not `MSP_SET_BOX`:**
 `MSP_SET_BOX` (203) is defined in the MSP protocol spec but was **never implemented in INAV**. There is no direct way to toggle flight modes via MSP. The only supported mechanism is `MSP_SET_RAW_RC` — simulating RC channel input so that INAV's normal mode-switching logic activates the desired box.
 
-**How INAV reads RC channels (BOX activation):**
+**How the firmware discovers channel-to-mode mapping — `MSP_MODE_RANGES` (34):**
 
-The firmware already reads box state this way on the telemetry side:
-1. `MSP_BOXNAMES` at startup → discovers the index of each box (stored as `boxIdRth`, `boxIdWaypoint`, etc.).
-2. `MSP_ACTIVEBOXES` each cycle → 64-bit bitmask, bit N set if box at index N is active.
+Rather than hardcoding channel assignments in `Config.h`, the firmware can query `MSP_MODE_RANGES` at startup. INAV returns up to 40 entries (one per configured mode condition), each exactly 4 bytes:
 
-To **activate** a box, `MSP_SET_RAW_RC` must set the RC channel that the user has mapped to that box in INAV's mode configuration to a PWM value within the configured activation range (typically 1700–2000). To **deactivate**, set it back below the range (typically 900–1300).
+```
+uint8_t permanentId     // Box permanent ID (see table below)
+uint8_t auxChannelIndex // AUX channel, 0-based (AUX1=0, AUX2=1, ...)
+uint8_t startStep       // Range start, in steps
+uint8_t endStep         // Range end, in steps
+```
 
-**Open design question — channel mapping:**
-The RC channel assigned to each flight mode is configured by the user in INAV and is not readable via MSP at runtime. The firmware needs to know which channel controls which mode. Options:
-- **Option A:** Make it user-configurable in `Config.h` (e.g. `#define CMD_RTH_CHANNEL 6`, `#define CMD_RTH_ON_VALUE 1750`, `#define CMD_RTH_OFF_VALUE 1000`).
-- **Option B:** Read `MSP_BOXIDS` and `MSP_RC` at startup to try to infer mappings — complex and unreliable.
+Steps are converted to PWM values with: `PWM = 900 + step × 25`
+- Step 0 = 900 µs, step 24 = 1500 µs, step 48 = 2100 µs
 
-Option A is the practical choice. This needs to be decided before implementation.
+The `auxChannelIndex` is 0-based AUX channel. Since channels 1–4 are typically AETR sticks, `MSP_SET_RAW_RC` channel index = `auxChannelIndex + 4` (0-based).
+
+**Permanent IDs for the modes we care about** (from INAV `rc_modes.h`):
+
+| Mode | permanentId |
+|------|------------|
+| Altitude Hold (`BOXNAVALTHOLD`) | 3 |
+| RTH (`BOXNAVRTH`) | 8 |
+| Beeper (`BOXBEEPERON`) | 11 |
+| Waypoint/Mission (`BOXNAVWP`) | 19 |
+| Cruise (`BOXNAVCRUISE`) | 44 |
+
+**Startup routine to implement:**
+1. Call `MSP_MODE_RANGES` (34) — no request payload.
+2. Parse the response in 4-byte chunks (up to 40 entries).
+3. Skip entries where `startStep >= endStep` (unused/unconfigured slots).
+4. For each entry whose `permanentId` matches a mode we care about, store:
+   - RC channel index: `auxChannelIndex + 4` (0-based, for use in `MSP_SET_RAW_RC`)
+   - ON value: midpoint of range → `900 + (startStep + endStep) / 2 * 25`
+   - OFF value: `900` (safely below all ranges)
+5. Store alongside existing `boxId*` globals (e.g. add `boxRthChannel`, `boxRthOnValue`, etc.).
+
+Entries with `permanentId = 0` and `startStep = endStep = 0` are empty slots — skip them. A mode not found in the response means it has no RC channel assigned in INAV — the firmware should log a warning and disable that command.
+
+**`MSP_SET_RAW_RC` (200) — sending channel values:**
+- No reply from FC.
+- Payload: array of `uint16_t` channel values (little-endian), 2 bytes each, all channels in one message.
+- Channels 0–3 (AETR sticks) should be set to neutral (1500) or left at current values — do not touch them unexpectedly.
+- To activate a mode: set the relevant channel to the ON value derived from `MSP_MODE_RANGES`.
+- To deactivate: set the channel back to OFF value (900).
+- Both `MSP_RC` (105, read channels) and `MSP_SET_RAW_RC` (200) are already defined in `msp_library.h`.
 
 **MSP_SET_WP (209) — waypoint upload:**
 - Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
 - Coordinates: degrees × 10⁷ (int32). Altitude: centimetres (int32).
 - Send waypoints sequentially (index 1, 2, … N). Mark the last one with flag `0xA5`.
 - Waypoint action enum values to add for readability: `0x01` = fly to WP, `0x03` = hold, `0x04` = RTH, `0x06` = jump, `0x07` = set heading, `0x08` = land.
+
+**What needs to be added to `msp_library.h` before implementation:**
+- `#define MSP_MODE_RANGES 34` and a 4-byte struct for each entry.
+- Global variables for the discovered channel/value pairs per mode (e.g. `boxRthChannel`, `boxRthOnValue`, `boxWpChannel`, etc.).
+- A `modeRangesFetched` flag (like `boxIdsFetched`) to guard the startup fetch.
 
 ---
 
