@@ -134,12 +134,17 @@ After flashing, open the serial monitor at 115200 baud:
 - **VS Code:** click the plug icon in the PlatformIO toolbar.
 - **CLI:** `pio device monitor`
 
-Look for these messages:
+Look for these messages in order:
 
 | Message | Meaning |
 |---|---|
 | `WiFi connected!` or `GPRS connected!` | Network connection established |
 | `Connected to the broker!` | MQTT connection working |
+| `Waiting for flight controller...` | Normal — ESP32 probes FC every 2 s until INAV is ready |
 | `MSP connected` | Flight controller communication working |
+| `Mode ranges fetched` | RC channel-to-mode mapping discovered from INAV |
+| `Override channels fetched` | `msp_override_channels` auto-configured in INAV RAM |
+
+> **About `msp_override_channels`:** The firmware automatically reads the current `msp_override_channels` setting from INAV at every boot, enables any RC channels needed for the discovered flight modes, and writes the updated bitmask back. This is applied in RAM only — it is not saved to INAV's EEPROM, so it is re-applied on every boot without any manual INAV Configurator steps. You do not need to configure `msp_override_channels` manually.
 
 If you see errors, refer to the [Troubleshooting guide](Troubleshooting.md).

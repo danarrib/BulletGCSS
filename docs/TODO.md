@@ -68,35 +68,42 @@ Steps are converted to PWM values with: `PWM = 900 + step × 25`
 
 The `auxChannelIndex` is 0-based AUX channel. Since channels 1–4 are typically AETR sticks, `MSP_SET_RAW_RC` channel index = `auxChannelIndex + 4` (0-based).
 
-**Permanent IDs for the modes we care about** (from INAV `rc_modes.h`):
+**Permanent IDs for the modes we care about** (from INAV `src/main/fc/fc_msp_box.c` — these are **not** the same as the `boxId_e` enum values):
 
 | Mode | permanentId |
 |------|------------|
+| ARM (`BOXARM`) | 0 |
+| Angle (`BOXANGLE`) | 1 |
 | Altitude Hold (`BOXNAVALTHOLD`) | 3 |
-| RTH (`BOXNAVRTH`) | 8 |
-| Beeper (`BOXBEEPERON`) | 11 |
-| Waypoint/Mission (`BOXNAVWP`) | 19 |
-| Cruise (`BOXNAVCRUISE`) | 44 |
+| RTH (`BOXNAVRTH`) | 10 |
+| Beeper (`BOXBEEPERON`) | 13 |
+| MSP RC Override | 50 |
+| Waypoint/Mission (`BOXNAVWP`) | 28 |
+| Cruise (`BOXNAVCRUISE`) | 53 |
 
-**Startup routine to implement:**
-1. Call `MSP_MODE_RANGES` (34) — no request payload.
-2. Parse the response in 4-byte chunks (up to 40 entries).
-3. Skip entries where `startStep >= endStep` (unused/unconfigured slots).
-4. For each entry whose `permanentId` matches a mode we care about, store:
-   - RC channel index: `auxChannelIndex + 4` (0-based, for use in `MSP_SET_RAW_RC`)
-   - ON value: midpoint of range → `900 + (startStep + endStep) / 2 * 25`
-   - OFF value: `900` (safely below all ranges)
-5. Store alongside existing `boxId*` globals (e.g. add `boxRthChannel`, `boxRthOnValue`, etc.).
+**Startup routine — ✓ IMPLEMENTED:**
+1. `msp_get_boxnames()` — fetches box names once; finds `boxIdMspOverride` for the `MSP RC OVERRIDE` flight mode.
+2. `msp_get_mode_ranges()` — fetches `MSP_MODE_RANGES` (34) once; populates `modeRangeArm`, `modeRangeAngle`, `modeRangeAltHold`, `modeRangeRth`, `modeRangeBeeper`, `modeRangeWp`, `modeRangeCruise` (`modeRangeInfo_t` structs with `rcChannelIndex`, `onValue`, `found`). Skips entries with `startStep >= endStep` or `auxChannelIndex > 17` (garbage entries).
+3. `msp_get_override_channels()` — reads `msp_override_channels` via `MSP2_COMMON_SETTING` (0x1003), ORs in channel bits needed for all discovered mode ranges, writes back via `MSP2_COMMON_SET_SETTING` (0x1004), confirms by re-reading. Sets `cmdAvailable*` flags for each mode. Applied in RAM only — re-applied every boot without saving to EEPROM.
+4. Per-cycle: `msp_get_rc()` — reads `MSP_RC` (105) to keep `rcChannels[]` fresh (all channel values in `uint16_t` array).
 
-Entries with `permanentId = 0` and `startStep = endStep = 0` are empty slots — skip them. A mode not found in the response means it has no RC channel assigned in INAV — the firmware should log a warning and disable that command.
+**FC cold-boot handling — ✓ IMPLEMENTED:**
+- ESP32 typically boots before INAV. `getTelemetryData()` probes for the FC every 2 seconds using `MSP_NAME` (lightest request). `msp.reset()` is called before each probe to flush serial garbage from the FC boot output. Returns early (does nothing else) until the FC responds.
+- On lost contact (`MSP_PORT_RECOVERY_THRESHOLD` = 1000 ms without a successful MSP exchange): `msp.reset()` is called and all startup flags (`fcReady`, `boxIdsFetched`, `modeRangesFetched`, `mspOverrideFetched`, `callsignFetched`, all `cmdAvailable*`) are reset, triggering a full re-init sequence on reconnection.
+
+**MSP RC Override mode tracking — ✓ IMPLEMENTED:**
+- `msp_get_activeboxes()` checks if the `MSP RC OVERRIDE` flight mode is active using `boxIdMspOverride`.
+- `uavstatus.mspRcOverride` is set to 1 when active, 0 when not.
+- The `mro` field is included in group 7 of the standard telemetry message.
+- The UI shows an MSP RC Override status icon — green when active, attention when not, broken when no downlink.
 
 **`MSP_SET_RAW_RC` (200) — sending channel values:**
 - No reply from FC.
 - Payload: array of `uint16_t` channel values (little-endian), 2 bytes each, all channels in one message.
-- Channels 0–3 (AETR sticks) should be set to neutral (1500) or left at current values — do not touch them unexpectedly.
-- To activate a mode: set the relevant channel to the ON value derived from `MSP_MODE_RANGES`.
-- To deactivate: set the channel back to OFF value (900).
-- Both `MSP_RC` (105, read channels) and `MSP_SET_RAW_RC` (200) are already defined in `msp_library.h`.
+- Channels 0–3 (AETR sticks) should be left at current values from `rcChannels[]` — do not touch them unexpectedly.
+- To activate a mode: set the relevant channel to the `onValue` derived from `modeRangeInfo_t`.
+- To deactivate: set the channel back to 900 (safely below all activation ranges).
+- `rcChannels[]`, `modeRangeInfo_t` structs, and `cmdAvailable*` flags are all in place, ready for this step.
 
 **MSP_SET_WP (209) — waypoint upload:**
 - Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
@@ -104,10 +111,11 @@ Entries with `permanentId = 0` and `startStep = endStep = 0` are empty slots —
 - Send waypoints sequentially (index 1, 2, … N). Mark the last one with flag `0xA5`.
 - Waypoint action enum values to add for readability: `0x01` = fly to WP, `0x03` = hold, `0x04` = RTH, `0x06` = jump, `0x07` = set heading, `0x08` = land.
 
-**What needs to be added to `msp_library.h` before implementation:**
-- `#define MSP_MODE_RANGES 34` and a 4-byte struct for each entry.
-- Global variables for the discovered channel/value pairs per mode (e.g. `boxRthChannel`, `boxRthOnValue`, `boxWpChannel`, etc.).
-- A `modeRangesFetched` flag (like `boxIdsFetched`) to guard the startup fetch.
+**Already implemented in `msp_library.h`:**
+- `#define MSP_MODE_RANGES 34`, `#define MSP_RC 105`, `#define MSP2_COMMON_SETTING 0x1003`, `#define MSP2_COMMON_SET_SETTING 0x1004`
+- `MSP_PERM_ID_*` constants for all modes.
+- `modeRangeEntry_t` (4-byte struct per MSP_MODE_RANGES entry) and `modeRangeInfo_t` (parsed per-mode result).
+- `requestWithResponse()` method — sends one buffer as request, receives into a separate buffer of a different size (needed for `MSP2_COMMON_SETTING` where request is a string and response is a uint32_t).
 
 ---
 

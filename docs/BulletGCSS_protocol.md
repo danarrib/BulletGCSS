@@ -85,7 +85,7 @@ Fields are divided into 10 groups (0–9). On each cycle, `msgCounter % 10` dete
 | 4 | `cud`, `cad`, `rsi` |
 | 5 | `gla`, `glo`, `gsc` |
 | 6 | `ghp`, `css`, `3df` |
-| 7 | `hwh`, `arm` |
+| 7 | `hwh`, `arm`, `mro` |
 | 8 | `wpc`, `cwn`, `wpv` |
 | 9 | `fs`, `trp`, `att` |
 
@@ -233,8 +233,11 @@ Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
 | `fs` | Failsafe active | `0` / `1` | `data.isFailsafeActive` | 0 or 1 |
 | `hwh` | Hardware healthy | `0` / `1` | `data.isHardwareHealthy` | 0 or 1 |
 | `dls` | Downlink status | `0` = not subscribed, `1` = subscribed ok | `data.downlinkStatus` | 0 or 1 |
+| `mro` | MSP RC Override mode active | `0` = not active, `1` = active | `data.mspRcOverride` | 0 or 1 |
 | `css` | Cellular/WiFi signal strength | `0`–`3` | `data.cellSignalStrength` | 0 to 3 |
 | `rsi` | RC link RSSI | Percent | `data.rssiPercent` | 0 to 100 |
+
+> `mro` indicates whether the `MSP RC OVERRIDE` flight mode is active on the flight controller. This mode must be active for the firmware's channel override commands to take effect. Without it, commands sent via `MSP_SET_RAW_RC` will be ignored by INAV. The UI shows a dedicated status icon for this field.
 
 ### Flight Mode
 
@@ -336,20 +339,26 @@ The ESP32 communicates with the flight controller using **MSPv2** (MultiWii Seri
 
 Each telemetry cycle the ESP32 requests the following MSP messages from the FC:
 
-| MSP Message | Content |
-|---|---|
-| `MSP_RAW_GPS` | GPS coordinates, speed, fix type, satellite count, HDOP |
-| `MSP_COMP_GPS` | Distance and direction to home |
-| `MSP_ATTITUDE` | Roll, pitch, yaw (heading) |
-| `MSP_ALTITUDE` | Estimated altitude, vertical speed |
-| `MSP_SENSOR_STATUS` | Hardware health flag |
-| `MSP_ACTIVEBOXES` | Active flight mode bitmask |
-| `MSP_WP_GETINFO` | Waypoint count and mission validity |
-| `MSP_NAV_STATUS` | Nav state, active waypoint number |
-| `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle |
-| `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent |
-| `MSP_BOXNAMES` | Flight mode names (fetched once at startup) |
-| `MSP_NAME` | Aircraft callsign (fetched once at startup) |
-| `MSP_WP` | Individual waypoint data (polled every 10 cycles) |
+| MSP Message | Content | When |
+|---|---|---|
+| `MSP_RAW_GPS` | GPS coordinates, speed, fix type, satellite count, HDOP | Every cycle |
+| `MSP_COMP_GPS` | Distance and direction to home | Every cycle |
+| `MSP_ATTITUDE` | Roll, pitch, yaw (heading) | Every cycle |
+| `MSP_ALTITUDE` | Estimated altitude, vertical speed | Every cycle |
+| `MSP_SENSOR_STATUS` | Hardware health flag | Every cycle |
+| `MSP_ACTIVEBOXES` | Active flight mode bitmask | Every cycle |
+| `MSP_RC` (105) | Current RC channel values (all channels) | Every cycle |
+| `MSP_WP_GETINFO` | Waypoint count and mission validity | Every cycle |
+| `MSP_NAV_STATUS` | Nav state, active waypoint number | Every cycle |
+| `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle | Every cycle |
+| `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent | Every cycle |
+| `MSP_BOXNAMES` (116) | Flight mode names → discovers `MSP RC OVERRIDE` box ID | Once at startup |
+| `MSP_MODE_RANGES` (34) | RC channel-to-mode mapping → discovers channel/PWM for each mode | Once at startup |
+| `MSP2_COMMON_SETTING` (0x1003) | Reads `msp_override_channels` bitmask | Once at startup (also to confirm write) |
+| `MSP2_COMMON_SET_SETTING` (0x1004) | Writes `msp_override_channels` to enable needed channels | Once at startup |
+| `MSP_NAME` | Aircraft callsign | Once at startup |
+| `MSP_WP` | Individual waypoint data | Every 10 cycles |
+
+**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
 
 MSPv2 frame format: `$X<` header, 1-byte flags, 2-byte message ID, 2-byte payload length, payload, 1-byte CRC8-DVB-S2 checksum.

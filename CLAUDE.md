@@ -11,14 +11,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 1. ESP32-Modem (Embedded Firmware — [ESP32-Modem/](ESP32-Modem/))
 Runs on an ESP32 board aboard the UAV. Communicates with the flight controller via the **MSP v2 protocol** (UART, 115200 baud on Serial2: TX18/RX19), then publishes telemetry as key:value messages to an **MQTT broker** via WiFi or a cellular modem (SIM800/SIM7600).
 
-- [ESP32-Modem.cpp](ESP32-Modem/ESP32-Modem.cpp): Main source file — two FreeRTOS tasks: `getTelemetryDataTask` (polls MSP at 200ms) and `sendMessageTask` (publishes MQTT at 1000ms).
+- [ESP32-Modem.cpp](ESP32-Modem/ESP32-Modem.cpp): Main source file — telemetry polling loop (`getTelemetryDataTask`, runs every 200 ms) and MQTT publish loop (`sendMessageTask`, runs every 1000 ms), both called from `loop()`. Key startup sequence on FC connection: `msp_get_boxnames()` → `msp_get_mode_ranges()` → `msp_get_override_channels()`. Per-cycle: `msp_get_rc()` keeps `rcChannels[]` fresh for command sending.
 - [Config.h](ESP32-Modem/Config.h): All user-configurable settings: modem type (`USE_WIFI` vs `TINY_GSM_MODEM_SIM7600`/`SIM800`), WiFi/GPRS credentials, MQTT broker/topic/credentials, serial pin assignments, polling intervals.
-- [msp_library.h](ESP32-Modem/msp_library.h) / [msp_library.cpp](ESP32-Modem/msp_library.cpp): MSPv2 protocol implementation (header `$X<`, flags, messageID, payload, CRC8-DVB-S2). Defines all telemetry message types.
-- [uav_status.h](ESP32-Modem/uav_status.h): Central `uav_status` struct holding all parsed telemetry (GPS, altitude, speed, battery, heading, flight mode, waypoints, callsign, etc.).
+- [msp_library.h](ESP32-Modem/msp_library.h) / [msp_library.cpp](ESP32-Modem/msp_library.cpp): MSPv2 protocol implementation (header `$X<`, flags, messageID, payload, CRC8-DVB-S2). Defines all telemetry message types, structs (`modeRangeEntry_t`, `modeRangeInfo_t`, `msp_set_wp_t`, etc.), and permanent-ID constants (`MSP_PERM_ID_*`). Key MSP codes: `MSP_BOXNAMES` (116), `MSP_MODE_RANGES` (34), `MSP_RC` (105), `MSP_ACTIVEBOXES` (113), `MSP2_COMMON_SETTING` (0x1003), `MSP2_COMMON_SET_SETTING` (0x1004). The `requestWithResponse()` method supports requests with a separate send and receive buffer (needed for settings get/set).
+- [uav_status.h](ESP32-Modem/uav_status.h): Central `uav_status` struct holding all parsed telemetry (GPS, altitude, speed, battery, heading, flight mode, waypoints, callsign, downlink status, MSP RC override state, etc.).
 
 **Build:** PlatformIO only (see [docs/Development-setup.md](docs/Development-setup.md)). Two environments: `esp32-sim800` (SIM800 2G) and `esp32-sim7600` (SIM7600 4G). Required libraries — managed automatically via `platformio.ini`: `PubSubClient`, `TinyGSM`, `SSLClient`, `Crypto` (Rhys Weatherley's arduinolibs — Ed25519 signature verification).
 
-**Debug:** Monitor Serial at 115200 baud. Use `mosquitto_sub` or similar to inspect MQTT messages.
+**Debug/Testing workflow:** New firmware features are validated by adding `SerialMon.printf()` calls, flashing, and reading the output. Because `pio device monitor` requires an interactive terminal, use Python to read the port directly:
+
+```bash
+# Kill any process holding the port, flash, then read output
+fuser /dev/ttyUSB1 | xargs -r kill
+pio run -e esp32-sim7600 --target upload --upload-port /dev/ttyUSB1
+
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyUSB1', 115200, timeout=1)
+start = time.time()
+while time.time() - start < 25:
+    line = s.readline()
+    if line:
+        print(line.decode('utf-8', errors='replace'), end='', flush=True)
+s.close()
+"
+```
+
+Use `grep -E "pattern"` to filter output for specific messages during verification.
 
 ### 2. Web UI (Browser PWA — [UI/](UI/))
 Static HTML/CSS/JS — no build step. Deployed directly to a web server.
@@ -57,6 +76,8 @@ Web UI settings (MQTT broker, topic, credentials, units) are persisted in browse
 
 - The MQTT broker is public by default (`broker.emqx.io`). Production deployments should use a private broker with authentication.
 - All downlink commands are signed with Ed25519 (Web Crypto API in the UI, `arduinolibs` `Ed25519::verify()` in firmware). The operator generates a key pair in the UI Security panel, pastes the public key into `Config.h`, and re-flashes. The firmware rejects any command with a missing, invalid, or replayed signature. The last accepted sequence number is persisted to ESP32 NVS so replay protection survives reboots.
+- **MSP RC Override:** Flight mode commands (RTH, altitude hold, cruise, etc.) work by overriding RC channel values via `MSP_SET_RAW_RC`. INAV requires the `MSP RC OVERRIDE` flight mode to be active on the FC for this to take effect. The firmware auto-discovers channel-to-mode mappings at startup (`MSP_MODE_RANGES`) and auto-configures `msp_override_channels` in INAV RAM — no manual INAV Configurator steps needed. The `mro` telemetry field and status icon in the UI show whether the mode is active.
+- **FC cold-boot:** The firmware waits for the flight controller to become available, probing every 2 seconds. If MSP contact is lost mid-flight (1-second timeout), all startup flags reset and the full init sequence reruns automatically on reconnect.
 - The UI is designed mobile-first for outdoor use (dark theme, large touch targets).
 - Multiple browser clients can simultaneously monitor the same aircraft by subscribing to the same MQTT topic.
 - The PWA caches assets for offline use after first load.

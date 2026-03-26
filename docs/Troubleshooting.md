@@ -20,7 +20,11 @@ The firmware prints diagnostic messages to the serial port at **115200 baud**. T
 | `WiFi connected!` | WiFi connection established |
 | `GPRS connected!` | Cellular data connection established |
 | `Connected to the broker!` | MQTT connection to the broker succeeded |
-| `MSP connected` | Flight controller communication working |
+| `Waiting for flight controller...` | FC probe in progress — normal during cold boot; ESP32 waits for INAV to finish booting |
+| `MSP connected` | Flight controller communication working; startup sequence will now begin |
+| `Mode ranges fetched` | `MSP_MODE_RANGES` startup step complete; channel/PWM assignments discovered |
+| `Override channels fetched` | `msp_override_channels` auto-configuration complete; `cmdAvailable*` flags set |
+| `MSP port recovery triggered` | Lost MSP contact for >1 s; all startup flags reset; re-probing FC |
 | `Loaded lastSeq from NVS: N` | Replay-protection sequence number loaded from flash (shown on every boot) |
 | `Command received: ...` | A command message arrived on the downlink topic |
 | `Command verified and accepted. Sending ack: ...` | Signature valid — command executed and acknowledged |
@@ -97,6 +101,28 @@ Replace `broker.emqx.io` and `your_callsign` with your actual broker and topic. 
 4. **`Command rejected: missing or malformed security fields`** — the command is missing the `seq` or `sig` fields. This can happen if an old version of the UI is being used.
 5. Check the **Downlink Status** icon in the UI — if it is grey, the firmware has not confirmed it is subscribed to the command topic yet. Wait for the next low-priority telemetry message (sent every 60 s).
 6. Check the **Security panel** status line — it must show **✓ Keys match** before commands can be accepted.
+
+---
+
+### ESP32 connects and sends data but MSP RC Override icon stays red/attention
+
+The **MSP RC Override** flight mode must be configured in INAV and active on the flight controller for RC channel commands to work.
+
+1. Open INAV Configurator → **Modes** tab. Confirm that `MSP RC OVERRIDE` is assigned to an RC channel switch and that the switch is in the active position.
+2. In the serial monitor, look for `Override channels fetched` — if this message does not appear, the startup sequence has not completed. Wait a few seconds after `MSP connected` appears.
+3. Look for `Mode ranges fetched` — if ARM or the flight modes you care about show `not found`, they have no RC switch assigned in INAV. Assign them in the Modes tab and reflash/reconnect.
+4. The icon will show **attention** (not green) if the MSP RC Override mode switch is OFF. This is normal — enable the switch on your radio.
+
+---
+
+### ESP32 displays "Waiting for flight controller..." repeatedly
+
+The firmware probes the FC every 2 seconds on boot. If it never connects:
+
+1. Confirm the flight controller is powered on.
+2. Check the UART wiring between the ESP32 and FC (Serial2: RX=GPIO19, TX=GPIO18 on the ESP32). Swap TX/RX if in doubt.
+3. In INAV Configurator → **Ports** tab, confirm the serial port connected to the ESP32 has **MSP** enabled (not GPS, not telemetry, not another protocol).
+4. Confirm the FC UART is configured at **115200 baud**.
 
 ---
 

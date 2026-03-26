@@ -87,6 +87,15 @@ Not subscribed | Subscribed
 Grey icon | Green icon
 The firmware has not confirmed it is listening on the command topic. Commands sent now will not be received. | The firmware is subscribed and ready to receive commands. Ping and future commands will work.
 
+#### MSP RC Override Status
+
+Shows whether the `MSP RC OVERRIDE` flight mode is active on the flight controller. This mode must be assigned to an RC channel in INAV and enabled for the firmware to be able to control the aircraft via RC channel commands (RTH, altitude hold, cruise mode, etc.).
+
+Not connected / No downlink | Mode not active | Mode active
+-- | -- | --
+Grey/broken icon | Attention icon | Green icon
+No MQTT connection or downlink not confirmed. | The firmware has downlink but MSP RC Override is not active on the FC. RC commands will be ignored by INAV. | MSP RC Override is active. Flight mode commands sent from the UI will be accepted by the flight controller.
+
 ### Information Panel
 
 ![image](https://user-images.githubusercontent.com/17026744/104828080-48f57b80-5844-11eb-83ac-d61ee51a6231.png)
