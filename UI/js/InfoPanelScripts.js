@@ -210,6 +210,15 @@ function getDownlinkIcon()
     return "img/connection_ok.png";
 }
 
+function getMspRcOverrideIcon()
+{
+    if(!mqttConnected || data.downlinkStatus !== 1)
+        return "img/connection_broken.png";
+    if(data.mspRcOverride !== 1)
+        return "img/connection_attention.png";
+    return "img/connection_ok.png";
+}
+
 function getCellSignalIcon(bars)
 {
     var ret = "broken";
@@ -357,6 +366,7 @@ export function updateDataView(data)
     document.getElementById("batteryIcon").src = getBatteryIcon(data.fuelPercent);
     document.getElementById("connectionIcon").src = getConnectionIcon();
     document.getElementById("downlinkIcon").src = getDownlinkIcon();
+    document.getElementById("mspRcOverrideIcon").src = getMspRcOverrideIcon();
     document.getElementById("gpsIcon").src = getGPSIcon(data.gpsSatCount, data.gpsHDOP);
     document.getElementById("hardwareHealthIcon").src = getHardwareHealthyIcon(data.isHardwareHealthy);
 

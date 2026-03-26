@@ -350,7 +350,10 @@ async function signCanonical(canonical) {
     return btoa(binary);
 }
 
-export async function publishCommand(cmdType) {
+// state: null for stateless commands (ping), 0 or 1 for RC channel commands.
+// state is included in the payload but NOT in the signed canonical — the
+// firmware verifies only cmd/cid/seq and reads state as a separate field.
+export async function publishCommand(cmdType, state = null) {
     if (!mqttConnected || !commandTopic) return null;
     if (!localStorage.getItem("commandPrivateKey")) {
         console.warn("publishCommand: no private key configured — command not sent");
@@ -366,8 +369,11 @@ export async function publishCommand(cmdType) {
         console.error("publishCommand: signing failed:", e);
         return null;
     }
-    var payload = canonical + ",sig:" + sig + ",";
-    var entry = { cid: cid, type: cmdType, timestamp: Date.now(), status: 'sent' };
+    var payload = state !== null
+        ? "cmd:" + cmdType + ",state:" + state + ",cid:" + cid + ",seq:" + seq + ",sig:" + sig + ","
+        : canonical + ",sig:" + sig + ",";
+    var historyType = state !== null ? cmdType + ":" + (state ? "ON" : "OFF") : cmdType;
+    var entry = { cid: cid, type: historyType, timestamp: Date.now(), status: 'sent' };
     pendingCommands[cid] = { type: cmdType, messageCount: 0 };
     commandHistory.unshift(entry);
     var message = new Paho.MQTT.Message(payload);
@@ -491,6 +497,7 @@ export function resetDataObject()
         mWhDraw: 0,
         protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
         downlinkStatus: 0, // 0 = firmware not subscribed to command topic, 1 = subscribed ok
+        mspRcOverride: 0, // 0 = MSP RC Override flight mode not active, 1 = active (commands can be sent)
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -841,6 +848,11 @@ function parseStandardTelemetryMessage(payload)
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1)
                     data.downlinkStatus = raw;
+                break;
+            case "mro":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1)
+                    data.mspRcOverride = raw;
                 break;
             case "wpv":
                 raw = parseInt(arrData[1]);

@@ -90,10 +90,30 @@ function closeCommandsMenu() {
     document.getElementById("commandsMenu").style.width = "0";
 }
 
+// RC channel commands table — keeps button IDs, command names, and state in one place.
+var rcCommands = [
+    { cmd: "rth",     onId: "btRthOn",     offId: "btRthOff"     },
+    { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff" },
+    { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff"  },
+    { cmd: "angle",   onId: "btAngleOn",   offId: "btAngleOff"   },
+    { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff"  },
+    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff"      },
+];
+
 function updateCommandsPanel() {
-    var downlinkOk = data.downlinkStatus === 1;
+    var downlinkOk = mqttConnected && data.downlinkStatus === 1;
+    var rcOk = downlinkOk && data.mspRcOverride === 1;
+
     document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
+    document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
+
     document.getElementById("btSendPing").disabled = !downlinkOk;
+
+    for (var i = 0; i < rcCommands.length; i++) {
+        document.getElementById(rcCommands[i].onId).disabled  = !rcOk;
+        document.getElementById(rcCommands[i].offId).disabled = !rcOk;
+    }
+
     renderCommandHistory();
 }
 
@@ -557,10 +577,27 @@ document.getElementById("btGenerateKey").addEventListener("click", generateKeyPa
 document.getElementById("btCopyPublicKey").addEventListener("click", copyPublicKey);
 document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
 document.getElementById("btSendPing").addEventListener("click", function() {
-    if (data.downlinkStatus !== 1) return;
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
     publishCommand("ping");
     updateCommandsPanel();
 });
+
+(function() {
+    for (var i = 0; i < rcCommands.length; i++) {
+        (function(entry) {
+            document.getElementById(entry.onId).addEventListener("click", function() {
+                if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                publishCommand(entry.cmd, 1);
+                updateCommandsPanel();
+            });
+            document.getElementById(entry.offId).addEventListener("click", function() {
+                if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                publishCommand(entry.cmd, 0);
+                updateCommandsPanel();
+            });
+        })(rcCommands[i]);
+    }
+})();
 document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);

@@ -90,6 +90,7 @@
 					<td colspan="4" class="statusIconBar">
 						<img alt="Connection status icon" class="statusIcon" id="connectionIcon" src="img/connection_broken.png" />
 						<img alt="Downlink status icon" class="statusIcon" id="downlinkIcon" src="img/connection_broken.png" />
+					<img alt="MSP RC Override status icon" class="statusIcon" id="mspRcOverrideIcon" src="img/connection_broken.png" />
 						<img alt="Cellular network signal icon" class="statusIcon" id="cellIcon" src="img/cell_broken.png" />
 						<img alt="RC signal icon" class="statusIcon" id="radioIcon" src="img/rx_bad.png" />
 						<img alt="Battery remaining capacity icon" class="statusIcon" id="batteryIcon" src="img/battery_0.png" />
@@ -194,9 +195,21 @@
 		<a href="javascript:void(0)" class="closebtn" id="closeCommandsMenu">&times;</a>
 		<h3>Send Command</h3>
 		<p id="commandsDownlinkWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; Aircraft is not subscribed to the command channel. Commands will not be received.</p>
+		<p id="commandsMroWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; MSP RC Override is not active on the flight controller. RC channel commands will have no effect.</p>
 		<div class="settingsRow">
 			<div class="settingsColumn">
 				<p><input type="button" id="btSendPing" value="Ping" /></p>
+			</div>
+		</div>
+		<h3>RC Channel Commands</h3>
+		<div class="settingsRow">
+			<div class="settingsColumn">
+				<p>RTH &nbsp;<input type="button" class="btRcCmd" id="btRthOn" value="ON" /> <input type="button" class="btRcCmd" id="btRthOff" value="OFF" /></p>
+				<p>Alt Hold &nbsp;<input type="button" class="btRcCmd" id="btAltHoldOn" value="ON" /> <input type="button" class="btRcCmd" id="btAltHoldOff" value="OFF" /></p>
+				<p>Cruise &nbsp;<input type="button" class="btRcCmd" id="btCruiseOn" value="ON" /> <input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" /></p>
+				<p>Angle &nbsp;<input type="button" class="btRcCmd" id="btAngleOn" value="ON" /> <input type="button" class="btRcCmd" id="btAngleOff" value="OFF" /></p>
+				<p>Beeper &nbsp;<input type="button" class="btRcCmd" id="btBeeperOn" value="ON" /> <input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" /></p>
+				<p>Waypoint &nbsp;<input type="button" class="btRcCmd" id="btWpOn" value="ON" /> <input type="button" class="btRcCmd" id="btWpOff" value="OFF" /></p>
 			</div>
 		</div>
 		<h3>Command History</h3>
