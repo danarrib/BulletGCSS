@@ -33,41 +33,39 @@ Planned commands (all require Step 6 complete):
 
 | Command | MSP command | In msp_library.h? | Notes |
 |---------|-------------|-------------------|-------|
-| RTH on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdRth` in the active boxes bitmask |
-| Mission Mode on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdWaypoint` in the active boxes bitmask |
+| RTH on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set the RC channel mapped to BOXNAVRTH within its activation range |
+| Mission Mode on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set the RC channel mapped to BOXNAVWP within its activation range |
 | Mission Upload | `MSP_SET_WP` (209) | ✓ | Send waypoints sequentially; `msp_set_wp_t` struct already defined |
 | Change current WP | TBD | TBD | Needs further research |
-| Cruise Mode on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdCruise` in the active boxes bitmask |
-| Altitude Hold on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for `boxIdAltHold` in the active boxes bitmask |
+| Cruise Mode on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set the RC channel mapped to BOXNAVCRUISE within its activation range |
+| Altitude Hold on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set the RC channel mapped to BOXNAVALTHOLD within its activation range |
 | Change target altitude | TBD | TBD | Needs further research |
 | Change target course | TBD | TBD | Needs further research |
-| Beeper on/off | `MSP_SET_BOX` (203) | ✗ Missing | Set/clear the bit for the BEEPER box in the active boxes bitmask |
+| Beeper on/off | `MSP_SET_RAW_RC` (200) | ✓ | Set the RC channel mapped to BOXBEEPERON within its activation range |
 
 #### Reference implementation
 
-- [stronnag/msp_set_rx](https://github.com/stronnag/msp_set_rx) — reference implementation demonstrating MSP RC/box commands for INAV/Betaflight. Read this before implementing.
+- [stronnag/msp_set_rx](https://github.com/stronnag/msp_set_rx) — reference implementation demonstrating `MSP_SET_RAW_RC` for INAV/Betaflight. Read this before implementing.
 
 #### MSP implementation notes
 
-**How INAV flight mode (BOX) activation works:**
+**Why `MSP_SET_RAW_RC` and not `MSP_SET_BOX`:**
+`MSP_SET_BOX` (203) is defined in the MSP protocol spec but was **never implemented in INAV**. There is no direct way to toggle flight modes via MSP. The only supported mechanism is `MSP_SET_RAW_RC` — simulating RC channel input so that INAV's normal mode-switching logic activates the desired box.
 
-The firmware already uses this mechanism for reading — the same pattern runs in reverse for writing:
+**How INAV reads RC channels (BOX activation):**
 
-1. On startup, `MSP_BOXNAMES` is called. INAV returns a list of box names in index order. The firmware walks this list and records the index of each mode it cares about (`boxIdRth`, `boxIdWaypoint`, `boxIdCruise`, `boxIdAltHold`, etc.) as global `uint8_t` variables. These are already populated in `ESP32-Modem.cpp`.
+The firmware already reads box state this way on the telemetry side:
+1. `MSP_BOXNAMES` at startup → discovers the index of each box (stored as `boxIdRth`, `boxIdWaypoint`, etc.).
+2. `MSP_ACTIVEBOXES` each cycle → 64-bit bitmask, bit N set if box at index N is active.
 
-2. `MSP_ACTIVEBOXES` returns a 64-bit bitmask. Bit N is set if the box at index N is currently active. The firmware reads this bitmask and checks `(boxes64 & (1LL << boxIdRth))` etc. to determine the current flight mode.
+To **activate** a box, `MSP_SET_RAW_RC` must set the RC channel that the user has mapped to that box in INAV's mode configuration to a PWM value within the configured activation range (typically 1700–2000). To **deactivate**, set it back below the range (typically 900–1300).
 
-3. To **activate** a flight mode, send `MSP_SET_BOX` (203) with the same 64-bit bitmask, but with the target bit set. To **deactivate**, send the bitmask with that bit cleared.
+**Open design question — channel mapping:**
+The RC channel assigned to each flight mode is configured by the user in INAV and is not readable via MSP at runtime. The firmware needs to know which channel controls which mode. Options:
+- **Option A:** Make it user-configurable in `Config.h` (e.g. `#define CMD_RTH_CHANNEL 6`, `#define CMD_RTH_ON_VALUE 1750`, `#define CMD_RTH_OFF_VALUE 1000`).
+- **Option B:** Read `MSP_BOXIDS` and `MSP_RC` at startup to try to infer mappings — complex and unreliable.
 
-**Implementation approach for mode commands:**
-- Read the current bitmask with `MSP_ACTIVEBOXES`.
-- Set or clear the relevant bit using the already-stored `boxId*` variable.
-- Send the modified bitmask back with `MSP_SET_BOX`.
-- No RC channel mapping configuration needed — the box indices are discovered automatically at startup via `MSP_BOXNAMES`.
-
-**What needs to be added to `msp_library.h`:**
-- `#define MSP_SET_BOX 203` — not currently defined.
-- The payload for `MSP_SET_BOX` mirrors `MSP_ACTIVEBOXES`: a 64-bit (or variable-width) bitmask. Confirm the exact payload format from the INAV source before implementing.
+Option A is the practical choice. This needs to be decided before implementation.
 
 **MSP_SET_WP (209) — waypoint upload:**
 - Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
