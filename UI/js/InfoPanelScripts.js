@@ -203,11 +203,13 @@ function getConnectionIcon()
     return "img/connection_" + ret + ".png";
 }
 
-function getDownlinkIcon()
+function getCommandChannelIcon()
 {
     if(!mqttConnected || data.downlinkStatus !== 1)
-        return "img/connection_broken.png";
-    return "img/connection_ok.png";
+        return "img/command_error.png";
+    if(data.mspRcOverride !== 1)
+        return "img/command_warning.png";
+    return "img/command_ok.png";
 }
 
 function getCellSignalIcon(bars)
@@ -356,7 +358,7 @@ export function updateDataView(data)
     document.getElementById("radioIcon").src = getRadioIcon(data.rssiPercent);
     document.getElementById("batteryIcon").src = getBatteryIcon(data.fuelPercent);
     document.getElementById("connectionIcon").src = getConnectionIcon();
-    document.getElementById("downlinkIcon").src = getDownlinkIcon();
+    document.getElementById("commandChannelIcon").src = getCommandChannelIcon();
     document.getElementById("gpsIcon").src = getGPSIcon(data.gpsSatCount, data.gpsHDOP);
     document.getElementById("hardwareHealthIcon").src = getHardwareHealthyIcon(data.isHardwareHealthy);
 

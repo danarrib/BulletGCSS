@@ -44,6 +44,9 @@
 #include <Preferences.h>
 
 #include <HardwareSerial.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #include "Config.h"
 #include "msp_library.h"
@@ -115,8 +118,10 @@ HardwareSerial mspSerial(2);
   void connectToGprsNetwork();
 #endif
 
-#define TASK_MSP_READ_MS 200
+#define TASK_MSP_READ_MS 160
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
+// How long to wait between FC ready-probes during cold boot (ms)
+#define FC_PROBE_INTERVAL_MS 2000
 
 #ifndef USE_WIFI
   // I2C for SIM800 (to keep it running when powered from battery)
@@ -132,25 +137,68 @@ uav_status lastStatus;
 msp_set_wp_t currentWPMission[256];
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
-bool telemetryFetched = false;
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
 uint16_t failureCounter = 0; // Count how many times it fails sending the messages
 
-// Box IDs (used to determine which flight modes are active)
-uint8_t boxIdArm = 0;
-uint8_t boxIdFailsafe = 0;
-uint8_t boxIdManual = 0;
-uint8_t boxIdAngle = 0;
-uint8_t boxIdRth = 0;
-uint8_t boxIdPosHold = 0;
-uint8_t boxIdCruise = 0;
-uint8_t boxIdAltHold = 0;
-uint8_t boxIdWaypoint = 0;
-uint8_t boxIdHorizon = 0;
+// Box IDs for flight modes used only for telemetry detection (not remotely commandable).
+// Populated once from MSP_BOXNAMES; read in msp_get_activeboxes() only.
+// ARM is intentionally kept here and not made commandable — cutting motors mid-flight
+// requires dedicated safety confirmation logic that is not yet implemented.
+uint8_t boxIdArm        = 0;
+uint8_t boxIdFailsafe   = 0;
+uint8_t boxIdManual     = 0;
+uint8_t boxIdPosHold    = 0;
+uint8_t boxIdHorizon    = 0;
+uint8_t boxIdMspOverride = 0;
+
+// Current RC channel values — updated every telemetry cycle from MSP_RC, used when building MSP_SET_RAW_RC
+#define RC_CHANNEL_MAX 34
+uint16_t rcChannels[RC_CHANNEL_MAX] = {0};
+uint8_t  rcChannelCount = 0;
+
+// MSP RC Override configuration — populated once from MSP2_COMMON_SETTING
+uint32_t mspOverrideChannelsMask = 0;
+bool mspOverrideFetched = false;
+
+// ── Remotely commandable flight modes ────────────────────────────────────────
+// Each FlightMode bundles what were previously four separate per-mode variables:
+//   modeRange*, cmdAvailable*, cmdState*, and boxId*.
+// ARM is intentionally excluded — see boxIdArm comment above.
+FlightMode modeAngle   = {};
+FlightMode modeAltHold = {};
+FlightMode modeRth     = {};
+FlightMode modeBeeper  = {};
+FlightMode modeWp      = {};
+FlightMode modeCruise  = {};
+
+// Table of all commandable flight modes.
+// Drives mode-range parsing, override-channel setup, RC override sending,
+// command dispatch, and conflict resolution — eliminating per-mode repetition.
+struct FlightModeEntry {
+    const char* cmdName;  // MQTT command string (e.g. "rth")
+    const char* boxName;  // INAV mode name from MSP_BOXNAMES (e.g. "NAV RTH")
+    uint8_t     permId;   // MSP_PERM_ID_* constant for MSP_MODE_RANGES matching
+    FlightMode* mode;
+};
+static FlightModeEntry cmdModes[] = {
+    { "rth",     "NAV RTH",     MSP_PERM_ID_RTH,     &modeRth     },
+    { "althold", "NAV ALTHOLD", MSP_PERM_ID_ALTHOLD, &modeAltHold },
+    { "cruise",  "NAV CRUISE",  MSP_PERM_ID_CRUISE,  &modeCruise  },
+    { "angle",   "ANGLE",       MSP_PERM_ID_ANGLE,   &modeAngle   },
+    { "beeper",  "BEEPER",      MSP_PERM_ID_BEEPER,  &modeBeeper  },
+    { "wp",      "NAV WP",      MSP_PERM_ID_WP,      &modeWp      },
+};
+static const int CMD_MODE_COUNT = sizeof(cmdModes) / sizeof(cmdModes[0]);
+// ─────────────────────────────────────────────────────────────────────────────
+
+ // Flight controller ready flag — set after first successful MSP probe at boot
+bool fcReady = false;
+uint32_t lastFcProbeTs = 0;
 
  // Flags that prevents some routines to run more than one time
 bool boxIdsFetched = 0;
+bool modeRangesFetched = false;
 bool callsignFetched = 0;
 uint8_t waypointFetchCounter = 0;
 uint8_t waypointMessageCounter = 0;
@@ -159,6 +207,25 @@ uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working
 
 Preferences prefs;
 uint32_t lastSeq = 0; // Last accepted command sequence number (loaded from NVS, replay protection)
+
+// ── FreeRTOS shared state ─────────────────────────────────────────────────────
+// dataMutex: protects publishedStatus and publishedMission[] between fcTask
+// (writer, end of each 200 ms cycle) and the MQTT loop task (reader, message build).
+SemaphoreHandle_t dataMutex;
+
+// cmdMutex: protects cmdState* flags between mqttCommandCallback (MQTT task,
+// writer) and msp_send_rc_override / clearAllCommandStates (fcTask, reader/writer).
+SemaphoreHandle_t cmdMutex;
+
+// Snapshot of uavstatus and currentWPMission published by fcTask at the end of
+// every cycle. The MQTT task reads exclusively from these copies.
+uav_status    publishedStatus;
+msp_set_wp_t  publishedMission[256];
+
+// Downlink flag: set by the MQTT task when it subscribes to the command topic.
+// Read by fcTask to keep uavstatus.downlinkStatus current without a mutex
+// (volatile bool read/write is atomic on ESP32).
+volatile bool downlinkActive = false;
 
 // ── Forward declarations ──────────────────────────────────────────────────────
 // Required because .cpp files do not get Arduino IDE's auto-prototype injection.
@@ -173,7 +240,7 @@ bool setPowerBoostKeepOn(int en);
 void connectToGprsNetwork();
 #endif
 
-void getTelemetryDataTask();
+void fcTask(void* param);
 void getTelemetryData();
 void get_cellSignalStrength();
 void msp_get_gps();
@@ -188,6 +255,14 @@ void msp2_get_misc2();
 void get_all_waypoints();
 void msp_get_wp(uint8_t wp_no);
 void msp_get_boxnames();
+void msp_get_mode_ranges();
+void msp_get_override_channels();
+bool msp_get_setting_u32(const char* name, uint32_t &value);
+bool msp_set_setting_u32(const char* name, uint32_t value);
+void msp_get_rc();
+void msp_send_rc_override();
+void clearAllCommandStates();
+void resolveChannelConflicts(uint8_t channelIndex);
 void msp_get_callsign();
 void msp_get_activeboxes();
 void sendMessageTask();
@@ -386,6 +461,20 @@ void connectToTheInternet() {
   }
 #endif
 
+// High-priority FreeRTOS task: owns all MSP/FC communication.
+// Runs every 200 ms using vTaskDelayUntil so the period is exact regardless
+// of how long individual MSP calls take. Pinned to Core 1 at priority 2,
+// above the Arduino loop task (priority 1), so it preempts network operations
+// whenever it needs to run.
+void fcTask(void* param) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xPeriod = pdMS_TO_TICKS(TASK_MSP_READ_MS);
+    while (true) {
+        vTaskDelayUntil(&xLastWakeTime, xPeriod);
+        getTelemetryData();
+    }
+}
+
 void setup()
 {
   SerialMon.begin(115200);
@@ -408,6 +497,11 @@ void setup()
   client.setServer(mqttServer, mqttPort);
   client.setCallback(mqttCommandCallback);
 
+  // Create shared-state mutexes, then start the FC task. All MSP hardware
+  // is initialised above, so the task can safely begin probing the FC.
+  dataMutex = xSemaphoreCreateMutex();
+  cmdMutex  = xSemaphoreCreateMutex();
+  xTaskCreatePinnedToCore(fcTask, "fcTask", 4096, NULL, 2, NULL, 1);
 }
 
 // Called by PubSubClient when a message arrives on the downlink (command) topic.
@@ -429,10 +523,11 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   // ── Step 2: Parse all fields ─────────────────────────────────────────────────
-  char cmd[32]  = "";
-  char cid[8]   = "";
+  char cmd[32]    = "";
+  char cid[8]     = "";
   char seqStr[12] = "";  // uint32 max = 10 digits
-  char sig[89]  = "";    // Ed25519 base64 signature = 88 chars + null
+  char sig[89]    = "";  // Ed25519 base64 signature = 88 chars + null
+  char stateStr[4] = ""; // "0" or "1" for RC channel commands
 
   char* token = strtok(buf, ",");
   while (token != NULL) {
@@ -441,10 +536,11 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       *colon = '\0';
       char* key   = token;
       char* value = colon + 1;
-      if (strcmp(key, "cmd") == 0) strncpy(cmd,    value, sizeof(cmd)    - 1);
-      if (strcmp(key, "cid") == 0) strncpy(cid,    value, sizeof(cid)    - 1);
-      if (strcmp(key, "seq") == 0) strncpy(seqStr, value, sizeof(seqStr) - 1);
-      if (strcmp(key, "sig") == 0) strncpy(sig,    value, sizeof(sig)    - 1);
+      if (strcmp(key, "cmd")   == 0) strncpy(cmd,      value, sizeof(cmd)      - 1);
+      if (strcmp(key, "cid")   == 0) strncpy(cid,      value, sizeof(cid)      - 1);
+      if (strcmp(key, "seq")   == 0) strncpy(seqStr,   value, sizeof(seqStr)   - 1);
+      if (strcmp(key, "sig")   == 0) strncpy(sig,      value, sizeof(sig)      - 1);
+      if (strcmp(key, "state") == 0) strncpy(stateStr, value, sizeof(stateStr) - 1);
     }
     token = strtok(NULL, ",");
   }
@@ -490,72 +586,194 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   char ack[32];
   snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
   SerialMon.print("Command verified and accepted. Sending ack: ");
-  SerialMon.println(ack);
+  SerialMon.print(ack);
   sendMessage(ack);
 
   // ── Step 7: Execute the command ───────────────────────────────────────────────
-  // (additional commands will be dispatched here in future steps)
+  if (strcmp(cmd, "ping") == 0) {
+      // Stateless — ack already sent above. Nothing else to do.
+
+  } else {
+      // Look up the command in the flight mode table.
+      FlightModeEntry* entry = nullptr;
+      for (int i = 0; i < CMD_MODE_COUNT; i++) {
+          if (strcmp(cmd, cmdModes[i].cmdName) == 0) {
+              entry = &cmdModes[i];
+              break;
+          }
+      }
+
+      if (entry == nullptr) {
+          SerialMon.printf("Unknown command type: '%s'\n", cmd);
+          return;
+      }
+
+      if (strlen(stateStr) == 0) {
+          SerialMon.printf("RC command '%s': missing state field\n", cmd);
+          return;
+      }
+      int state = atoi(stateStr);
+      if (state != 0 && state != 1) {
+          SerialMon.printf("RC command '%s': invalid state '%s'\n", cmd, stateStr);
+          return;
+      }
+      if (!entry->mode->available) {
+          SerialMon.printf("RC command '%s': unavailable (mode not found or channel not overrideable)\n", cmd);
+          return;
+      }
+
+      xSemaphoreTake(cmdMutex, portMAX_DELAY);
+      if (state == 1) {
+          // New command wins — clear any other active command on the same channel first.
+          resolveChannelConflicts(entry->mode->range.rcChannelIndex);
+          entry->mode->active = true;
+      } else {
+          entry->mode->active = false;
+      }
+      xSemaphoreGive(cmdMutex);
+
+      if (state == 1)
+          SerialMon.printf("%s ON -> RC_CH%d will be held at %d\n", cmd,
+                           entry->mode->range.rcChannelIndex + 1, entry->mode->range.onValue);
+      else
+          SerialMon.printf("%s OFF -> RC_CH%d released to radio\n", cmd,
+                           entry->mode->range.rcChannelIndex + 1);
+  }
 }
 
 void loop()
 {
-
-  getTelemetryDataTask();
   sendMessageTask();
   client.loop();
 
   // Check the failure counter and reset everything if it's above 10.
-  if(failureCounter >= 10)  
+  if(failureCounter >= 10)
   {
     SerialMon.println("Failure count is too high. Restarting everything...");
     ESP.restart();
   }
 }
 
-void getTelemetryDataTask() {
-  if(telemetryFetched)
-    return;
-    
-  uint32_t timer = millis();
-  
-  if(timer - lastMessageTimer >= MESSAGE_SEND_INTERVAL - TELEMETRY_FETCH_DUTY_CYCLE)
-  {
-    //SerialMon.printf("Telemetry: %d\n", timer);
-    telemetryFetched = true;
-    getTelemetryData();
-  }
-}
+// Wrap a single MSP call with timing printed to serial (uncomment to enable).
+// Usage: MSP_TIME("msp_get_gps", msp_get_gps());
+#define MSP_TIME(name, call) do { \
+    uint32_t _t0 = millis(); \
+    call; \
+    /*SerialMon.printf("  [timing] %-32s %lu ms\n", name, millis() - _t0);*/ \
+} while(0)
 
-void getTelemetryData() 
+void getTelemetryData()
 {
   //uint32_t stopWatch = millis();
 
+  // Reflect the MQTT task's downlink subscription state into uavstatus.
+  // downlinkActive is volatile bool — atomic read on ESP32, no mutex needed.
+  uavstatus.downlinkStatus = downlinkActive ? 1 : 0;
+
+  // ── FC ready probe ────────────────────────────────────────────────────────
+  // During cold boot the FC takes longer to start than the ESP32.
+  // Until the FC responds, skip all MSP calls to avoid blocking the main loop
+  // with cascading 750 ms timeouts. Probe once every FC_PROBE_INTERVAL_MS,
+  // flushing the serial buffer first to discard any boot-output garbage.
+  if (!fcReady) {
+    if (millis() - lastFcProbeTs < FC_PROBE_INTERVAL_MS)
+      return;
+    lastFcProbeTs = millis();
+    msp.reset(); // discard garbage from FC boot output
+    char name[32];
+    uint16_t nameLen = 0;
+    if (msp.requestText(MSP_NAME, name, &nameLen)) {
+      SerialMon.println("MSP connected");
+      fcReady = true;
+      lastMspCommunicationTs = millis();
+    } else {
+      SerialMon.println("Waiting for flight controller...");
+      return;
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Startup-only — each has an internal flag and returns immediately once done.
   msp_get_boxnames();
-  msp_get_gps();
-  msp_get_gps_comp();
-  msp_get_attitude();
-  msp_get_altitude();
-  msp_get_sensor_status();
-  msp_get_activeboxes();
-  msp2_get_misc2();
-  msp2_get_inav_analog();
-  msp_get_wp_getinfo();
-  msp_get_nav_status();
-  msp_get_callsign();
-  
-  get_all_waypoints();
+  msp_get_mode_ranges();
+  msp_get_override_channels();
 
-  get_cellSignalStrength();
-  
-  //uint32_t elapsedTime = millis() - stopWatch;
-  //SerialMon.printf("This telemetry duty cycle took %d ms.\n", elapsedTime);
+  // Always: keep RC values fresh and send any active channel overrides.
+  // These two must run every cycle to stay within INAV's 200 ms freshness window.
+  uint32_t _cycleStart = millis();
+  MSP_TIME("msp_get_rc",          msp_get_rc());
+  MSP_TIME("msp_send_rc_override", msp_send_rc_override());
 
-  // Recovery routine for MSP serial port
+  // Round-robin: spread remaining telemetry across 6 cycles (one group per cycle)
+  // so each cycle completes well within the 160 ms period.
+  // At 160 ms/cycle each group fires every ~960 ms — fast enough for display.
+  static uint8_t rrCycle = 0;
+  //SerialMon.printf("[timing] cycle %d\n", rrCycle);
+  switch (rrCycle) {
+    case 0:
+      MSP_TIME("msp_get_gps",           msp_get_gps());
+      break;
+    case 1:
+      MSP_TIME("msp_get_gps_comp",      msp_get_gps_comp());
+      MSP_TIME("msp_get_attitude",      msp_get_attitude());
+      break;
+    case 2:
+      MSP_TIME("msp_get_altitude",      msp_get_altitude());
+      MSP_TIME("msp_get_sensor_status", msp_get_sensor_status());
+      break;
+    case 3:
+      MSP_TIME("msp2_get_inav_analog",  msp2_get_inav_analog());
+      MSP_TIME("msp2_get_misc2",        msp2_get_misc2());
+      break;
+    case 4:
+      MSP_TIME("msp_get_wp_getinfo",    msp_get_wp_getinfo());
+      MSP_TIME("msp_get_nav_status",    msp_get_nav_status());
+      break;
+    case 5:
+      MSP_TIME("msp_get_activeboxes",   msp_get_activeboxes());
+      MSP_TIME("get_cellSignalStrength", get_cellSignalStrength());
+      break;
+  }
+  uint32_t _cycleElapsed = millis() - _cycleStart;
+  if (_cycleElapsed > TASK_MSP_READ_MS)
+      SerialMon.printf("WARNING: cycle %d overrun (%lu ms)\n", rrCycle, _cycleElapsed);
+  if (++rrCycle > 5) rrCycle = 0;
+  //SerialMon.printf("[timing] total cycle ms: %lu\n", _cycleElapsed);
+
+  // Slow-poll: callsign and waypoints don't change often — refresh every 10 s.
+  static uint32_t lastSlowPollTs = 0;
+  if (millis() - lastSlowPollTs >= 10000) {
+      lastSlowPollTs = millis();
+      MSP_TIME("msp_get_callsign",  msp_get_callsign());
+      MSP_TIME("get_all_waypoints", get_all_waypoints());
+  }
+
+  // ── MSP recovery routine ──────────────────────────────────────────────────
+  // If no successful MSP exchange for too long, reset the serial port and all
+  // startup flags so the full init sequence re-runs when the FC comes back.
   if (millis() - lastMspCommunicationTs > MSP_PORT_RECOVERY_THRESHOLD)
   {
+      SerialMon.println("MSP connection lost - resetting...");
       msp.reset();
-      SerialMon.println("MSP reset!");
+      fcReady           = false;
+      boxIdsFetched     = false;
+      modeRangesFetched = false;
+      mspOverrideFetched = false;
+      callsignFetched   = false;
+      rcChannelCount    = 0;
+      for (int i = 0; i < CMD_MODE_COUNT; i++)
+          cmdModes[i].mode->available = false;
+      // FC disconnect — pilot must regain manual control; clear all active overrides.
+      clearAllCommandStates();
   }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Publish a snapshot of uavstatus and currentWPMission for the MQTT task.
+  // The memcpy is fast (~microseconds), so the MQTT task is not blocked for long.
+  xSemaphoreTake(dataMutex, portMAX_DELAY);
+  memcpy(&publishedStatus,  &uavstatus,        sizeof(uav_status));
+  memcpy(publishedMission,   currentWPMission,  sizeof(currentWPMission));
+  xSemaphoreGive(dataMutex);
 }
 
 void get_cellSignalStrength()
@@ -809,26 +1027,24 @@ void msp_get_boxnames() {
       
       while(chars_array)
       {
-        if(strcmp(chars_array, "ARM") == 0)
-          boxIdArm = boxIndex;
-        else if(strcmp(chars_array, "FAILSAFE") == 0)
-          boxIdFailsafe = boxIndex;
-        else if(strcmp(chars_array, "MANUAL") == 0)
-          boxIdManual = boxIndex;
-        else if(strcmp(chars_array, "ANGLE") == 0)
-          boxIdAngle = boxIndex;
-        else if(strcmp(chars_array, "NAV RTH") == 0)
-          boxIdRth = boxIndex;
-        else if(strcmp(chars_array, "NAV POSHOLD") == 0)
-          boxIdPosHold = boxIndex;
-        else if(strcmp(chars_array, "NAV CRUISE") == 0)
-          boxIdCruise = boxIndex;
-        else if(strcmp(chars_array, "NAV ALTHOLD") == 0)
-          boxIdAltHold = boxIndex;
-        else if(strcmp(chars_array, "NAV WP") == 0)
-          boxIdWaypoint = boxIndex;
-        else if(strcmp(chars_array, "HORIZON") == 0)
-          boxIdHorizon = boxIndex;
+        // Check commandable modes via table first
+        bool matched = false;
+        for (int i = 0; i < CMD_MODE_COUNT; i++) {
+          if (strcmp(chars_array, cmdModes[i].boxName) == 0) {
+            cmdModes[i].mode->boxId = boxIndex;
+            matched = true;
+            break;
+          }
+        }
+        // Non-commandable modes (used for flight mode detection only)
+        if (!matched) {
+          if      (strcmp(chars_array, "ARM")            == 0) boxIdArm         = boxIndex;
+          else if (strcmp(chars_array, "FAILSAFE")        == 0) boxIdFailsafe    = boxIndex;
+          else if (strcmp(chars_array, "MANUAL")          == 0) boxIdManual      = boxIndex;
+          else if (strcmp(chars_array, "NAV POSHOLD")     == 0) boxIdPosHold     = boxIndex;
+          else if (strcmp(chars_array, "HORIZON")         == 0) boxIdHorizon     = boxIndex;
+          else if (strcmp(chars_array, "MSP RC OVERRIDE") == 0) boxIdMspOverride = boxIndex;
+        }
 
         chars_array = strtok(NULL, ";");
         boxIndex++;
@@ -843,6 +1059,332 @@ void msp_get_boxnames() {
     {
       SerialMon.println("MSP BOXNAMES returned false!");
     }
+}
+
+void msp_get_mode_ranges() {
+    // Only needs to run once at startup
+    if (modeRangesFetched)
+        return;
+
+    // INAV supports up to 20 mode activation conditions; each entry is 4 bytes
+    const int MAX_ENTRIES = 20;
+    modeRangeEntry_t entries[MAX_ENTRIES];
+    uint16_t dataLen = 0;
+
+    if (msp.request(MSP_MODE_RANGES, entries, sizeof(entries), &dataLen)) {
+        int entryCount = dataLen / sizeof(modeRangeEntry_t);
+        SerialMon.printf("MSP_MODE_RANGES: %d entries received\n", entryCount);
+
+        for (int i = 0; i < entryCount; i++) {
+            modeRangeEntry_t &e = entries[i];
+            // Skip empty/invalid entries (no activation range, or garbage auxChannel value)
+            if (e.startStep >= e.endStep || e.auxChannelIndex > 17)
+                continue;
+
+            uint8_t rcCh    = e.auxChannelIndex + 4; // 0-based; CH1-CH4 are sticks
+            uint16_t onVal  = 900 + ((e.startStep + e.endStep) / 2) * 25;
+            uint16_t pwmLo  = 900 + e.startStep * 25;
+            uint16_t pwmHi  = 900 + e.endStep   * 25;
+
+            SerialMon.printf("  id=%d auxCh=%d steps=%d-%d => RC_CH%d (%d-%d) onVal=%d\n",
+                e.permanentId, e.auxChannelIndex,
+                e.startStep, e.endStep,
+                rcCh + 1, pwmLo, pwmHi, onVal);
+
+            modeRangeInfo_t info = {rcCh, onVal, pwmLo, pwmHi, true};
+
+            for (int j = 0; j < CMD_MODE_COUNT; j++) {
+                if (e.permanentId == cmdModes[j].permId) {
+                    cmdModes[j].mode->range = info;
+                    break;
+                }
+            }
+        }
+
+        SerialMon.println("Mode ranges summary:");
+        for (int j = 0; j < CMD_MODE_COUNT; j++) {
+            FlightMode* m = cmdModes[j].mode;
+            if (m->range.found)
+                SerialMon.printf("  %-8s RC_CH%d onValue=%d\n", cmdModes[j].cmdName,
+                                 m->range.rcChannelIndex + 1, m->range.onValue);
+            else
+                SerialMon.printf("  %-8s not found\n", cmdModes[j].cmdName);
+        }
+
+        modeRangesFetched = true;
+        lastMspCommunicationTs = millis();
+    } else {
+        SerialMon.println("MSP_MODE_RANGES request failed!");
+    }
+}
+
+// Read a uint32_t setting by name via MSP2_COMMON_SETTING (0x1003).
+// Request payload: null-terminated setting name.
+// Response payload: raw value bytes (4 bytes for uint32_t).
+bool msp_get_setting_u32(const char* name, uint32_t &value) {
+    uint8_t reqBuf[64];
+    uint8_t nameLen = strlen(name) + 1; // include null terminator
+    if (nameLen > sizeof(reqBuf))
+        return false;
+    memcpy(reqBuf, name, nameLen);
+
+    uint32_t resp = 0;
+    uint16_t recvSize = 0;
+    if (msp.requestWithResponse(MSP2_COMMON_SETTING, reqBuf, nameLen, &resp, sizeof(resp), &recvSize)) {
+        value = resp;
+        return true;
+    }
+    return false;
+}
+
+// Write a uint32_t setting by name via MSP2_COMMON_SET_SETTING (0x1004).
+// Request payload: null-terminated setting name immediately followed by the raw value bytes.
+bool msp_set_setting_u32(const char* name, uint32_t value) {
+    uint8_t buf[64 + sizeof(uint32_t)];
+    uint8_t nameLen = strlen(name) + 1;
+    if (nameLen > 64)
+        return false;
+    memcpy(buf, name, nameLen);
+    memcpy(buf + nameLen, &value, sizeof(uint32_t));
+    return msp.command(MSP2_COMMON_SET_SETTING, buf, nameLen + sizeof(uint32_t));
+}
+
+// Helper: update cmdAvailable* flags from the current mspOverrideChannelsMask and print a summary.
+static void updateCommandAvailability() {
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        FlightMode* m = cmdModes[i].mode;
+        if (!m->range.found) {
+            SerialMon.printf("  %-8s UNAVAILABLE (no mode range)\n", cmdModes[i].cmdName);
+            m->available = false;
+        } else {
+            bool enabled = (mspOverrideChannelsMask & (1UL << m->range.rcChannelIndex)) != 0;
+            m->available = enabled;
+            SerialMon.printf("  %-8s RC_CH%-2d %s\n", cmdModes[i].cmdName,
+                             m->range.rcChannelIndex + 1, enabled ? "OK" : "BLOCKED");
+        }
+    }
+}
+
+void msp_get_override_channels() {
+    // Only needs to run once, and only after mode ranges are known
+    if (mspOverrideFetched || !modeRangesFetched)
+        return;
+
+    // Step 1: read the current override mask from the FC
+    if (!msp_get_setting_u32("msp_override_channels", mspOverrideChannelsMask)) {
+        SerialMon.println("msp_override_channels read failed!");
+        return;
+    }
+    SerialMon.printf("msp_override_channels (current): 0x%08X\n", mspOverrideChannelsMask);
+
+    // Step 2: build a mask of every channel we need to control
+    uint32_t neededMask = 0;
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        if (cmdModes[i].mode->range.found)
+            neededMask |= (1UL << cmdModes[i].mode->range.rcChannelIndex);
+    }
+
+    // Step 3: if any needed channels are missing, OR them in and write back
+    uint32_t missingMask = neededMask & ~mspOverrideChannelsMask;
+    if (missingMask != 0) {
+        uint32_t newMask = mspOverrideChannelsMask | missingMask;
+        SerialMon.printf("Adding channels to msp_override_channels: 0x%08X -> 0x%08X\n",
+                         mspOverrideChannelsMask, newMask);
+
+        if (!msp_set_setting_u32("msp_override_channels", newMask)) {
+            SerialMon.println("msp_override_channels write failed!");
+            return;
+        }
+
+        // Step 4: read back to confirm the FC accepted the new value
+        uint32_t confirmedMask = 0;
+        if (!msp_get_setting_u32("msp_override_channels", confirmedMask)) {
+            SerialMon.println("msp_override_channels confirm-read failed!");
+            return;
+        }
+        mspOverrideChannelsMask = confirmedMask;
+        SerialMon.printf("msp_override_channels (confirmed): 0x%08X\n", mspOverrideChannelsMask);
+    }
+
+    // Step 5: update per-command availability from the final confirmed mask
+    SerialMon.println("Command availability:");
+    updateCommandAvailability();
+
+    mspOverrideFetched = true;
+    lastMspCommunicationTs = millis();
+}
+
+void msp_get_rc() {
+    uint16_t buf[RC_CHANNEL_MAX];
+    uint16_t dataLen = 0;
+
+    if (msp.request(MSP_RC, buf, sizeof(buf), &dataLen)) {
+        uint8_t count = dataLen / sizeof(uint16_t);
+        if (count > RC_CHANNEL_MAX)
+            count = RC_CHANNEL_MAX;
+
+        bool firstRead = (rcChannelCount == 0);
+        rcChannelCount = count;
+        for (uint8_t i = 0; i < count; i++)
+            rcChannels[i] = buf[i];
+
+        if (firstRead) {
+            SerialMon.printf("MSP_RC: %d channels\n", count);
+            for (uint8_t i = 0; i < count; i++)
+                SerialMon.printf("  CH%d: %d\n", i + 1, rcChannels[i]);
+        }
+
+        lastMspCommunicationTs = millis();
+    } else {
+        SerialMon.println("MSP_RC request failed!");
+    }
+}
+
+// Clear all per-command active states. Called when MSP RC Override goes inactive
+// mid-flight, or when the FC disconnects — prevents stale commands from firing
+// when the pilot regains control or the FC reconnects.
+void clearAllCommandStates() {
+    xSemaphoreTake(cmdMutex, portMAX_DELAY);
+    for (int i = 0; i < CMD_MODE_COUNT; i++)
+        cmdModes[i].mode->active = false;
+    xSemaphoreGive(cmdMutex);
+}
+
+// Clear any active commands that share the same RC channel as a new incoming
+// command. Called before setting a new command state to ON so that the latest
+// command always wins on a shared channel.
+void resolveChannelConflicts(uint8_t channelIndex) {
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        FlightMode* m = cmdModes[i].mode;
+        if (m->active && m->range.found && m->range.rcChannelIndex == channelIndex)
+            m->active = false;
+    }
+}
+
+// Return a safe neutral PWM value for a channel that has known mode ranges but
+// no active mode. Strategy: scan [900, 2100] for the largest contiguous gap not
+// covered by any mode on this channel, then return the midpoint of that gap.
+// Falls back to 1000 if no gap is found (shouldn't happen in practice).
+static uint16_t findSafeOffValue(uint8_t ch) {
+    // Collect all [startPWM, endPWM] intervals for modes on this channel.
+    const uint16_t PWM_MIN = 900;
+    const uint16_t PWM_MAX = 2100;
+
+    // Max entries: CMD_MODE_COUNT intervals.
+    uint16_t starts[CMD_MODE_COUNT];
+    uint16_t ends[CMD_MODE_COUNT];
+    int count = 0;
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        modeRangeInfo_t& r = cmdModes[i].mode->range;
+        if (!r.found || r.rcChannelIndex != ch) continue;
+        starts[count] = r.startPWM;
+        ends[count]   = r.endPWM;
+        count++;
+    }
+
+    if (count == 0) return 1000; // no ranges — shouldn't reach here
+
+    // Insertion sort by startPWM.
+    for (int i = 1; i < count; i++) {
+        uint16_t ks = starts[i], ke = ends[i];
+        int j = i - 1;
+        while (j >= 0 && starts[j] > ks) {
+            starts[j+1] = starts[j];
+            ends[j+1]   = ends[j];
+            j--;
+        }
+        starts[j+1] = ks;
+        ends[j+1]   = ke;
+    }
+
+    // Scan for the largest gap: check [PWM_MIN, first start], each [end_i, start_{i+1}], [last end, PWM_MAX].
+    uint16_t bestMid = 1000;
+    uint16_t bestGap = 0;
+
+    auto checkGap = [&](uint16_t lo, uint16_t hi) {
+        if (hi <= lo) return;
+        uint16_t gap = hi - lo;
+        if (gap > bestGap) {
+            bestGap = gap;
+            bestMid = lo + gap / 2;
+        }
+    };
+
+    checkGap(PWM_MIN, starts[0]);
+    for (int i = 0; i < count - 1; i++)
+        checkGap(ends[i], starts[i+1]);
+    checkGap(ends[count-1], PWM_MAX);
+
+    return bestMid;
+}
+
+// Send MSP_SET_RAW_RC to the FC when any sustained RC channel command is active.
+// Called every telemetry cycle (~200 ms) after msp_get_rc() refreshes rcChannels[].
+// Starts from the real radio values so untouched channels pass through unmodified.
+void msp_send_rc_override() {
+    if (rcChannelCount == 0) return;
+    if (!uavstatus.mspRcOverride) return;
+
+    // Snapshot active states under cmdMutex so we don't race with mqttCommandCallback.
+    bool activeSnapshot[CMD_MODE_COUNT];
+    bool anyActive = false;
+    xSemaphoreTake(cmdMutex, portMAX_DELAY);
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        activeSnapshot[i] = cmdModes[i].mode->active;
+        if (activeSnapshot[i]) anyActive = true;
+    }
+    xSemaphoreGive(cmdMutex);
+
+    if (!anyActive) return;
+
+    // Start from the current radio values read by msp_get_rc().
+    // NOTE: when MSP RC Override is active, MSP_RC returns our own previously
+    // sent values, not the real radio values. We must therefore explicitly
+    // neutralise any channel that has known mode ranges but no active mode,
+    // otherwise deactivated channels keep the last overridden value.
+    uint16_t channels[RC_CHANNEL_MAX];
+    memcpy(channels, rcChannels, rcChannelCount * sizeof(uint16_t));
+
+    // For each RC channel that has at least one known range but no active mode,
+    // find the largest gap in [900, 2100] not covered by any mode on that channel
+    // and place the channel at the midpoint of that gap.
+    for (uint8_t ch = 0; ch < rcChannelCount; ch++) {
+        bool chHasMode       = false;
+        bool chHasActiveMode = false;
+
+        for (int i = 0; i < CMD_MODE_COUNT; i++) {
+            modeRangeInfo_t& r = cmdModes[i].mode->range;
+            if (!r.found || r.rcChannelIndex != ch) continue;
+            chHasMode = true;
+            if (activeSnapshot[i]) chHasActiveMode = true;
+        }
+
+        if (chHasMode && !chHasActiveMode)
+            channels[ch] = findSafeOffValue(ch);
+    }
+
+    // Apply active mode overrides (always wins over the neutral value above).
+    //static uint32_t lastRcOverrideTs = 0;
+    //uint32_t now = millis();
+    //if (lastRcOverrideTs != 0)
+    //    SerialMon.printf("MSP_SET_RAW_RC: %lu ms since last call\n", now - lastRcOverrideTs);
+    //lastRcOverrideTs = now;
+    //SerialMon.printf("MSP_SET_RAW_RC: sending %d channels\n", rcChannelCount);
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        if (activeSnapshot[i] && cmdModes[i].mode->range.found) {
+            uint8_t ch = cmdModes[i].mode->range.rcChannelIndex;
+            uint16_t val = cmdModes[i].mode->range.onValue;
+            //SerialMon.printf("  %s: CH%d %d -> %d\n", cmdModes[i].cmdName, ch + 1, channels[ch], val);
+            channels[ch] = val;
+        }
+    }
+    //SerialMon.printf("  Full channel dump:");
+    //for (int i = 0; i < rcChannelCount; i++)
+    //    SerialMon.printf(" CH%d=%d", i + 1, channels[i]);
+    //SerialMon.println();
+
+    msp.send(MSP_SET_RAW_RC, channels, rcChannelCount * sizeof(uint16_t));
+    //SerialMon.println("  MSP_SET_RAW_RC sent.");
 }
 
 void msp_get_callsign() {
@@ -908,16 +1450,17 @@ void msp_get_activeboxes() {
       memcpy(&boxes64, boxes, sizeof(uint64_t));
 
       // Building decision tree
-      bool fmArm      = (boxes64 & (1LL << boxIdArm)) != 0;
-      bool fmFailsafe = (boxes64 & (1LL << boxIdFailsafe)) != 0;
-      bool fmManual   = (boxes64 & (1LL << boxIdManual)) != 0;
-      bool fmAngle    = (boxes64 & (1LL << boxIdAngle)) != 0;
-      bool fmRth      = (boxes64 & (1LL << boxIdRth)) != 0;
-      bool fmPosHold  = (boxes64 & (1LL << boxIdPosHold)) != 0;
-      bool fmCruise   = (boxes64 & (1LL << boxIdCruise)) != 0;
-      bool fmAltHold  = (boxes64 & (1LL << boxIdAltHold)) != 0;
-      bool fmWaypoint = (boxes64 & (1LL << boxIdWaypoint)) != 0;
-      bool fmHorizon  = (boxes64 & (1LL << boxIdHorizon)) != 0;
+      bool fmArm        = (boxes64 & (1LL << boxIdArm))           != 0;
+      bool fmFailsafe   = (boxes64 & (1LL << boxIdFailsafe))      != 0;
+      bool fmManual     = (boxes64 & (1LL << boxIdManual))        != 0;
+      bool fmAngle      = (boxes64 & (1LL << modeAngle.boxId))    != 0;
+      bool fmRth        = (boxes64 & (1LL << modeRth.boxId))      != 0;
+      bool fmPosHold    = (boxes64 & (1LL << boxIdPosHold))       != 0;
+      bool fmCruise     = (boxes64 & (1LL << modeCruise.boxId))   != 0;
+      bool fmAltHold    = (boxes64 & (1LL << modeAltHold.boxId))  != 0;
+      bool fmWaypoint   = (boxes64 & (1LL << modeWp.boxId))       != 0;
+      bool fmHorizon    = (boxes64 & (1LL << boxIdHorizon))       != 0;
+      bool fmMspOverride = (boxes64 & (1LL << boxIdMspOverride))  != 0;
 
       /*
       MANU = 1
@@ -959,6 +1502,14 @@ void msp_get_activeboxes() {
       uavstatus.uavIsArmed = fmArm;
       uavstatus.isFailsafeActive = fmFailsafe;
 
+      // Detect MSP RC Override going inactive — clear all command states so
+      // stale commands don't fire when the pilot switches the mode back on.
+      if (uavstatus.mspRcOverride && !fmMspOverride) {
+          SerialMon.println("MSP RC Override deactivated — clearing all command states");
+          clearAllCommandStates();
+      }
+      uavstatus.mspRcOverride = fmMspOverride;
+
       lastMspCommunicationTs = millis();
     }
     else
@@ -973,38 +1524,41 @@ void sendMessageTask() {
   if(timer - lastMessageTimer >= MESSAGE_SEND_INTERVAL)
   {
     //SerialMon.printf("Message: %d\n", timer);
-    telemetryFetched = false;
     lastMessageTimer = timer;
-    
+
     connectToTheInternet();
     connectToTheBroker();
 
     if(msgCounter==0)
     {
-      SerialMon.println("Sending first message: id:0");
+      SerialMon.print("Sending first message: id:0");
       char sessionStartMsg[] = "id:0,";
       sendMessage(sessionStartMsg);
     }
-  
+
     char message[512];
+    xSemaphoreTake(dataMutex, portMAX_DELAY);
     buildTelemetryMessage(message);
-  
+    xSemaphoreGive(dataMutex);
+
     SerialMon.print("Sending message: ");
-    SerialMon.println(message);
+    SerialMon.print(message);
     sendMessage(message);
-    
+
     if(timer - lastLowPriorityMessageTimer >= (LOW_PRIORITY_MESSAGE_INTERVAL * 1000))
     {
       lastLowPriorityMessageTimer = timer;
+      xSemaphoreTake(dataMutex, portMAX_DELAY);
       buildLowPriorityMessage(message);
-    
-      SerialMon.print("Sending Low priority message: ");
-      SerialMon.println(message);
+      xSemaphoreGive(dataMutex);
+
+      SerialMon.print("Sending low priority message: ");
+      SerialMon.print(message);
       sendMessage(message);
     }
-    
+
     // Check if there's a Waypoint mission, and send the message
-    if(uavstatus.waypointCount > 0)
+    if(publishedStatus.waypointCount > 0)
       sendWaypointsMessage();
       
   }
@@ -1016,27 +1570,36 @@ void sendWaypointsMessage() {
     waypointMessageCounter++;
     return;
   }
-  
+
+  // Snapshot mission data under dataMutex before iterating.
+  // The mutex is held only for the fast memcpy; MQTT publish happens after release.
+  uint8_t wpCount;
+  msp_set_wp_t wpSnapshot[256];
+  xSemaphoreTake(dataMutex, portMAX_DELAY);
+  wpCount = publishedStatus.waypointCount;
+  memcpy(wpSnapshot, publishedMission, (wpCount + 1) * sizeof(msp_set_wp_t));
+  xSemaphoreGive(dataMutex);
+
   char wpsg[256];
 
-  for(uint16_t i = 0; i <= uavstatus.waypointCount; i++)
+  for(uint16_t i = 0; i <= wpCount; i++)
   {
-    sprintf(wpsg, "wpno:%d,", currentWPMission[i].waypointNumber);
-    sprintf(wpsg, "%sla:%d,", wpsg, currentWPMission[i].lat);
-    sprintf(wpsg, "%slo:%d,", wpsg, currentWPMission[i].lon);
-    sprintf(wpsg, "%sal:%d,", wpsg, currentWPMission[i].alt);
-    sprintf(wpsg, "%sac:%d,", wpsg, currentWPMission[i].action);
-    if(currentWPMission[i].p1 != 0)
-      sprintf(wpsg, "%sp1:%d,", wpsg, currentWPMission[i].p1);
-    if(currentWPMission[i].p2 != 0)
-      sprintf(wpsg, "%sp2:%d,", wpsg, currentWPMission[i].p2);
-    if(currentWPMission[i].p3 != 0)
-      sprintf(wpsg, "%sp3:%d,", wpsg, currentWPMission[i].p3);
-    if(currentWPMission[i].flag != 0)
-      sprintf(wpsg, "%sf:%d,", wpsg, currentWPMission[i].flag);
+    sprintf(wpsg, "wpno:%d,", wpSnapshot[i].waypointNumber);
+    sprintf(wpsg, "%sla:%d,", wpsg, wpSnapshot[i].lat);
+    sprintf(wpsg, "%slo:%d,", wpsg, wpSnapshot[i].lon);
+    sprintf(wpsg, "%sal:%d,", wpsg, wpSnapshot[i].alt);
+    sprintf(wpsg, "%sac:%d,", wpsg, wpSnapshot[i].action);
+    if(wpSnapshot[i].p1 != 0)
+      sprintf(wpsg, "%sp1:%d,", wpsg, wpSnapshot[i].p1);
+    if(wpSnapshot[i].p2 != 0)
+      sprintf(wpsg, "%sp2:%d,", wpsg, wpSnapshot[i].p2);
+    if(wpSnapshot[i].p3 != 0)
+      sprintf(wpsg, "%sp3:%d,", wpsg, wpSnapshot[i].p3);
+    if(wpSnapshot[i].flag != 0)
+      sprintf(wpsg, "%sf:%d,", wpsg, wpSnapshot[i].flag);
 
     SerialMon.print("Sending message: ");
-    SerialMon.println(wpsg);
+    SerialMon.print(wpsg);
     sendMessage(wpsg);
   }
 
@@ -1050,121 +1613,124 @@ void buildTelemetryMessage(char* message) {
   // Make 10 groups of messages, to force the values of this groups to be sent even if they didn't change.
   uint8_t msgGroup = (msgCounter % 10);
 
-  if(lastStatus.rollAngle != uavstatus.rollAngle || msgGroup == 0)
-    sprintf(message, "%sran:%d,", message, uavstatus.rollAngle); // rollAngle
+  if(lastStatus.rollAngle != publishedStatus.rollAngle || msgGroup == 0)
+    sprintf(message, "%sran:%d,", message, publishedStatus.rollAngle); // rollAngle
 
-  if(lastStatus.pitchAngle != uavstatus.pitchAngle || msgGroup == 0)
-    sprintf(message, "%span:%d,", message, uavstatus.pitchAngle); // pitchAngle
+  if(lastStatus.pitchAngle != publishedStatus.pitchAngle || msgGroup == 0)
+    sprintf(message, "%span:%d,", message, publishedStatus.pitchAngle); // pitchAngle
 
-  if(lastStatus.heading != uavstatus.heading || msgGroup == 0)
-    sprintf(message, "%shea:%d,", message, uavstatus.heading); // heading
+  if(lastStatus.heading != publishedStatus.heading || msgGroup == 0)
+    sprintf(message, "%shea:%d,", message, publishedStatus.heading); // heading
 
-  if(lastStatus.altitudeSeaLevel != uavstatus.altitudeSeaLevel || msgGroup == 1)
-    sprintf(message, "%sasl:%d,", message, uavstatus.altitudeSeaLevel); // altitudeSeaLevel
+  if(lastStatus.altitudeSeaLevel != publishedStatus.altitudeSeaLevel || msgGroup == 1)
+    sprintf(message, "%sasl:%d,", message, publishedStatus.altitudeSeaLevel); // altitudeSeaLevel
 
-  if(lastStatus.altitude != uavstatus.altitude || msgGroup == 1)
-    sprintf(message, "%salt:%d,", message, uavstatus.altitude); // relative altitude
+  if(lastStatus.altitude != publishedStatus.altitude || msgGroup == 1)
+    sprintf(message, "%salt:%d,", message, publishedStatus.altitude); // relative altitude
 
-  if(lastStatus.groundSpeed != uavstatus.groundSpeed || msgGroup == 1)
-    sprintf(message, "%sgsp:%d,", message, uavstatus.groundSpeed); // groundSpeed
+  if(lastStatus.groundSpeed != publishedStatus.groundSpeed || msgGroup == 1)
+    sprintf(message, "%sgsp:%d,", message, publishedStatus.groundSpeed); // groundSpeed
 
-  if(lastStatus.verticalSpeed != uavstatus.verticalSpeed || msgGroup == 2)
-    sprintf(message, "%svsp:%d,", message, uavstatus.verticalSpeed); // verticalSpeed
+  if(lastStatus.verticalSpeed != publishedStatus.verticalSpeed || msgGroup == 2)
+    sprintf(message, "%svsp:%d,", message, publishedStatus.verticalSpeed); // verticalSpeed
 
-  if(lastStatus.homeDirection != uavstatus.homeDirection || msgGroup == 2)
-    sprintf(message, "%shdr:%d,", message, uavstatus.homeDirection); // homeDirection
+  if(lastStatus.homeDirection != publishedStatus.homeDirection || msgGroup == 2)
+    sprintf(message, "%shdr:%d,", message, publishedStatus.homeDirection); // homeDirection
 
-  if(lastStatus.homeDistance != uavstatus.homeDistance || msgGroup == 2)
-    sprintf(message, "%shds:%d,", message, uavstatus.homeDistance); // homeDistance
+  if(lastStatus.homeDistance != publishedStatus.homeDistance || msgGroup == 2)
+    sprintf(message, "%shds:%d,", message, publishedStatus.homeDistance); // homeDistance
 
-  if(lastStatus.averageCellVoltage != uavstatus.averageCellVoltage || msgGroup == 3)
-    sprintf(message, "%sacv:%d,", message, uavstatus.averageCellVoltage); // batteryVoltage
+  if(lastStatus.averageCellVoltage != publishedStatus.averageCellVoltage || msgGroup == 3)
+    sprintf(message, "%sacv:%d,", message, publishedStatus.averageCellVoltage); // batteryVoltage
 
-  if(lastStatus.batteryVoltage != uavstatus.batteryVoltage || msgGroup == 3)
-    sprintf(message, "%sbpv:%d,", message, uavstatus.batteryVoltage); // batteryVoltage
+  if(lastStatus.batteryVoltage != publishedStatus.batteryVoltage || msgGroup == 3)
+    sprintf(message, "%sbpv:%d,", message, publishedStatus.batteryVoltage); // batteryVoltage
 
-  if(lastStatus.fuelPercent != uavstatus.fuelPercent || msgGroup == 3)
-    sprintf(message, "%sbfp:%d,", message, uavstatus.fuelPercent); // fuelPercent
+  if(lastStatus.fuelPercent != publishedStatus.fuelPercent || msgGroup == 3)
+    sprintf(message, "%sbfp:%d,", message, publishedStatus.fuelPercent); // fuelPercent
 
-  if(lastStatus.currentDraw != uavstatus.currentDraw || msgGroup == 4)
-    sprintf(message, "%scud:%d,", message, uavstatus.currentDraw); // currentDraw
+  if(lastStatus.currentDraw != publishedStatus.currentDraw || msgGroup == 4)
+    sprintf(message, "%scud:%d,", message, publishedStatus.currentDraw); // currentDraw
 
-  if(lastStatus.capacityDraw != uavstatus.capacityDraw || msgGroup == 4)
-    sprintf(message, "%scad:%d,", message, uavstatus.capacityDraw); // capacityDraw
+  if(lastStatus.capacityDraw != publishedStatus.capacityDraw || msgGroup == 4)
+    sprintf(message, "%scad:%d,", message, publishedStatus.capacityDraw); // capacityDraw
 
-  if(lastStatus.rssiPercent != uavstatus.rssiPercent || msgGroup == 4)
-    sprintf(message, "%srsi:%d,", message, uavstatus.rssiPercent); // rssiPercent
+  if(lastStatus.rssiPercent != publishedStatus.rssiPercent || msgGroup == 4)
+    sprintf(message, "%srsi:%d,", message, publishedStatus.rssiPercent); // rssiPercent
 
-  if(lastStatus.gpsLatitude != uavstatus.gpsLatitude || msgGroup == 5)
-    sprintf(message, "%sgla:%d,", message, uavstatus.gpsLatitude); // gpsLatitude
+  if(lastStatus.gpsLatitude != publishedStatus.gpsLatitude || msgGroup == 5)
+    sprintf(message, "%sgla:%d,", message, publishedStatus.gpsLatitude); // gpsLatitude
 
-  if(lastStatus.gpsLongitude != uavstatus.gpsLongitude || msgGroup == 5)
-    sprintf(message, "%sglo:%d,", message,uavstatus.gpsLongitude); // gpsLongitude
+  if(lastStatus.gpsLongitude != publishedStatus.gpsLongitude || msgGroup == 5)
+    sprintf(message, "%sglo:%d,", message, publishedStatus.gpsLongitude); // gpsLongitude
 
-  if(lastStatus.gpsSatCount != uavstatus.gpsSatCount || msgGroup == 5)
-    sprintf(message, "%sgsc:%d,", message, uavstatus.gpsSatCount); // gpsSatCount
+  if(lastStatus.gpsSatCount != publishedStatus.gpsSatCount || msgGroup == 5)
+    sprintf(message, "%sgsc:%d,", message, publishedStatus.gpsSatCount); // gpsSatCount
 
-  if(lastStatus.gpsHDOP != uavstatus.gpsHDOP || msgGroup == 6)
-    sprintf(message, "%sghp:%d,", message, uavstatus.gpsHDOP); // gpsHDOP
+  if(lastStatus.gpsHDOP != publishedStatus.gpsHDOP || msgGroup == 6)
+    sprintf(message, "%sghp:%d,", message, publishedStatus.gpsHDOP); // gpsHDOP
 
-  if(lastStatus.cellSignalStrength != uavstatus.cellSignalStrength || msgGroup == 6)
-    sprintf(message, "%scss:%d,", message, uavstatus.cellSignalStrength); // cellSignalStrength
+  if(lastStatus.cellSignalStrength != publishedStatus.cellSignalStrength || msgGroup == 6)
+    sprintf(message, "%scss:%d,", message, publishedStatus.cellSignalStrength); // cellSignalStrength
 
-  if(lastStatus.gps3Dfix != uavstatus.gps3Dfix || msgGroup == 6)
-    sprintf(message, "%s3df:%d,", message, uavstatus.gps3Dfix); // gps3Dfix
+  if(lastStatus.gps3Dfix != publishedStatus.gps3Dfix || msgGroup == 6)
+    sprintf(message, "%s3df:%d,", message, publishedStatus.gps3Dfix); // gps3Dfix
 
-  if(lastStatus.isHardwareHealthy != uavstatus.isHardwareHealthy || msgGroup == 7)
-    sprintf(message, "%shwh:%d,", message, uavstatus.isHardwareHealthy); // isHardwareHealthy
+  if(lastStatus.isHardwareHealthy != publishedStatus.isHardwareHealthy || msgGroup == 7)
+    sprintf(message, "%shwh:%d,", message, publishedStatus.isHardwareHealthy); // isHardwareHealthy
 
-  if(lastStatus.uavIsArmed != uavstatus.uavIsArmed || msgGroup == 7)
-    sprintf(message, "%sarm:%d,", message, uavstatus.uavIsArmed); // uavIsArmed
+  if(lastStatus.uavIsArmed != publishedStatus.uavIsArmed || msgGroup == 7)
+    sprintf(message, "%sarm:%d,", message, publishedStatus.uavIsArmed); // uavIsArmed
 
-  if(lastStatus.downlinkStatus != uavstatus.downlinkStatus || msgGroup == 7)
-    sprintf(message, "%sdls:%d,", message, uavstatus.downlinkStatus); // downlinkStatus
+  if(lastStatus.downlinkStatus != publishedStatus.downlinkStatus || msgGroup == 7)
+    sprintf(message, "%sdls:%d,", message, publishedStatus.downlinkStatus); // downlinkStatus
 
-  if(lastStatus.waypointCount != uavstatus.waypointCount || msgGroup == 8)
-    sprintf(message, "%swpc:%d,", message, uavstatus.waypointCount); // waypointCount
+  if(lastStatus.mspRcOverride != publishedStatus.mspRcOverride || msgGroup == 7)
+    sprintf(message, "%smro:%d,", message, publishedStatus.mspRcOverride); // mspRcOverride
 
-  if(lastStatus.currentWaypointNumber != uavstatus.currentWaypointNumber || msgGroup == 8)
-    sprintf(message, "%scwn:%d,", message, uavstatus.currentWaypointNumber); // currentWaypointNumber
+  if(lastStatus.waypointCount != publishedStatus.waypointCount || msgGroup == 8)
+    sprintf(message, "%swpc:%d,", message, publishedStatus.waypointCount); // waypointCount
 
-  if(lastStatus.isWpMissionValid != uavstatus.isWpMissionValid || msgGroup == 8)
-    sprintf(message, "%swpv:%d,", message, uavstatus.isWpMissionValid); // isWpMissionValid
+  if(lastStatus.currentWaypointNumber != publishedStatus.currentWaypointNumber || msgGroup == 8)
+    sprintf(message, "%scwn:%d,", message, publishedStatus.currentWaypointNumber); // currentWaypointNumber
 
-  if(lastStatus.isFailsafeActive != uavstatus.isFailsafeActive || msgGroup == 9)
-    sprintf(message, "%sfs:%d,", message, uavstatus.isFailsafeActive); // isFailsafeActive
+  if(lastStatus.isWpMissionValid != publishedStatus.isWpMissionValid || msgGroup == 8)
+    sprintf(message, "%swpv:%d,", message, publishedStatus.isWpMissionValid); // isWpMissionValid
 
-  if(lastStatus.throttlePercent != uavstatus.throttlePercent || msgGroup == 9)
-    sprintf(message, "%strp:%d,", message, uavstatus.throttlePercent); // throttlePercent
+  if(lastStatus.isFailsafeActive != publishedStatus.isFailsafeActive || msgGroup == 9)
+    sprintf(message, "%sfs:%d,", message, publishedStatus.isFailsafeActive); // isFailsafeActive
 
-  if(lastStatus.autoThrottle != uavstatus.autoThrottle || msgGroup == 9)
-    sprintf(message, "%satt:%d,", message, uavstatus.autoThrottle); // autoThrottle
+  if(lastStatus.throttlePercent != publishedStatus.throttlePercent || msgGroup == 9)
+    sprintf(message, "%strp:%d,", message, publishedStatus.throttlePercent); // throttlePercent
 
-  if(lastStatus.gpsGroundCourse != uavstatus.gpsGroundCourse || msgGroup == 0)
-    sprintf(message, "%sggc:%d,", message, uavstatus.gpsGroundCourse); // gpsGroundCourse
+  if(lastStatus.autoThrottle != publishedStatus.autoThrottle || msgGroup == 9)
+    sprintf(message, "%satt:%d,", message, publishedStatus.autoThrottle); // autoThrottle
 
-  if(lastStatus.navState != uavstatus.navState || msgGroup == 0)
-    sprintf(message, "%snvs:%d,", message, uavstatus.navState); // navState
+  if(lastStatus.gpsGroundCourse != publishedStatus.gpsGroundCourse || msgGroup == 0)
+    sprintf(message, "%sggc:%d,", message, publishedStatus.gpsGroundCourse); // gpsGroundCourse
 
-  if(lastStatus.mWhDraw != uavstatus.mWhDraw || msgGroup == 0)
-    sprintf(message, "%swhd:%d,", message, uavstatus.mWhDraw); // mWhDraw
+  if(lastStatus.navState != publishedStatus.navState || msgGroup == 0)
+    sprintf(message, "%snvs:%d,", message, publishedStatus.navState); // navState
+
+  if(lastStatus.mWhDraw != publishedStatus.mWhDraw || msgGroup == 0)
+    sprintf(message, "%swhd:%d,", message, publishedStatus.mWhDraw); // mWhDraw
 
 
 
   // This values will only be sent if changed... Otherwise they'll be sent by the Low priority message
-  if(lastStatus.homeLatitude != uavstatus.homeLatitude)
-    sprintf(message, "%shla:%d,", message, uavstatus.homeLatitude); // homeLatitude
+  if(lastStatus.homeLatitude != publishedStatus.homeLatitude)
+    sprintf(message, "%shla:%d,", message, publishedStatus.homeLatitude); // homeLatitude
 
-  if(lastStatus.homeLongitude != uavstatus.homeLongitude)
-    sprintf(message, "%shlo:%d,", message, uavstatus.homeLongitude); // homeLongitude
-  
-  if(lastStatus.homeAltitudeSL != uavstatus.homeAltitudeSL)
-    sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
-  
-  if(lastStatus.flightModeId != uavstatus.flightModeId)
-    sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
+  if(lastStatus.homeLongitude != publishedStatus.homeLongitude)
+    sprintf(message, "%shlo:%d,", message, publishedStatus.homeLongitude); // homeLongitude
 
-  lastStatus = uavstatus;
+  if(lastStatus.homeAltitudeSL != publishedStatus.homeAltitudeSL)
+    sprintf(message, "%shal:%d,", message, publishedStatus.homeAltitudeSL); // homeAltitudeSL
+
+  if(lastStatus.flightModeId != publishedStatus.flightModeId)
+    sprintf(message, "%sftm:%d,", message, publishedStatus.flightModeId); // flightModeId
+
+  lastStatus = publishedStatus;
 }
 
 void buildLowPriorityMessage(char* message) {
@@ -1172,21 +1738,21 @@ void buildLowPriorityMessage(char* message) {
 
   sprintf(message, "%spv:%d,", message, PROTOCOL_VERSION); // protocolVersion
 
-  sprintf(message, "%sbcc:%d,", message, uavstatus.batteryCellCount); // batteryCellCount
+  sprintf(message, "%sbcc:%d,", message, publishedStatus.batteryCellCount); // batteryCellCount
 
-  sprintf(message, "%scs:%s,", message, uavstatus.callsign); // callsign
+  sprintf(message, "%scs:%s,", message, publishedStatus.callsign); // callsign
 
-  sprintf(message, "%shla:%d,", message, uavstatus.homeLatitude); // homeLatitude
+  sprintf(message, "%shla:%d,", message, publishedStatus.homeLatitude); // homeLatitude
 
-  sprintf(message, "%shlo:%d,", message, uavstatus.homeLongitude); // homeLongitude
+  sprintf(message, "%shlo:%d,", message, publishedStatus.homeLongitude); // homeLongitude
 
-  sprintf(message, "%shal:%d,", message, uavstatus.homeAltitudeSL); // homeAltitudeSL
+  sprintf(message, "%shal:%d,", message, publishedStatus.homeAltitudeSL); // homeAltitudeSL
 
-  sprintf(message, "%sont:%d,", message, uavstatus.onTime); // onTime
+  sprintf(message, "%sont:%d,", message, publishedStatus.onTime); // onTime
 
-  sprintf(message, "%sflt:%d,", message, uavstatus.flightTime); // flightTime
+  sprintf(message, "%sflt:%d,", message, publishedStatus.flightTime); // flightTime
 
-  sprintf(message, "%sftm:%d,", message, uavstatus.flightModeId); // flightModeId
+  sprintf(message, "%sftm:%d,", message, publishedStatus.flightModeId); // flightModeId
 
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
 
@@ -1217,12 +1783,12 @@ void base64Encode32(const uint8_t* input, char* output) {
 void sendMessage(char* message) {
   if(client.publish(mqttUplinkTopic, message))
   {
-      SerialMon.println("Message sent sucessfully...");
+      SerialMon.println(" Success!");
   }
   else
   {
     failureCounter++;
-    SerialMon.println("Message was NOT sent sucessfully.");
+    SerialMon.println(" Error.");
   }
 }
 
@@ -1230,7 +1796,7 @@ void connectToTheBroker()
 {
   while (!client.connected())
   {
-    SerialMon.println("Connecting to the broker MQTT...");
+    SerialMon.println("Connecting to the MQTT broker...");
     char mqttClientId[32];
     snprintf(mqttClientId, sizeof(mqttClientId), "ESP32_%llX", ESP.getEfuseMac());
     if (client.connect(mqttClientId, mqttUser, mqttPassword))
@@ -1238,13 +1804,13 @@ void connectToTheBroker()
       SerialMon.println("Connected to the broker!");
       if (client.subscribe(mqttDownlinkTopic))
       {
-        uavstatus.downlinkStatus = 1;
+        downlinkActive = true;
         SerialMon.print("Subscribed to command topic: ");
         SerialMon.println(mqttDownlinkTopic);
       }
       else
       {
-        uavstatus.downlinkStatus = 0;
+        downlinkActive = false;
         SerialMon.println("Failed to subscribe to command topic.");
       }
     }

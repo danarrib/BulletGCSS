@@ -361,6 +361,7 @@ Key fields:
 | `currentFlightWaypoints` | array | GPS track recorded since arm |
 | `estimations` | object | Dead-reckoned values between telemetry frames |
 | `downlinkStatus` | 0/1 | Whether the firmware is subscribed to the command topic (`dls` field) |
+| `mspRcOverride` | 0/1 | Whether the `MSP RC OVERRIDE` flight mode is active on the FC (`mro` field). Must be 1 for RC channel commands to work. |
 | `firmwarePublicKey` | string | Ed25519 public key broadcast by the firmware (`pk` field, base64, 44 chars). Empty string if not yet received. |
 | `protocolVersion` | number | Protocol version reported by firmware (`pv` field). Defaults to 1 if missing. |
 

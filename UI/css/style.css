@@ -206,7 +206,6 @@ body {
   
 #brokerSettings,
 #uiSettings,
-#logMenu,
 #sessionsMenu,
 #commandsMenu,
 #securityMenu
@@ -670,3 +669,73 @@ select
 .cmd-status-sent    { color: #aaa; }
 .cmd-status-received { color: #6d6; }
 .cmd-status-lost    { color: #d66; }
+
+/* RC command grid in the commands panel */
+.rc-cmd-grid {
+    margin: 0 5vmin 2vmin;
+}
+
+.rc-cmd-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2vmin 0;
+    border-bottom: 1px solid #555;
+}
+
+.rc-cmd-label {
+    font-size: 1.3em;
+    color: #ccc;
+    flex: 1;
+}
+
+.rc-cmd-btns {
+    display: flex;
+    gap: 2vmin;
+}
+
+/* Override the panel-wide input[type=button] rule for RC buttons */
+.btRcCmd {
+    width: auto !important;
+    min-width: 4.5em;
+    height: 2.5em !important;
+    font-size: 0.95em;
+    font-weight: bold;
+}
+
+.btRcCmd.btn-active {
+    background: #2a2;
+    color: #fff;
+    border-color: #4c4;
+}
+
+.btRcCmd.btn-inactive {
+    background: #3a3a3a;
+    color: #777;
+    border-color: #555;
+}
+
+/* Floating action button — quick access to commands panel */
+.fab-commands {
+    position: fixed;
+    bottom: 4vmin;
+    right: 4vmin;
+    width: 14vmin;
+    height: 14vmin;
+    min-width: 52px;
+    min-height: 52px;
+    border-radius: 50%;
+    background: #555;
+    border: 2px solid #888;
+    color: #fff;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1;
+    transition: background 0.2s;
+}
+
+.fab-commands:hover,
+.fab-commands:active {
+    background: #777;
+}

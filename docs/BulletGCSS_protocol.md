@@ -54,7 +54,7 @@ There is no message envelope, no length prefix, and no message-level checksum. E
 
 ## Message Types
 
-There are six distinct message types, distinguished by their content.
+There are seven distinct message types, distinguished by their content.
 
 ### 1. Session Start Message
 
@@ -85,7 +85,7 @@ Fields are divided into 10 groups (0–9). On each cycle, `msgCounter % 10` dete
 | 4 | `cud`, `cad`, `rsi` |
 | 5 | `gla`, `glo`, `gsc` |
 | 6 | `ghp`, `css`, `3df` |
-| 7 | `hwh`, `arm` |
+| 7 | `hwh`, `arm`, `mro` |
 | 8 | `wpc`, `cwn`, `wpv` |
 | 9 | `fs`, `trp`, `att` |
 
@@ -111,20 +111,39 @@ pv:1,bcc:4,cs:MyCallsign,hla:123456789,hlo:-456789012,hal:80000,ont:3600,flt:120
 
 Sent by the UI on the **downlink topic** (`bulletgcss/cmd/<callsign>`).
 
+**Ping:**
 ```
 cmd:ping,cid:ABC123,seq:42,sig:base64base64...==,
 ```
 
+**Flight controller command (RC mode toggle):**
+```
+cmd:rth,cid:ABC123,seq:43,state:1,sig:base64base64...==,
+```
+
 | Field | Description |
 |---|---|
-| `cmd` | Command type (e.g. `ping`) |
+| `cmd` | Command type: `ping`, `rth`, `althold`, `cruise`, `wp`, `angle`, `beeper` |
 | `cid` | Command ID — 6-character random alphanumeric string, unique per command |
 | `seq` | Monotonically increasing sequence number (uint32, stored in `localStorage`). Used by the firmware to reject replayed commands. |
-| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. |
+| `state` | (RC commands only) `1` = activate the mode, `0` = deactivate. Informational — **not included in the signed payload**. |
+| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. Note: `state` is not part of the signed string. |
 
 The firmware verifies the signature against the stored `commandPublicKey` (32 bytes, configured in `Config.h`). Commands with an invalid signature, a missing `sig` field, a sequence number ≤ the last accepted sequence number, or sent while no public key is configured are **silently dropped** — no ack is sent. The last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot.
 
 The UI only sends commands if a private key is present in `localStorage`. See the Security panel in the UI sidebar.
+
+**Supported `cmd` values:**
+
+| `cmd` | Action |
+|---|---|
+| `ping` | No-op; used to verify the downlink channel is working |
+| `rth` | Return to Home — activates/deactivates the RTH flight mode (`BOXNAVRTH`) |
+| `althold` | Altitude Hold — activates/deactivates `BOXNAVALTHOLD` |
+| `cruise` | Cruise Mode — activates/deactivates `BOXNAVCRUISE` |
+| `wp` | Waypoint/Mission Mode — activates/deactivates `BOXNAVWP` |
+| `angle` | Angle Mode — activates/deactivates `BOXANGLE` |
+| `beeper` | Beeper — activates/deactivates `BOXBEEPERON` |
 
 ---
 
@@ -233,8 +252,11 @@ Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
 | `fs` | Failsafe active | `0` / `1` | `data.isFailsafeActive` | 0 or 1 |
 | `hwh` | Hardware healthy | `0` / `1` | `data.isHardwareHealthy` | 0 or 1 |
 | `dls` | Downlink status | `0` = not subscribed, `1` = subscribed ok | `data.downlinkStatus` | 0 or 1 |
+| `mro` | MSP RC Override mode active | `0` = not active, `1` = active | `data.mspRcOverride` | 0 or 1 |
 | `css` | Cellular/WiFi signal strength | `0`–`3` | `data.cellSignalStrength` | 0 to 3 |
 | `rsi` | RC link RSSI | Percent | `data.rssiPercent` | 0 to 100 |
+
+> `mro` indicates whether the `MSP RC OVERRIDE` flight mode is active on the flight controller. This mode must be active for the firmware's channel override commands to take effect. Without it, commands sent via `MSP_SET_RAW_RC` will be ignored by INAV. The UI shows a dedicated status icon for this field.
 
 ### Flight Mode
 
@@ -326,7 +348,9 @@ When implementing input validation in the UI parser (`CommScripts.js`), apply th
 | Standard telemetry | 1000 ms (default) |
 | Low priority | 60 s |
 | Waypoint mission | Every 30 telemetry cycles (~30 s) |
-| Telemetry fetch from FC | 200 ms (5× per send cycle) |
+| MSP fetch cycle (FC task) | 160 ms per group; 6 groups → full refresh every ~960 ms |
+| MSP_GET_RC + MSP_SET_RAW_RC | Every cycle (160 ms) — keeps RC override freshness within INAV's 200 ms window |
+| Callsign + waypoints | Every 10 seconds (slow-poll) |
 
 ---
 
@@ -334,22 +358,29 @@ When implementing input validation in the UI parser (`CommScripts.js`), apply th
 
 The ESP32 communicates with the flight controller using **MSPv2** (MultiWii Serial Protocol v2) over UART at 115200 baud (Serial2: RX=GPIO19, TX=GPIO18).
 
-Each telemetry cycle the ESP32 requests the following MSP messages from the FC:
+The FC task runs every **160 ms** (`TASK_MSP_READ_MS`). Telemetry messages are divided into 6 round-robin groups; one group is fetched per cycle, giving a full refresh every ~960 ms. `MSP_RC` and `MSP_SET_RAW_RC` run **every cycle** to keep INAV's RC override freshness timer alive (INAV drops overridden channels if no `MSP_SET_RAW_RC` arrives within 200 ms).
 
-| MSP Message | Content |
-|---|---|
-| `MSP_RAW_GPS` | GPS coordinates, speed, fix type, satellite count, HDOP |
-| `MSP_COMP_GPS` | Distance and direction to home |
-| `MSP_ATTITUDE` | Roll, pitch, yaw (heading) |
-| `MSP_ALTITUDE` | Estimated altitude, vertical speed |
-| `MSP_SENSOR_STATUS` | Hardware health flag |
-| `MSP_ACTIVEBOXES` | Active flight mode bitmask |
-| `MSP_WP_GETINFO` | Waypoint count and mission validity |
-| `MSP_NAV_STATUS` | Nav state, active waypoint number |
-| `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle |
-| `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent |
-| `MSP_BOXNAMES` | Flight mode names (fetched once at startup) |
-| `MSP_NAME` | Aircraft callsign (fetched once at startup) |
-| `MSP_WP` | Individual waypoint data (polled every 10 cycles) |
+| MSP Message | Content | When |
+|---|---|---|
+| `MSP_RC` (105) | Current RC channel values (all channels) | Every cycle (160 ms) |
+| `MSP_SET_RAW_RC` (200) | Override RC channels for active mode commands | Every cycle (160 ms) |
+| `MSP_RAW_GPS` | GPS coordinates, speed, fix type, satellite count, HDOP | Group 0 |
+| `MSP_COMP_GPS` | Distance and direction to home | Group 0 |
+| `MSP_ATTITUDE` | Roll, pitch, yaw (heading) | Group 1 |
+| `MSP_ALTITUDE` | Estimated altitude, vertical speed | Group 1 |
+| `MSP_SENSOR_STATUS` | Hardware health flag | Group 2 |
+| `MSP_ACTIVEBOXES` | Active flight mode bitmask | Group 2 |
+| `MSP_WP_GETINFO` | Waypoint count and mission validity | Group 3 |
+| `MSP_NAV_STATUS` | Nav state, active waypoint number | Group 3 |
+| `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle | Group 4 |
+| `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent | Group 5 |
+| `MSP_BOXNAMES` (116) | Flight mode names → discovers `MSP RC OVERRIDE` box ID | Once at startup |
+| `MSP_MODE_RANGES` (34) | RC channel-to-mode mapping → discovers channel/PWM for each mode | Once at startup |
+| `MSP2_COMMON_SETTING` (0x1003) | Reads `msp_override_channels` bitmask | Once at startup (also to confirm write) |
+| `MSP2_COMMON_SET_SETTING` (0x1004) | Writes `msp_override_channels` to enable needed channels | Once at startup |
+| `MSP_NAME` | Aircraft callsign | Once at startup; re-polled every 10 s |
+| `MSP_WP` | Individual waypoint data | Every 10 s (slow-poll) |
+
+**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
 
 MSPv2 frame format: `$X<` header, 1-byte flags, 2-byte message ID, 2-byte payload length, payload, 1-byte CRC8-DVB-S2 checksum.

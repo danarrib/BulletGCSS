@@ -90,10 +90,41 @@ function closeCommandsMenu() {
     document.getElementById("commandsMenu").style.width = "0";
 }
 
+// RC channel commands table — keeps button IDs, command names, and last-sent state in one place.
+// state: null = unknown, 1 = ON sent, 0 = OFF sent
+var rcCommands = [
+    { cmd: "rth",     onId: "btRthOn",     offId: "btRthOff",     state: null },
+    { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff", state: null },
+    { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  state: null },
+    { cmd: "angle",   onId: "btAngleOn",   offId: "btAngleOff",   state: null },
+    { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  state: null },
+    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      state: null },
+];
+
 function updateCommandsPanel() {
-    var downlinkOk = data.downlinkStatus === 1;
+    var downlinkOk = mqttConnected && data.downlinkStatus === 1;
+    var rcOk = downlinkOk && data.mspRcOverride === 1;
+
     document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
+    document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
+
     document.getElementById("btSendPing").disabled = !downlinkOk;
+
+    for (var i = 0; i < rcCommands.length; i++) {
+        var entry  = rcCommands[i];
+        var onBtn  = document.getElementById(entry.onId);
+        var offBtn = document.getElementById(entry.offId);
+
+        onBtn.disabled  = !rcOk;
+        offBtn.disabled = !rcOk;
+
+        // Highlight the last-sent state; clear both classes when disabled or unknown.
+        onBtn.classList.toggle('btn-active',   rcOk && entry.state === 1);
+        onBtn.classList.toggle('btn-inactive', rcOk && entry.state === 0);
+        offBtn.classList.toggle('btn-active',  rcOk && entry.state === 0);
+        offBtn.classList.toggle('btn-inactive',rcOk && entry.state === 1);
+    }
+
     renderCommandHistory();
 }
 
@@ -262,7 +293,8 @@ async function replaySession(id) {
     var messages = await getSessionMessages(id);
     var lines = messages.map(function(m) { return m.line; });
     replayFromSessionMessages(lines);
-    openLogMenu();
+    // Playback controls (Stop Replay, slider) are now inside sessionsMenu.
+    // User can reopen Sessions to control playback.
 }
 
 async function deleteSessionAndRefresh(id) {
@@ -344,13 +376,15 @@ async function renderSessionsList() {
 function openNav() {
     // If App is running standalone, then don't show the option to install
     document.getElementById("installhomelink").style.display = isRunningStandalone() ? "none" : "";
+    // Open menu
+    document.getElementById("sideMenu").style.width = "100%";
+}
 
+function openSettingsNav() {
     // Not implemented yet
     document.getElementById("missionplannerlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
-
-    // Open menu
-    document.getElementById("sideMenu").style.width = "100%";
+    openSettingsMenu();
 }
 
 function closeNav() {
@@ -410,13 +444,13 @@ function closeBrokerSettings() {
     document.getElementById("brokerSettings").style.width = "0";
 }
 
-function openLogMenu()
-{
-    document.getElementById("logMenu").style.width = "100%";
+function openSettingsMenu() {
+    document.getElementById("settingsMenu").style.width = "100%";
+    closeNav();
 }
 
-function closeLogMenu() {
-    document.getElementById("logMenu").style.width = "0";
+function closeSettingsMenu() {
+    document.getElementById("settingsMenu").style.width = "0";
 }
 
 function openUISettings()
@@ -536,31 +570,51 @@ setUIUnits();
 // Wire up event listeners for all interactive elements (replaces inline onclick)
 document.getElementById("gearIcon").addEventListener("click", openNav);
 document.getElementById("closeSideMenu").addEventListener("click", closeNav);
+document.getElementById("navSettingsMenu").addEventListener("click", openSettingsNav);
+document.getElementById("closeSettingsMenu").addEventListener("click", closeSettingsMenu);
 document.getElementById("navBrokerSettings").addEventListener("click", openBrokerSettings);
 document.getElementById("uisettingslink").addEventListener("click", openUISettings);
 document.getElementById("navKeepAwake").addEventListener("click", keepScreenAwake);
-document.getElementById("navLogOptions").addEventListener("click", openLogMenu);
 document.getElementById("navRefreshApp").addEventListener("click", reloadApplication);
 document.getElementById("btSaveBrokerSettings").addEventListener("click", saveBrokerSettings);
 document.getElementById("btResetBrokerSettings").addEventListener("click", resetBrokerSettings);
 document.getElementById("closeBrokerSettings").addEventListener("click", closeBrokerSettings);
 document.getElementById("closeUISettings").addEventListener("click", closeUISettings);
 document.getElementById("btSaveUISettings").addEventListener("click", saveUISettings);
-document.getElementById("closeLogMenu").addEventListener("click", closeLogMenu);
-document.getElementById("navSaveLog").addEventListener("click", savemqttlog);
-document.getElementById("navReplayLog").addEventListener("click", replaymqttlog);
+document.getElementById("navExportSession").addEventListener("click", savemqttlog);
+document.getElementById("navImportSession").addEventListener("click", replaymqttlog);
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
+document.getElementById("fabCommands").addEventListener("click", openCommandsMenu);
 document.getElementById("navSecurityMenu").addEventListener("click", openSecurityMenu);
 document.getElementById("closeSecurityMenu").addEventListener("click", closeSecurityMenu);
 document.getElementById("btGenerateKey").addEventListener("click", generateKeyPair);
 document.getElementById("btCopyPublicKey").addEventListener("click", copyPublicKey);
 document.getElementById("closeCommandsMenu").addEventListener("click", closeCommandsMenu);
 document.getElementById("btSendPing").addEventListener("click", function() {
-    if (data.downlinkStatus !== 1) return;
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
     publishCommand("ping");
     updateCommandsPanel();
 });
+
+(function() {
+    for (var i = 0; i < rcCommands.length; i++) {
+        (function(entry) {
+            document.getElementById(entry.onId).addEventListener("click", function() {
+                if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                publishCommand(entry.cmd, 1);
+                entry.state = 1;
+                updateCommandsPanel();
+            });
+            document.getElementById(entry.offId).addEventListener("click", function() {
+                if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                publishCommand(entry.cmd, 0);
+                entry.state = 0;
+                updateCommandsPanel();
+            });
+        })(rcCommands[i]);
+    }
+})();
 document.getElementById("navSessionsMenu").addEventListener("click", openSessionsMenu);
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);

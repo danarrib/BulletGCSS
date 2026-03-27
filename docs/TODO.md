@@ -26,22 +26,43 @@ All commands (starting with ping) use Ed25519 message signing. UI signs every co
 
 This is the foundation for all future uplink commands — adding new command types only requires dispatching on `cmd` in `mqttCommandCallback` after the shared verification logic passes.
 
-### After step 6 — Flight controller commands
-With a verified, signed bidirectional channel in place, implement actual commands. Each command follows the same signing pattern established in step 6.
+### ~~Step 7 — Flight controller commands~~ ✓ COMPLETE
 
-Planned commands (all require Step 6 complete):
+With the verified, signed bidirectional channel in place, actual flight controller commands are implemented via `MSP_SET_RAW_RC`. Each command follows the same Ed25519 signing pattern established in step 6.
 
-| Command | Description |
-|---------|-------------|
-| RTH on/off | Activate or cancel Return to Home |
-| Mission Mode on/off | Engage or disengage autonomous waypoint mission |
-| Mission Upload | Upload a full waypoint mission to the flight controller |
-| Change current WP | Jump to a specific waypoint number within an active mission |
-| Cruise Mode on/off | Engage or disengage cruise mode |
-| Altitude Hold on/off | Engage or disengage altitude hold |
-| Change target altitude | Set a new target altitude while in altitude hold |
-| Change target course | Set a new target heading while in cruise mode |
-| Beeper on/off | Activate or deactivate the aircraft beeper (useful for locating a downed aircraft) |
+**Implemented commands:**
+
+| Command | MSP command | Notes |
+|---------|-------------|-------|
+| RTH on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVRTH` within/outside its activation range |
+| Mission Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVWP` |
+| Cruise Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVCRUISE` |
+| Altitude Hold on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVALTHOLD` |
+| Angle Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXANGLE` |
+| Beeper on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXBEEPERON` |
+
+**Key implementation details:**
+
+- The firmware uses a table-driven approach (`cmdModes[]`) — 6 entries, one per commandable mode. Each entry holds the `FlightMode` struct (range, available flag, active flag, boxId).
+- Channel deactivation uses a **gap-finding algorithm** (`findSafeOffValue()`): collects all PWM activation ranges assigned to a channel, finds the largest uncovered gap in [900, 2100], and sets the channel to the midpoint. This avoids inadvertently activating another mode that shares the same channel.
+- `msp_get_rc()` is called every cycle to keep `rcChannels[]` current (needed because MSP_RC returns overridden values when MSP RC Override is active).
+- `msp_send_rc_override()` is called every cycle to keep the FC freshness timer alive (INAV drops MSP RC Override if no `MSP_SET_RAW_RC` is received within 200 ms).
+
+**Startup routine:**
+1. `msp_get_boxnames()` — discovers `boxIdMspOverride` for the `MSP RC OVERRIDE` flight mode.
+2. `msp_get_mode_ranges()` — populates `FlightMode` structs with `rcChannelIndex`, `onValue`, `startPWM`, `endPWM`, `found`.
+3. `msp_get_override_channels()` — reads `msp_override_channels` via `MSP2_COMMON_SETTING`, ORs in channel bits needed for all discovered modes, writes back via `MSP2_COMMON_SET_SETTING`, confirms by re-reading. Applied in RAM only.
+
+**UI side:**
+- Commands panel uses a grid layout with ON/OFF buttons per mode.
+- Buttons show visual state: green border (active), dimmed (inactive), default (unknown).
+- A floating action button (FAB) gives quick access to the commands panel from anywhere in the UI.
+- The `state` field in each command payload indicates the desired on/off state (not signed — informational only for logging).
+
+**MSP_SET_WP (209) — waypoint upload:**
+- Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
+- Coordinates: degrees × 10⁷ (int32). Altitude: centimetres (int32).
+- Send waypoints sequentially (index 1, 2, … N). Mark the last one with flag `0xA5`.
 
 ---
 
@@ -76,12 +97,8 @@ JSON was considered but rejected — it adds overhead compared to the current ke
 ### 5. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
 QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
 
-### 6. Flight controller commands over the uplink ⏳ Deferred (channel infrastructure complete)
-The bidirectional MQTT channel is now in place (Step 4 complete): separate uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`) topics, firmware subscribes and acknowledges commands with a `cid`, UI tracks pending commands and marks them received or lost. The Ping command is implemented end-to-end.
-
-What remains is actual **flight controller commands** — RTH, mission upload, arm/disarm — which depend on Steps 5–6 (key pair setup and signed ping). The firmware already defines `MSP_SET_WP`, `msp_set_wp_t`, and `BOXGCSNAV` in the MSP enum, so the MSP groundwork is there.
-
-**Security decision:** all commands will be signed using **Ed25519** (public/private key). The operator's private key stays in the browser; only the public key is stored in `Config.h` on the firmware. The firmware verifies the signature before acting on any command. This ensures that even on a public MQTT broker, nobody can forge commands to the aircraft. A monotonically increasing sequence number will be included in each signed message to prevent replay attacks. Library: Rhys Weatherley's Arduino Crypto (`rweather/arduinolibs`).
+### ~~6. Flight controller commands over the uplink~~ ✓ COMPLETE
+RTH, Altitude Hold, Cruise, Mission, Angle, and Beeper commands implemented via `MSP_SET_RAW_RC`. All commands are Ed25519-signed. A gap-finding algorithm safely deactivates modes without interfering with other RC switches on the same channel. See Step 7 in the Roadmap for full implementation details.
 
 ### 7. Protocol version detection and backwards compatibility ✓ COMPLETE
 `pv` field added to the low-priority message (sent every 60 s). The UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version information is logged to the browser console only. See `docs/BulletGCSS_protocol.md` for the full field reference.
@@ -188,3 +205,4 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 | 10 | **ES Modules refactor** — All UI JS files migrated from global scripts to ES Modules (`import`/`export`). Global state eliminated; `CommScripts.js` owns the central `data` object. Cache-busting added via import map. |
 | F5 | **Flight Sessions** — Every MQTT message is persisted to IndexedDB in real time (two-store schema: `sessions` metadata + `session_messages` log lines). On page load the open session state is restored by fast-forwarding all stored messages through the parser. Sessions can be renamed, replayed with the existing timeline UI, or deleted from the Sessions panel in the sidebar menu. |
 | 7 | **Protocol version detection** — `pv` field added to the low-priority message (every 60 s). UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version 1 is the current protocol. |
+| Step 7 | **Flight controller commands** — RTH, Altitude Hold, Cruise, Mission (WP), Angle, and Beeper toggled via `MSP_SET_RAW_RC`. Channel deactivation uses a gap-finding algorithm. UI commands panel with ON/OFF buttons, visual state indication, and a FAB for quick access. Single command channel status icon with 3 states (error / warning / ok). |

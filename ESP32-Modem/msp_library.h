@@ -34,6 +34,10 @@
 
 #define MSP_NAME              10
 #define MSP_WP_GETINFO        20
+#define MSP_MODE_RANGES       34
+#define MSP_RC                105
+#define MSP2_COMMON_SETTING     0x1003  // out: request setting value by name
+#define MSP2_COMMON_SET_SETTING 0x1004  // in:  set setting value by name
 #define MSP_RAW_GPS           106
 #define MSP_COMP_GPS          107
 #define MSP_ATTITUDE          108
@@ -44,8 +48,50 @@
 #define MSP_NAV_STATUS        121
 #define MSP_SENSOR_STATUS     151
 #define MSP_SET_WP            209
+#define MSP_SET_RAW_RC        200
 #define MSP2_INAV_ANALOG      0x2002
 #define MSP2_INAV_MISC2       0x203A
+
+// Permanent IDs for MSP_MODE_RANGES entries (from INAV src/main/fc/fc_msp_box.c).
+// These are NOT the same as boxId_e enum values — do not confuse them.
+// ARM (permId 0) is intentionally omitted: remote arming/disarming is not
+// implemented and requires dedicated safety confirmation logic before it can
+// be added.
+#define MSP_PERM_ID_ANGLE    1
+#define MSP_PERM_ID_ALTHOLD  3
+#define MSP_PERM_ID_RTH      10
+#define MSP_PERM_ID_BEEPER   13
+#define MSP_PERM_ID_WP       28
+#define MSP_PERM_ID_CRUISE   53
+
+// One entry returned by MSP_MODE_RANGES (4 bytes each, up to 20 entries)
+struct modeRangeEntry_t {
+    uint8_t permanentId;      // mode identifier (see MSP_PERM_ID_* above)
+    uint8_t auxChannelIndex;  // AUX channel (0 = AUX1); RC channel index = auxChannelIndex + 4
+    uint8_t startStep;        // activation range start; PWM = 900 + step * 25
+    uint8_t endStep;          // activation range end
+} __attribute__((packed));
+
+// Computed activation info for a single flight mode (populated from MSP_MODE_RANGES at startup)
+struct modeRangeInfo_t {
+    uint8_t  rcChannelIndex; // 0-based RC channel index (auxChannelIndex + 4)
+    uint16_t onValue;        // PWM midpoint of the activation range
+    uint16_t startPWM;       // lower bound of the activation range (900 + startStep * 25)
+    uint16_t endPWM;         // upper bound of the activation range (900 + endStep   * 25)
+    bool     found;          // true once a valid range was found for this mode
+};
+
+// All per-mode state bundled into one struct.
+// range:     RC channel assignment and activation PWM (from MSP_MODE_RANGES)
+// available: channel is enabled in msp_override_channels (set at startup)
+// active:    a sustained RC override for this mode is currently commanded
+// boxId:     index in the MSP_ACTIVEBOXES bitmask (from MSP_BOXNAMES)
+struct FlightMode {
+    modeRangeInfo_t range;
+    bool            available;
+    bool            active;
+    uint8_t         boxId;
+};
 
 // This enum is a copy from INAV one in "src/main/fc/rc_modes.h"
 typedef enum {
@@ -213,6 +259,8 @@ public:
     bool command(uint16_t messageID, void * payload, uint16_t size, bool waitACK = true);
     bool request(uint16_t messageID, void *payload, uint16_t maxSize, uint16_t *recvSize = NULL);
     bool requestWithPayload(uint16_t messageID, void *payload, uint16_t maxSize, uint16_t *recvSize = NULL);
+    // Send reqPayload, receive into a separate respPayload buffer (different sizes supported)
+    bool requestWithResponse(uint16_t messageID, void *reqPayload, uint16_t reqSize, void *respPayload, uint16_t maxRespSize, uint16_t *recvSize = NULL);
 
     bool requestText(uint16_t messageID, void * payload, uint16_t *recvSize);
     bool waitForText(uint16_t messageID, void * payload, uint16_t *recvSize);

@@ -169,7 +169,39 @@ After flashing, open the serial monitor to see debug output:
 Useful things to look for:
 - `WiFi connected!` or `GPRS connected!` — network is up.
 - `Connected to the broker!` — MQTT connection established.
+- `Waiting for flight controller...` — FC probe in progress (normal on cold boot).
 - `MSP connected` — flight controller communication working.
+- `Mode ranges fetched` — `MSP_MODE_RANGES` startup step complete.
+- `Override channels fetched` — `msp_override_channels` auto-configuration complete.
+
+### Headless serial monitoring (no interactive terminal)
+
+`pio device monitor` requires an interactive TTY and fails in non-TTY environments (e.g. scripts, CI, remote shells). Use Python instead:
+
+```bash
+# Kill any process holding the port, flash, then read output
+fuser /dev/ttyUSB1 | xargs -r kill
+pio run -e esp32-sim7600 --target upload --upload-port /dev/ttyUSB1
+
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyUSB1', 115200, timeout=1)
+start = time.time()
+while time.time() - start < 25:
+    line = s.readline()
+    if line:
+        print(line.decode('utf-8', errors='replace'), end='', flush=True)
+s.close()
+"
+```
+
+To filter specific messages during verification:
+
+```bash
+python3 -c "..." | grep -E "Mode ranges|Override|MSP connected|cmd"
+```
+
+> **Note:** If the upload fails with "port is busy", another process (a previous monitor session or IDE) is holding the serial port. The `fuser ... | xargs -r kill` command above resolves this by killing those processes before flashing.
 
 ---
 
