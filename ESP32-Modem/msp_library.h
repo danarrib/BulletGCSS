@@ -74,9 +74,11 @@ struct modeRangeEntry_t {
 
 // Computed activation info for a single flight mode (populated from MSP_MODE_RANGES at startup)
 struct modeRangeInfo_t {
-    uint8_t rcChannelIndex; // 0-based RC channel index (auxChannelIndex + 4)
-    uint16_t onValue;       // PWM midpoint of the activation range
-    bool found;             // true once a valid range was found for this mode
+    uint8_t  rcChannelIndex; // 0-based RC channel index (auxChannelIndex + 4)
+    uint16_t onValue;        // PWM midpoint of the activation range
+    uint16_t startPWM;       // lower bound of the activation range (900 + startStep * 25)
+    uint16_t endPWM;         // upper bound of the activation range (900 + endStep   * 25)
+    bool     found;          // true once a valid range was found for this mode
 };
 
 // All per-mode state bundled into one struct.

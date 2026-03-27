@@ -118,7 +118,7 @@ HardwareSerial mspSerial(2);
   void connectToGprsNetwork();
 #endif
 
-#define TASK_MSP_READ_MS 200
+#define TASK_MSP_READ_MS 160
 #define MSP_PORT_RECOVERY_THRESHOLD (TASK_MSP_READ_MS * 5)
 // How long to wait between FC ready-probes during cold boot (ms)
 #define FC_PROBE_INTERVAL_MS 2000
@@ -468,7 +468,7 @@ void connectToTheInternet() {
 // whenever it needs to run.
 void fcTask(void* param) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xPeriod = pdMS_TO_TICKS(200);
+    const TickType_t xPeriod = pdMS_TO_TICKS(TASK_MSP_READ_MS);
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
         getTelemetryData();
@@ -586,7 +586,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   char ack[32];
   snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
   SerialMon.print("Command verified and accepted. Sending ack: ");
-  SerialMon.println(ack);
+  SerialMon.print(ack);
   sendMessage(ack);
 
   // ── Step 7: Execute the command ───────────────────────────────────────────────
@@ -654,6 +654,14 @@ void loop()
   }
 }
 
+// Wrap a single MSP call with timing printed to serial (uncomment to enable).
+// Usage: MSP_TIME("msp_get_gps", msp_get_gps());
+#define MSP_TIME(name, call) do { \
+    uint32_t _t0 = millis(); \
+    call; \
+    /*SerialMon.printf("  [timing] %-32s %lu ms\n", name, millis() - _t0);*/ \
+} while(0)
+
 void getTelemetryData()
 {
   //uint32_t stopWatch = millis();
@@ -685,29 +693,60 @@ void getTelemetryData()
   }
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Startup-only — each has an internal flag and returns immediately once done.
   msp_get_boxnames();
   msp_get_mode_ranges();
   msp_get_override_channels();
-  msp_get_rc();
-  msp_send_rc_override();
-  msp_get_gps();
-  msp_get_gps_comp();
-  msp_get_attitude();
-  msp_get_altitude();
-  msp_get_sensor_status();
-  msp_get_activeboxes();
-  msp2_get_misc2();
-  msp2_get_inav_analog();
-  msp_get_wp_getinfo();
-  msp_get_nav_status();
-  msp_get_callsign();
 
-  get_all_waypoints();
+  // Always: keep RC values fresh and send any active channel overrides.
+  // These two must run every cycle to stay within INAV's 200 ms freshness window.
+  uint32_t _cycleStart = millis();
+  MSP_TIME("msp_get_rc",          msp_get_rc());
+  MSP_TIME("msp_send_rc_override", msp_send_rc_override());
 
-  get_cellSignalStrength();
+  // Round-robin: spread remaining telemetry across 6 cycles (one group per cycle)
+  // so each cycle completes well within the 160 ms period.
+  // At 160 ms/cycle each group fires every ~960 ms — fast enough for display.
+  static uint8_t rrCycle = 0;
+  //SerialMon.printf("[timing] cycle %d\n", rrCycle);
+  switch (rrCycle) {
+    case 0:
+      MSP_TIME("msp_get_gps",           msp_get_gps());
+      break;
+    case 1:
+      MSP_TIME("msp_get_gps_comp",      msp_get_gps_comp());
+      MSP_TIME("msp_get_attitude",      msp_get_attitude());
+      break;
+    case 2:
+      MSP_TIME("msp_get_altitude",      msp_get_altitude());
+      MSP_TIME("msp_get_sensor_status", msp_get_sensor_status());
+      break;
+    case 3:
+      MSP_TIME("msp2_get_inav_analog",  msp2_get_inav_analog());
+      MSP_TIME("msp2_get_misc2",        msp2_get_misc2());
+      break;
+    case 4:
+      MSP_TIME("msp_get_wp_getinfo",    msp_get_wp_getinfo());
+      MSP_TIME("msp_get_nav_status",    msp_get_nav_status());
+      break;
+    case 5:
+      MSP_TIME("msp_get_activeboxes",   msp_get_activeboxes());
+      MSP_TIME("get_cellSignalStrength", get_cellSignalStrength());
+      break;
+  }
+  uint32_t _cycleElapsed = millis() - _cycleStart;
+  if (_cycleElapsed > TASK_MSP_READ_MS)
+      SerialMon.printf("WARNING: cycle %d overrun (%lu ms)\n", rrCycle, _cycleElapsed);
+  if (++rrCycle > 5) rrCycle = 0;
+  //SerialMon.printf("[timing] total cycle ms: %lu\n", _cycleElapsed);
 
-  //uint32_t elapsedTime = millis() - stopWatch;
-  //SerialMon.printf("This telemetry duty cycle took %d ms.\n", elapsedTime);
+  // Slow-poll: callsign and waypoints don't change often — refresh every 10 s.
+  static uint32_t lastSlowPollTs = 0;
+  if (millis() - lastSlowPollTs >= 10000) {
+      lastSlowPollTs = millis();
+      MSP_TIME("msp_get_callsign",  msp_get_callsign());
+      MSP_TIME("get_all_waypoints", get_all_waypoints());
+  }
 
   // ── MSP recovery routine ──────────────────────────────────────────────────
   // If no successful MSP exchange for too long, reset the serial port and all
@@ -1052,7 +1091,7 @@ void msp_get_mode_ranges() {
                 e.startStep, e.endStep,
                 rcCh + 1, pwmLo, pwmHi, onVal);
 
-            modeRangeInfo_t info = {rcCh, onVal, true};
+            modeRangeInfo_t info = {rcCh, onVal, pwmLo, pwmHi, true};
 
             for (int j = 0; j < CMD_MODE_COUNT; j++) {
                 if (e.permanentId == cmdModes[j].permId) {
@@ -1222,6 +1261,63 @@ void resolveChannelConflicts(uint8_t channelIndex) {
     }
 }
 
+// Return a safe neutral PWM value for a channel that has known mode ranges but
+// no active mode. Strategy: scan [900, 2100] for the largest contiguous gap not
+// covered by any mode on this channel, then return the midpoint of that gap.
+// Falls back to 1000 if no gap is found (shouldn't happen in practice).
+static uint16_t findSafeOffValue(uint8_t ch) {
+    // Collect all [startPWM, endPWM] intervals for modes on this channel.
+    const uint16_t PWM_MIN = 900;
+    const uint16_t PWM_MAX = 2100;
+
+    // Max entries: CMD_MODE_COUNT intervals.
+    uint16_t starts[CMD_MODE_COUNT];
+    uint16_t ends[CMD_MODE_COUNT];
+    int count = 0;
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        modeRangeInfo_t& r = cmdModes[i].mode->range;
+        if (!r.found || r.rcChannelIndex != ch) continue;
+        starts[count] = r.startPWM;
+        ends[count]   = r.endPWM;
+        count++;
+    }
+
+    if (count == 0) return 1000; // no ranges — shouldn't reach here
+
+    // Insertion sort by startPWM.
+    for (int i = 1; i < count; i++) {
+        uint16_t ks = starts[i], ke = ends[i];
+        int j = i - 1;
+        while (j >= 0 && starts[j] > ks) {
+            starts[j+1] = starts[j];
+            ends[j+1]   = ends[j];
+            j--;
+        }
+        starts[j+1] = ks;
+        ends[j+1]   = ke;
+    }
+
+    // Scan for the largest gap: check [PWM_MIN, first start], each [end_i, start_{i+1}], [last end, PWM_MAX].
+    uint16_t bestMid = 1000;
+    uint16_t bestGap = 0;
+
+    auto checkGap = [&](uint16_t lo, uint16_t hi) {
+        if (hi <= lo) return;
+        uint16_t gap = hi - lo;
+        if (gap > bestGap) {
+            bestGap = gap;
+            bestMid = lo + gap / 2;
+        }
+    };
+
+    checkGap(PWM_MIN, starts[0]);
+    for (int i = 0; i < count - 1; i++)
+        checkGap(ends[i], starts[i+1]);
+    checkGap(ends[count-1], PWM_MAX);
+
+    return bestMid;
+}
+
 // Send MSP_SET_RAW_RC to the FC when any sustained RC channel command is active.
 // Called every telemetry cycle (~200 ms) after msp_get_rc() refreshes rcChannels[].
 // Starts from the real radio values so untouched channels pass through unmodified.
@@ -1241,16 +1337,54 @@ void msp_send_rc_override() {
 
     if (!anyActive) return;
 
-    // Copy current radio values; active commands overwrite their channel only.
+    // Start from the current radio values read by msp_get_rc().
+    // NOTE: when MSP RC Override is active, MSP_RC returns our own previously
+    // sent values, not the real radio values. We must therefore explicitly
+    // neutralise any channel that has known mode ranges but no active mode,
+    // otherwise deactivated channels keep the last overridden value.
     uint16_t channels[RC_CHANNEL_MAX];
     memcpy(channels, rcChannels, rcChannelCount * sizeof(uint16_t));
 
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        if (activeSnapshot[i] && cmdModes[i].mode->range.found)
-            channels[cmdModes[i].mode->range.rcChannelIndex] = cmdModes[i].mode->range.onValue;
+    // For each RC channel that has at least one known range but no active mode,
+    // find the largest gap in [900, 2100] not covered by any mode on that channel
+    // and place the channel at the midpoint of that gap.
+    for (uint8_t ch = 0; ch < rcChannelCount; ch++) {
+        bool chHasMode       = false;
+        bool chHasActiveMode = false;
+
+        for (int i = 0; i < CMD_MODE_COUNT; i++) {
+            modeRangeInfo_t& r = cmdModes[i].mode->range;
+            if (!r.found || r.rcChannelIndex != ch) continue;
+            chHasMode = true;
+            if (activeSnapshot[i]) chHasActiveMode = true;
+        }
+
+        if (chHasMode && !chHasActiveMode)
+            channels[ch] = findSafeOffValue(ch);
     }
 
+    // Apply active mode overrides (always wins over the neutral value above).
+    //static uint32_t lastRcOverrideTs = 0;
+    //uint32_t now = millis();
+    //if (lastRcOverrideTs != 0)
+    //    SerialMon.printf("MSP_SET_RAW_RC: %lu ms since last call\n", now - lastRcOverrideTs);
+    //lastRcOverrideTs = now;
+    //SerialMon.printf("MSP_SET_RAW_RC: sending %d channels\n", rcChannelCount);
+    for (int i = 0; i < CMD_MODE_COUNT; i++) {
+        if (activeSnapshot[i] && cmdModes[i].mode->range.found) {
+            uint8_t ch = cmdModes[i].mode->range.rcChannelIndex;
+            uint16_t val = cmdModes[i].mode->range.onValue;
+            //SerialMon.printf("  %s: CH%d %d -> %d\n", cmdModes[i].cmdName, ch + 1, channels[ch], val);
+            channels[ch] = val;
+        }
+    }
+    //SerialMon.printf("  Full channel dump:");
+    //for (int i = 0; i < rcChannelCount; i++)
+    //    SerialMon.printf(" CH%d=%d", i + 1, channels[i]);
+    //SerialMon.println();
+
     msp.send(MSP_SET_RAW_RC, channels, rcChannelCount * sizeof(uint16_t));
+    //SerialMon.println("  MSP_SET_RAW_RC sent.");
 }
 
 void msp_get_callsign() {
@@ -1397,7 +1531,7 @@ void sendMessageTask() {
 
     if(msgCounter==0)
     {
-      SerialMon.println("Sending first message: id:0");
+      SerialMon.print("Sending first message: id:0");
       char sessionStartMsg[] = "id:0,";
       sendMessage(sessionStartMsg);
     }
@@ -1408,7 +1542,7 @@ void sendMessageTask() {
     xSemaphoreGive(dataMutex);
 
     SerialMon.print("Sending message: ");
-    SerialMon.println(message);
+    SerialMon.print(message);
     sendMessage(message);
 
     if(timer - lastLowPriorityMessageTimer >= (LOW_PRIORITY_MESSAGE_INTERVAL * 1000))
@@ -1418,8 +1552,8 @@ void sendMessageTask() {
       buildLowPriorityMessage(message);
       xSemaphoreGive(dataMutex);
 
-      SerialMon.print("Sending Low priority message: ");
-      SerialMon.println(message);
+      SerialMon.print("Sending low priority message: ");
+      SerialMon.print(message);
       sendMessage(message);
     }
 
@@ -1465,7 +1599,7 @@ void sendWaypointsMessage() {
       sprintf(wpsg, "%sf:%d,", wpsg, wpSnapshot[i].flag);
 
     SerialMon.print("Sending message: ");
-    SerialMon.println(wpsg);
+    SerialMon.print(wpsg);
     sendMessage(wpsg);
   }
 
@@ -1649,12 +1783,12 @@ void base64Encode32(const uint8_t* input, char* output) {
 void sendMessage(char* message) {
   if(client.publish(mqttUplinkTopic, message))
   {
-      SerialMon.println("Message sent sucessfully...");
+      SerialMon.println(" Success!");
   }
   else
   {
     failureCounter++;
-    SerialMon.println("Message was NOT sent sucessfully.");
+    SerialMon.println(" Error.");
   }
 }
 
@@ -1662,7 +1796,7 @@ void connectToTheBroker()
 {
   while (!client.connected())
   {
-    SerialMon.println("Connecting to the broker MQTT...");
+    SerialMon.println("Connecting to the MQTT broker...");
     char mqttClientId[32];
     snprintf(mqttClientId, sizeof(mqttClientId), "ESP32_%llX", ESP.getEfuseMac());
     if (client.connect(mqttClientId, mqttUser, mqttPassword))
