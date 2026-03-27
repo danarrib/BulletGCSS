@@ -13,6 +13,8 @@ Bullet GCSS is a semi-asynchronous internet-based ground control station system 
 
 **It's internet-based**, because it uses a GPRS or LTE modem to send the messages over the Internet using the 2G/3G/4G cellular network. Messages sent by the aircraft has, on average, 60 bytes, which means that on the default 1Hz message frequency, a one hour flight should spend less than 300 kilobytes from your data plan.
 
+The channel is **bidirectional** — the UI can also send signed commands to the aircraft. Supported commands include: Return to Home, Altitude Hold, Cruise, Waypoint Mission, Angle Mode, and Beeper. All commands are authenticated with Ed25519 signatures so nobody else can send commands to your aircraft, even on a public MQTT broker.
+
 ### But how about the latency?
 
 Latency will depend mostly on the update frequency. For the default 1Hz setting, it'll be ~1 second of latency.

@@ -104,14 +104,20 @@ Replace `broker.emqx.io` and `your_callsign` with your actual broker and topic. 
 
 ---
 
-### ESP32 connects and sends data but MSP RC Override icon stays red/attention
+### Command Channel icon shows warning (not green)
 
-The **MSP RC Override** flight mode must be configured in INAV and active on the flight controller for RC channel commands to work.
+The **Command Channel** status icon in the status bar has three states: error (not subscribed), warning (subscribed but MSP RC Override not active), and OK (subscribed and MSP RC Override active).
 
-1. Open INAV Configurator → **Modes** tab. Confirm that `MSP RC OVERRIDE` is assigned to an RC channel switch and that the switch is in the active position.
-2. In the serial monitor, look for `Override channels fetched` — if this message does not appear, the startup sequence has not completed. Wait a few seconds after `MSP connected` appears.
-3. Look for `Mode ranges fetched` — if ARM or the flight modes you care about show `not found`, they have no RC switch assigned in INAV. Assign them in the Modes tab and reflash/reconnect.
-4. The icon will show **attention** (not green) if the MSP RC Override mode switch is OFF. This is normal — enable the switch on your radio.
+If the icon shows **warning** (attention state), the firmware is subscribed to the command topic (Ping will work) but the `MSP RC OVERRIDE` flight mode is not active on the flight controller. RC channel commands (RTH, altitude hold, etc.) will be accepted by the firmware but ignored by INAV.
+
+To resolve:
+
+1. Open INAV Configurator → **Modes** tab. Confirm that `MSP RC OVERRIDE` is assigned to an RC channel switch.
+2. Flip the switch to the active position on your radio. The `mro` field in telemetry will change to `1` and the icon will turn green.
+3. In the serial monitor, look for `Override channels fetched` — if this message does not appear, the startup sequence has not completed. Wait a few seconds after `MSP connected` appears.
+4. Look for `Mode ranges fetched` — if the flight modes you care about show `not found`, they have no RC switch assigned in INAV. Assign them in the Modes tab and reconnect.
+
+If the icon shows **error** (red/broken), the UI is not connected to MQTT or the firmware has not yet confirmed it is subscribed to the command topic. Check the main connection icon first.
 
 ---
 

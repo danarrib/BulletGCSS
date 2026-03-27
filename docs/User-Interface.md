@@ -78,23 +78,14 @@ Bad | Good
 <img src="https://user-images.githubusercontent.com/17026744/104827702-74299c00-583f-11eb-9ffd-33fb4d256c91.png" width="100"> | <img src="https://user-images.githubusercontent.com/17026744/104827701-73910580-583f-11eb-9c03-c7ec916f7f7e.png" width="100">
 Means that there's some hardware error on the aircraft. Maybe a sensor is missing or not powered, or some calibration that was not done properly. Aircraft probably will not arm on that condition. | Hardware health is good, all sensors are working fine.
 
-#### Downlink Status
+#### Command Channel Status
 
-Shows whether the firmware on the aircraft is subscribed to the command topic and ready to receive commands from the UI.
+A single icon showing the combined health of the downlink command channel and the MSP RC Override flight mode on the flight controller. There are three states:
 
-Not subscribed | Subscribed
--- | --
-Grey icon | Green icon
-The firmware has not confirmed it is listening on the command topic. Commands sent now will not be received. | The firmware is subscribed and ready to receive commands. Ping and future commands will work.
-
-#### MSP RC Override Status
-
-Shows whether the `MSP RC OVERRIDE` flight mode is active on the flight controller. This mode must be assigned to an RC channel in INAV and enabled for the firmware to be able to control the aircraft via RC channel commands (RTH, altitude hold, cruise mode, etc.).
-
-Not connected / No downlink | Mode not active | Mode active
+Error | Warning | OK
 -- | -- | --
-Grey/broken icon | Attention icon | Green icon
-No MQTT connection or downlink not confirmed. | The firmware has downlink but MSP RC Override is not active on the FC. RC commands will be ignored by INAV. | MSP RC Override is active. Flight mode commands sent from the UI will be accepted by the flight controller.
+Red/broken icon | Attention icon | Green icon
+The UI is not connected to MQTT, or the firmware has not confirmed it is subscribed to the command topic. Commands cannot be received. | The firmware is subscribed to the command topic, but the `MSP RC OVERRIDE` flight mode is not active on the flight controller. Ping will work, but RC channel commands (RTH, altitude hold, etc.) will be ignored by INAV. | The firmware is subscribed to the command topic and `MSP RC OVERRIDE` is active. All commands — including flight mode toggles — will be accepted by the flight controller.
 
 ### Information Panel
 
@@ -268,13 +259,25 @@ The gauge on the right-most side of the EFIS is a vertical speed indicator. The 
 
 The bottom-most ruler bar is the course indicator. It will show the direction that aircraft is flying to.
 
+### Sidebar Menu
+
+Tapping the hamburger/menu icon opens the sidebar. The first-level menu items are:
+
+- **Send command** — opens the Commands panel (see below). Also accessible via the floating **CMD** button that appears in the bottom-right corner of the screen.
+- **Sessions…** — opens the Sessions panel to manage recorded flight sessions.
+- **Keep screen awake** — keeps the smartphone screen lit at all times (see below).
+- **Settings…** — opens the Settings submenu (see below).
+- **Refresh App** — reloads the page to pick up a new version.
+- **Help** — links to the documentation.
+- **Install App** — appears on compatible browsers; installs the PWA to the home screen.
+
 ### Settings Menu
 
-If the small white gear icon on the top of the screen is clicked or tapped, it'll open a menu with some options and tools. All settings changed here are saved on the device, so next time you open the app, it'll remember the settings.
+Tapping **Settings…** opens a settings submenu with the following sections:
 
 #### Broker Settings
 
-It allows user to set up the MQTT Broker details: host, port, username, password, and two topics:
+Allows the user to set up the MQTT Broker details: host, port, username, password, and two topics:
 
 - **Telemetry Topic** — the topic the firmware publishes telemetry on (format: `bulletgcss/telem/<callsign>`). The UI subscribes to this topic to receive aircraft data.
 - **Command Topic** — the topic the UI publishes commands on (format: `bulletgcss/cmd/<callsign>`). The firmware subscribes to this topic to receive commands from the UI.
@@ -283,31 +286,11 @@ Both topics must use the same callsign suffix and match the values set in `Confi
 
 #### UI Settings
 
-Allow user to set the units of measurement for every aspect of the UI. Speed, Altitude, Distance, Current, Power, etc.
+Allows the user to set the units of measurement for every aspect of the UI. Speed, Altitude, Distance, Current, Power, etc.
 
-It allows user to choose the Terrain elevation data provider. The default provider is "Open Topo Data (Direct)", which works best, but there are other two options in the case of this primary method doesn't work.
+Also allows the user to choose the Terrain elevation data provider. The default provider is "Open Topo Data (Direct)", which works best, but there are two alternative options if the primary method does not work.
 
-#### Keep screen Awake
-
-When used, it'll keep the Smartphone screen awake and make it never dim or turn off. Bullet GCSS needs the screen to be lit all the time, otherwise the Browser will not receive the messages from the aircraft.
-
-This feature doesn't work so well on Apple devices (iPhones and iPads). So it's advised to set the display to Never sleep when using Bullet GCSS. Open the "Settings" app, tap "Screen and Brightness", and then "Auto-Lock". Set it to "Never".
-
-#### Refresh App
-
-It'll reload the app. Useful when a new version is deployed and you want to get it. Usually the app updates by itself, but if you're using it while a new version is released, then you'll need to use this option to get the new version.
-
-#### Sessions...
-
-Opens the Sessions panel, where you can manage recorded flight sessions. Every MQTT message received during a live flight is automatically saved to a local database (IndexedDB) in the browser. Sessions persist across page refreshes and browser restarts.
-
-The panel shows:
-- **Current session** — the name of the active session. You can rename it and tap "Rename" to save, or tap "New Session" to close the current session and start a fresh one.
-- **Saved sessions** — a list of all sessions (newest first), showing the session name, start date, and duration. Each closed session has a **Replay** button to review it in the playback UI, and a **Delete** button to remove it permanently.
-
-When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
-
-#### Security...
+#### Security…
 
 Opens the Security panel, where you manage the Ed25519 key pair used to authenticate commands sent to the aircraft.
 
@@ -323,19 +306,50 @@ Opens the Security panel, where you manage the Ed25519 key pair used to authenti
 
 > **Browser support:** Ed25519 requires Chrome 113+, Firefox 130+, or Safari 17+.
 
-#### Send command to UAV
+#### Mission Planner
 
-Opens the Commands panel, where you can send commands to the aircraft and view the command history.
+Reserved for future use — will allow planning and uploading waypoint missions directly from the UI.
 
-- **Ping** — sends a signed ping command to the aircraft. The firmware verifies the Ed25519 signature and sequence number before acknowledging. The UI marks the command as **received** on acknowledgement, or **lost** if no acknowledgement arrives within 10 subsequent telemetry messages. This is the primary way to verify the downlink channel is working.
-- **Command history** — shows the list of commands sent in this session, each with its type, timestamp, and status (sent / received / lost).
+#### INAV Settings
 
-Commands require a private key to be configured in the Security panel — if none is present, the command will not be sent. Commands are also only useful when the downlink status icon is green (firmware is subscribed). Check the [Security](#security) and [Downlink Status](#downlink-status) panels before sending commands.
+Reserved for future use — will allow reading and writing INAV settings from the UI.
 
-#### Save log file
+### Sessions Panel
 
-When used, this option will create a TXT file with all MQTT messages received by the app since the page was loaded. It's useful for debugging or for sharing a flight log.
+Tapping **Sessions…** opens the Sessions panel, where you can manage recorded flight sessions. Every MQTT message received during a live flight is automatically saved to a local database (IndexedDB) in the browser. Sessions persist across page refreshes and browser restarts.
 
-#### Replay log file...
+The panel shows:
+- **Current session** — the name of the active session. You can rename it and tap "Rename" to save, or tap "New Session" to close the current session and start a fresh one.
+- **Saved sessions** — a list of all sessions (newest first), showing the session name, start date, and duration. Each closed session has a **Replay** button to review it in the playback UI, and a **Delete** button to remove it permanently.
+- **Export session** — saves the current session's messages as a TXT file. Useful for debugging or sharing a flight log.
+- **Import session** — opens a file picker to load a previously exported session file and replay it.
 
-Opens a file picker to load a previously saved log file and play it back. During playback, a timeline slider appears showing the current position and total duration. A **Stop Replay** menu item also appears — clicking it ends the replay immediately and returns to live monitoring.
+When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
+
+### Send Command Panel
+
+Tapping **Send command** (or the **CMD** floating action button) opens the Commands panel, where you can send signed commands to the aircraft.
+
+Available commands:
+
+| Command | Description |
+|---|---|
+| **RTH** | Activates/deactivates Return to Home |
+| **Altitude Hold** | Activates/deactivates Altitude Hold mode |
+| **Cruise** | Activates/deactivates Cruise mode |
+| **Waypoint Mission** | Activates/deactivates Waypoint/Mission mode |
+| **Angle Mode** | Activates/deactivates Angle (self-leveling) mode |
+| **Beeper** | Activates/deactivates the aircraft beeper |
+| **Ping** | Sends a no-op command to verify the downlink channel is working |
+
+Each command has **ON** and **OFF** buttons. The buttons show visual state feedback: green border (mode confirmed active), dimmed (mode confirmed inactive), default (state unknown). State is updated from telemetry — buttons reflect the actual FC state, not just the last command sent.
+
+The **command history** list shows every command sent in this session, with its type, timestamp, and status (sent / received / lost). A command is marked **received** when the firmware sends back an acknowledgement (`cid` match), or **lost** if no ack arrives within 10 subsequent telemetry messages.
+
+Commands require a private key in the Security panel — if none is present, the command will not be sent. Check the [Command Channel Status](#command-channel-status) icon before sending flight-mode commands — the icon must be in the **OK** (green) state for RC commands to take effect on the flight controller.
+
+### Keep Screen Awake
+
+When enabled, it keeps the smartphone screen lit at all times. Bullet GCSS needs the screen on, otherwise the browser may suspend and stop receiving messages.
+
+This feature does not work reliably on Apple devices. On iPhone/iPad, set the display to never sleep: **Settings → Screen & Brightness → Auto-Lock → Never**.

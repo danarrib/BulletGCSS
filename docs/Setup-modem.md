@@ -147,4 +147,6 @@ Look for these messages in order:
 
 > **About `msp_override_channels`:** The firmware automatically reads the current `msp_override_channels` setting from INAV at every boot, enables any RC channels needed for the discovered flight modes, and writes the updated bitmask back. This is applied in RAM only — it is not saved to INAV's EEPROM, so it is re-applied on every boot without any manual INAV Configurator steps. You do not need to configure `msp_override_channels` manually.
 
+> **MSP RC Override flight mode:** For RC channel commands (RTH, altitude hold, cruise, etc.) to take effect on the flight controller, the `MSP RC OVERRIDE` flight mode must be assigned to an RC channel switch in INAV Configurator (Modes tab) and the switch must be in the active position. The firmware auto-configures the channel bitmask, but the mode itself must be assigned and enabled by the pilot. The Command Channel status icon in the UI will show **warning** (amber) when subscribed but the mode is off, and **OK** (green) when both conditions are met.
+
 If you see errors, refer to the [Troubleshooting guide](Troubleshooting.md).
