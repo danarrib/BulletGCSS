@@ -155,61 +155,86 @@
 		<div id="hudview">
 			<canvas id="cvsEFIS"></canvas>
 		</div>
+		<button id="fabCommands" class="fab-commands" title="Send command">CMD</button>
 	</div>
 
 	<div id="sideMenu" class="sidebar">
 		<a href="javascript:void(0)" class="closebtn" id="closeSideMenu">&times;</a>
-		<a href="javascript:void(0)" id="navBrokerSettings">Broker settings...</a>
-		<a href="javascript:void(0)" id="uisettingslink">UI settings...</a>
-		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
+		<a href="javascript:void(0)" id="senduavcommandlink">Send command...</a>
 		<a href="javascript:void(0)" id="navSessionsMenu">Sessions...</a>
-		<a href="javascript:void(0)" id="navLogOptions">Log options...</a>
-		<a href="#" id="missionplannerlink">Mission planner</a>
-		<a href="javascript:void(0)" id="senduavcommandlink">Send command to UAV...</a>
-		<a href="javascript:void(0)" id="navSecurityMenu">Security...</a>
-		<a href="#" id="inavsettingslink">INAV settings...</a>
-		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help - Online manual</a>
+		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
+		<a href="javascript:void(0)" id="navSettingsMenu">Settings...</a>
 		<a href="javascript:void(0)" id="navRefreshApp" class="notification">
 			Refresh App
 			<span class="badge" id="refreshMenuBadge" style="top:0.2em;">&nbsp;</span>
 		</a>
+		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help</a>
 		<a href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone" target="_blank" id="installhomelink">Install on home screen</a>
-
-		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</a>
+		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</p>
 	</div>
 
-	<div id="logMenu" class="sidebar">
-		<a href="javascript:void(0)" class="closebtn" id="closeLogMenu">&times;</a>
-		<a href="javascript:void(0)" id="navSaveLog">Save log file...</a>
-		<a href="javascript:void(0)" id="navReplayLog">Replay log file...</a>
-		<a href="javascript:void(0)" id="btStopReplay" style="display: none;">Stop Replay</a>
-		<div class="playbackcontainer" id="playbackcontainer" style="display: none;">
-			<p>Replay Playback</p>
-			<div id="currentPlaybackTime">00:00</div>
-			<div id="maxPlaybackTime">00:00</div>
-			<input type="range" min="0" max="100" value="0" step="0.1" class="slider" id="sldrReplay">
-		</div>
+	<div id="settingsMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" id="closeSettingsMenu">&times;</a>
+		<a href="javascript:void(0)" id="navBrokerSettings">Broker settings...</a>
+		<a href="javascript:void(0)" id="uisettingslink">UI settings...</a>
+		<a href="javascript:void(0)" id="navSecurityMenu">Security...</a>
+		<a href="#" id="missionplannerlink">Mission planner</a>
+		<a href="#" id="inavsettingslink">INAV settings...</a>
 	</div>
 
 	<div id="commandsMenu" class="sidebar">
 		<a href="javascript:void(0)" class="closebtn" id="closeCommandsMenu">&times;</a>
 		<h3>Send Command</h3>
-		<p id="commandsDownlinkWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; Aircraft is not subscribed to the command channel. Commands will not be received.</p>
-		<p id="commandsMroWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; MSP RC Override is not active on the flight controller. RC channel commands will have no effect.</p>
-		<div class="settingsRow">
-			<div class="settingsColumn">
-				<p><input type="button" id="btSendPing" value="Ping" /></p>
+		<p id="commandsDownlinkWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; No command channel. Commands will not be received.</p>
+		<p id="commandsMroWarning" style="display:none; color:#f90; margin: 0 5vmin 2vmin;">&#9888; MSP RC Override not active. RC commands will have no effect.</p>
+		<div class="rc-cmd-grid">
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">RTH</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btRthOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btRthOff" value="OFF" />
+				</div>
 			</div>
-		</div>
-		<h3>RC Channel Commands</h3>
-		<div class="settingsRow">
-			<div class="settingsColumn">
-				<p>RTH &nbsp;<input type="button" class="btRcCmd" id="btRthOn" value="ON" /> <input type="button" class="btRcCmd" id="btRthOff" value="OFF" /></p>
-				<p>Alt Hold &nbsp;<input type="button" class="btRcCmd" id="btAltHoldOn" value="ON" /> <input type="button" class="btRcCmd" id="btAltHoldOff" value="OFF" /></p>
-				<p>Cruise &nbsp;<input type="button" class="btRcCmd" id="btCruiseOn" value="ON" /> <input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" /></p>
-				<p>Angle &nbsp;<input type="button" class="btRcCmd" id="btAngleOn" value="ON" /> <input type="button" class="btRcCmd" id="btAngleOff" value="OFF" /></p>
-				<p>Beeper &nbsp;<input type="button" class="btRcCmd" id="btBeeperOn" value="ON" /> <input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" /></p>
-				<p>Waypoint &nbsp;<input type="button" class="btRcCmd" id="btWpOn" value="ON" /> <input type="button" class="btRcCmd" id="btWpOff" value="OFF" /></p>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Alt Hold</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btAltHoldOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btAltHoldOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Cruise</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btCruiseOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Angle</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btAngleOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btAngleOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Beeper</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btBeeperOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Waypoint</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btWpOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btWpOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Ping</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btSendPing" value="Send" />
+				</div>
 			</div>
 		</div>
 		<h3>Command History</h3>
@@ -245,6 +270,20 @@
 		</div>
 		<h3>Saved sessions</h3>
 		<div id="sessionsList"></div>
+		<h3>Import / Export</h3>
+		<div class="settingsRow">
+			<div class="settingsColumn">
+				<p><input type="button" id="navExportSession" value="Export session..." /></p>
+				<p><input type="button" id="navImportSession" value="Import session..." /></p>
+				<p><input type="button" id="btStopReplay" value="Stop Replay" style="display: none;" /></p>
+				<div class="playbackcontainer" id="playbackcontainer" style="display: none;">
+					<p>Replay Playback</p>
+					<div id="currentPlaybackTime">00:00</div>
+					<div id="maxPlaybackTime">00:00</div>
+					<input type="range" min="0" max="100" value="0" step="0.1" class="slider" id="sldrReplay">
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<div id="brokerSettings">
