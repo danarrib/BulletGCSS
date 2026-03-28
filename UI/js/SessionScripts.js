@@ -108,6 +108,16 @@ export function listSessions() {
     });
 }
 
+export function countSessionMessages(sessionId) {
+    return new Promise(function(resolve, reject) {
+        var tx = db.transaction('session_messages', 'readonly');
+        var index = tx.objectStore('session_messages').index('sessionId');
+        var request = index.count(IDBKeyRange.only(sessionId));
+        request.onsuccess = function() { resolve(request.result); };
+        request.onerror = function() { reject(request.error); };
+    });
+}
+
 export function getSessionMessages(sessionId) {
     return new Promise(function(resolve, reject) {
         var tx = db.transaction('session_messages', 'readonly');

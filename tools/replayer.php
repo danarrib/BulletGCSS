@@ -20,7 +20,7 @@ define('MQTT_PASSWORD',  'bulletgcss');
 define('MQTT_TOPIC',     'bulletgcss/telem/your_callsign');
 define('MQTT_CLIENT_ID', 'replayer_' . substr(md5(uniqid()), 0, 8));
 
-define('LOG_FILE',       __DIR__ . '/testflight2.txt');
+define('LOG_FILE',       __DIR__ . '/testflight3.txt');
 
 // ─────────────────────────────────────────────────────────────────────────────
 

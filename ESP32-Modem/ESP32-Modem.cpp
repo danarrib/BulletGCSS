@@ -148,6 +148,7 @@ uint16_t failureCounter = 0; // Count how many times it fails sending the messag
 uint8_t boxIdArm        = 0;
 uint8_t boxIdFailsafe   = 0;
 uint8_t boxIdManual     = 0;
+uint8_t boxIdAngle      = 0;
 uint8_t boxIdPosHold    = 0;
 uint8_t boxIdHorizon    = 0;
 uint8_t boxIdMspOverride = 0;
@@ -165,7 +166,6 @@ bool mspOverrideFetched = false;
 // Each FlightMode bundles what were previously four separate per-mode variables:
 //   modeRange*, cmdAvailable*, cmdState*, and boxId*.
 // ARM is intentionally excluded — see boxIdArm comment above.
-FlightMode modeAngle   = {};
 FlightMode modeAltHold = {};
 FlightMode modeRth     = {};
 FlightMode modeBeeper  = {};
@@ -185,7 +185,6 @@ static FlightModeEntry cmdModes[] = {
     { "rth",     "NAV RTH",     MSP_PERM_ID_RTH,     &modeRth     },
     { "althold", "NAV ALTHOLD", MSP_PERM_ID_ALTHOLD, &modeAltHold },
     { "cruise",  "NAV CRUISE",  MSP_PERM_ID_CRUISE,  &modeCruise  },
-    { "angle",   "ANGLE",       MSP_PERM_ID_ANGLE,   &modeAngle   },
     { "beeper",  "BEEPER",      MSP_PERM_ID_BEEPER,  &modeBeeper  },
     { "wp",      "NAV WP",      MSP_PERM_ID_WP,      &modeWp      },
 };
@@ -1041,6 +1040,7 @@ void msp_get_boxnames() {
           if      (strcmp(chars_array, "ARM")            == 0) boxIdArm         = boxIndex;
           else if (strcmp(chars_array, "FAILSAFE")        == 0) boxIdFailsafe    = boxIndex;
           else if (strcmp(chars_array, "MANUAL")          == 0) boxIdManual      = boxIndex;
+          else if (strcmp(chars_array, "ANGLE")           == 0) boxIdAngle       = boxIndex;
           else if (strcmp(chars_array, "NAV POSHOLD")     == 0) boxIdPosHold     = boxIndex;
           else if (strcmp(chars_array, "HORIZON")         == 0) boxIdHorizon     = boxIndex;
           else if (strcmp(chars_array, "MSP RC OVERRIDE") == 0) boxIdMspOverride = boxIndex;
@@ -1248,6 +1248,8 @@ void clearAllCommandStates() {
     for (int i = 0; i < CMD_MODE_COUNT; i++)
         cmdModes[i].mode->active = false;
     xSemaphoreGive(cmdMutex);
+    uavstatus.cmdRth = uavstatus.cmdAltHold = uavstatus.cmdCruise =
+        uavstatus.cmdBeeper = uavstatus.cmdWp = 0;
 }
 
 // Clear any active commands that share the same RC channel as a new incoming
@@ -1334,6 +1336,14 @@ void msp_send_rc_override() {
         if (activeSnapshot[i]) anyActive = true;
     }
     xSemaphoreGive(cmdMutex);
+
+    // Update telemetry command state fields from the snapshot (always, even when nothing active).
+    // cmdModes[] order: 0=rth, 1=althold, 2=cruise, 3=beeper, 4=wp
+    uavstatus.cmdRth     = activeSnapshot[0] ? 1 : 0;
+    uavstatus.cmdAltHold = activeSnapshot[1] ? 1 : 0;
+    uavstatus.cmdCruise  = activeSnapshot[2] ? 1 : 0;
+    uavstatus.cmdBeeper  = activeSnapshot[3] ? 1 : 0;
+    uavstatus.cmdWp      = activeSnapshot[4] ? 1 : 0;
 
     if (!anyActive) return;
 
@@ -1453,7 +1463,7 @@ void msp_get_activeboxes() {
       bool fmArm        = (boxes64 & (1LL << boxIdArm))           != 0;
       bool fmFailsafe   = (boxes64 & (1LL << boxIdFailsafe))      != 0;
       bool fmManual     = (boxes64 & (1LL << boxIdManual))        != 0;
-      bool fmAngle      = (boxes64 & (1LL << modeAngle.boxId))    != 0;
+      bool fmAngle      = (boxes64 & (1LL << boxIdAngle))          != 0;
       bool fmRth        = (boxes64 & (1LL << modeRth.boxId))      != 0;
       bool fmPosHold    = (boxes64 & (1LL << boxIdPosHold))       != 0;
       bool fmCruise     = (boxes64 & (1LL << modeCruise.boxId))   != 0;
@@ -1687,6 +1697,17 @@ void buildTelemetryMessage(char* message) {
 
   if(lastStatus.mspRcOverride != publishedStatus.mspRcOverride || msgGroup == 7)
     sprintf(message, "%smro:%d,", message, publishedStatus.mspRcOverride); // mspRcOverride
+
+  if(lastStatus.cmdRth != publishedStatus.cmdRth || msgGroup == 7)
+    sprintf(message, "%scmdrth:%d,", message, publishedStatus.cmdRth);
+  if(lastStatus.cmdAltHold != publishedStatus.cmdAltHold || msgGroup == 7)
+    sprintf(message, "%scmdalt:%d,", message, publishedStatus.cmdAltHold);
+  if(lastStatus.cmdCruise != publishedStatus.cmdCruise || msgGroup == 7)
+    sprintf(message, "%scmdcrs:%d,", message, publishedStatus.cmdCruise);
+  if(lastStatus.cmdBeeper != publishedStatus.cmdBeeper || msgGroup == 7)
+    sprintf(message, "%scmdbep:%d,", message, publishedStatus.cmdBeeper);
+  if(lastStatus.cmdWp != publishedStatus.cmdWp || msgGroup == 7)
+    sprintf(message, "%scmdwp:%d,", message, publishedStatus.cmdWp);
 
   if(lastStatus.waypointCount != publishedStatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, publishedStatus.waypointCount); // waypointCount

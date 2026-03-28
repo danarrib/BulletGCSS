@@ -61,11 +61,12 @@
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:image:alt" content="Bullet GCSS banner" />
 
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="mqttws31.js?uid=(UNIQUEID)" type="text/javascript"></script>
-    <link rel="stylesheet" href="css/ol.css?uid=(UNIQUEID)" type="text/css" />
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
     <link rel="stylesheet" href="css/style.css?uid=(UNIQUEID)" type="text/css" />
 	<link rel="manifest" href="manifest.json?uid=(UNIQUEID)" />
-	<script src="ol/ol.js?uid=(UNIQUEID)"></script>
+	<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
 	<script src="js/olc.min.js?uid=(UNIQUEID)"></script>
 	<script src="js/NoSleep.min.js?uid=(UNIQUEID)"></script>
 	<script type="text/javascript">
@@ -206,13 +207,6 @@
 				<div class="rc-cmd-btns">
 					<input type="button" class="btRcCmd" id="btCruiseOn" value="ON" />
 					<input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" />
-				</div>
-			</div>
-			<div class="rc-cmd-row">
-				<span class="rc-cmd-label">Angle</span>
-				<div class="rc-cmd-btns">
-					<input type="button" class="btRcCmd" id="btAngleOn" value="ON" />
-					<input type="button" class="btRcCmd" id="btAngleOff" value="OFF" />
 				</div>
 			</div>
 			<div class="rc-cmd-row">

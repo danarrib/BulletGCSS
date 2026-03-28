@@ -338,7 +338,6 @@ Available commands:
 | **Altitude Hold** | Activates/deactivates Altitude Hold mode |
 | **Cruise** | Activates/deactivates Cruise mode |
 | **Waypoint Mission** | Activates/deactivates Waypoint/Mission mode |
-| **Angle Mode** | Activates/deactivates Angle (self-leveling) mode |
 | **Beeper** | Activates/deactivates the aircraft beeper |
 | **Ping** | Sends a no-op command to verify the downlink channel is working |
 
