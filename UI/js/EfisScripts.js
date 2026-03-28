@@ -469,7 +469,7 @@ function drawEfisArtifitialHorizonStepLines() {
 }
 
 function drawEfisCrosshair() {
-    var elementLineWidth = 3;
+    var elementLineWidth = 3 * window.devicePixelRatio;
     var blockStart = 5;
     var blockEnd = 7;
     var elementFont = efis.fontSize + 'px ' + efis.DefaultFont;
@@ -517,7 +517,7 @@ function drawEfisVerticalSpeed() {
     if(0==1) {
         efis.efisContext.beginPath();
         efis.efisContext.strokeStyle = 'white';
-        efis.efisContext.lineWidth = 1;
+        efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
         efis.efisContext.moveTo(elementX, elementCenterY);
         efis.efisContext.lineTo(elementX + elementWidth, elementCenterY);
         efis.efisContext.stroke();
@@ -551,7 +551,7 @@ function drawEfisVerticalSpeed() {
         textY = textY + (elementSmallFontSize / 3);
         efis.efisContext.fillStyle = 'white';
         efis.efisContext.strokeStyle = 'white';
-        efis.efisContext.lineWidth = 1;
+        efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
         efis.efisContext.font = elementSmallFontSize + 'px ' + efis.DefaultFont;
         efis.efisContext.textAlign = "right";
         efis.efisContext.fillText(i, textX, textY);
@@ -580,7 +580,7 @@ function drawEfisVerticalSpeed() {
     // Draw the line for the Vertical Speed value
     efis.efisContext.beginPath();
     efis.efisContext.strokeStyle = 'yellow';
-    efis.efisContext.lineWidth = 2;
+    efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
     var pointerFactor = 0.8;
     
     var vsLineY = elementCenterY - ((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels);
@@ -623,7 +623,7 @@ function drawEfisGroundSpeed() {
 
 
     // Draw Speed Scroller
-    efis.efisContext.lineWidth = 1;
+    efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
     var startSpeed = parseInt(groundSpeedDisplay - ((efis.SpeedFOV / 2) + efis.SpeedSteps));
     if(startSpeed < 0) startSpeed = 0;
     var endSpeed = parseInt(groundSpeedDisplay + ((efis.SpeedFOV / 2) + efis.SpeedSteps));
@@ -762,13 +762,13 @@ function drawEfisBankAngle() {
         efis.efisContext.strokeStyle = 'white';
         if(i == 0)
         {
-            efis.efisContext.lineWidth = 3;
+            efis.efisContext.lineWidth = 3 * window.devicePixelRatio;
             efis.efisContext.strokeStyle = 'yellow';
         }
         else if(i == 60 || i == 30)
-            efis.efisContext.lineWidth = 2;
+            efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
         else
-            efis.efisContext.lineWidth = 1;
+            efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
 
         drawShorterLine(efis.efisContext, P(x1, y1), P(x2, y2), (efis.efisHeight / 2) - (efis.blockHeight * 2), 0);
 
