@@ -14,11 +14,17 @@ var map = new maplibregl.Map({
 
 window._map = map; // Expose map for debugging
 
-// Silence "Image could not be loaded" warnings from the style's sprite sheet.
-// Any missing image gets a 1×1 transparent placeholder.
-map.on('styleimagemissing', function(e) {
-    map.addImage(e.id, { width: 1, height: 1, data: new Uint8ClampedArray(4) });
-});
+// Silence "Image could not be loaded" noise from the style's sprite sheet.
+// Providing placeholder images causes downstream null-expression warnings,
+// so we filter the original message at the console level instead.
+(function() {
+    var _warn = console.warn.bind(console);
+    console.warn = function() {
+        if (typeof arguments[0] === 'string' &&
+            arguments[0].indexOf('could not be loaded') !== -1) return;
+        _warn.apply(console, arguments);
+    };
+}());
 
 export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
