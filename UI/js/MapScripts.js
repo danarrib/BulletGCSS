@@ -88,8 +88,8 @@ map.on('load', function() {
 
 var aircraftEl = document.createElement('img');
 aircraftEl.src = 'img/aircraft.png';
-aircraftEl.style.width  = (56 * window.devicePixelRatio) + 'px';
-aircraftEl.style.height = (56 * window.devicePixelRatio) + 'px';
+aircraftEl.style.width  = (44 * window.devicePixelRatio) + 'px';
+aircraftEl.style.height = (44 * window.devicePixelRatio) + 'px';
 
 var aircraftMarker = new maplibregl.Marker({ element: aircraftEl, rotationAlignment: 'map' })
     .setLngLat([-46.6652, -23.5467])
