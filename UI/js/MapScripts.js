@@ -6,7 +6,7 @@ import { data, updatingWpAltitudes, setUpdatingWpAltitudes, DestinationCoordinat
 
 var map = new maplibregl.Map({
     container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: 'https://tiles.openfreemap.org/styles/bright',
     center: [-46.6652, -23.5467],
     zoom: 16,
     attributionControl: false,
