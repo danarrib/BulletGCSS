@@ -742,7 +742,6 @@ window.addEventListener("DOMContentLoaded", async function() {
         && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false
         && data.waypointCount == (data.currentMissionWaypoints.length - 1))
         {
-            console.log("Trying to get WP Elevation data...");
             getMissionWaypointsAltitude();
         }
 

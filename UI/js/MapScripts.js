@@ -12,8 +12,6 @@ var map = new maplibregl.Map({
     attributionControl: false,
 });
 
-window._map = map; // Expose map for debugging
-
 // Silence "Image could not be loaded" noise from the style's sprite sheet.
 // Providing placeholder images causes downstream null-expression warnings,
 // so we filter the original message at the console level instead.
