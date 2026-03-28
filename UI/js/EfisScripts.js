@@ -412,10 +412,10 @@ function drawEfisArtifitialHorizonStepLines() {
                     efis.efisContext.moveTo(AHIStepLineNeg[0].x, AHIStepLineNeg[0].y);
                     efis.efisContext.lineTo(AHIStepLineNeg[1].x, AHIStepLineNeg[1].y);
                 }
-                efis.efisContext.lineWidth = 0.7;
+                efis.efisContext.lineWidth = (0.7 * window.devicePixelRatio);
             }
             else{
-                efis.efisContext.lineWidth = 1;
+                efis.efisContext.lineWidth = (1 * window.devicePixelRatio);
             }
             efis.efisContext.strokeStyle = 'white';
             efis.efisContext.stroke();
