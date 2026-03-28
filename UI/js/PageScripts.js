@@ -1,7 +1,7 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -66,6 +66,9 @@ function checkForDefaultSettings()
 
     if(localStorage.getItem("ui_efficiency") === null)
         localStorage.setItem("ui_efficiency", "mahkm" );
+
+    if(localStorage.getItem("ui_map_style") === null)
+        localStorage.setItem("ui_map_style", "dark");
 
     if(localStorage.getItem("ui_elevation_provider") === null)
         if(location.href.indexOf("bulletgcss.outros.net") > 0)
@@ -460,6 +463,7 @@ function openUISettings()
     document.getElementById("ui_current").value = localStorage.getItem("ui_current");
     document.getElementById("ui_capacity").value = localStorage.getItem("ui_capacity");
     document.getElementById("ui_efficiency").value = localStorage.getItem("ui_efficiency");
+    document.getElementById("ui_map_style").value = localStorage.getItem("ui_map_style") || "dark";
     document.getElementById("ui_elevation_provider").value = localStorage.getItem("ui_elevation_provider");
 
     document.getElementById("uiSettings").style.width = "100%";
@@ -473,6 +477,7 @@ function saveUISettings()
     localStorage.setItem("ui_current", document.getElementById("ui_current").value );
     localStorage.setItem("ui_capacity", document.getElementById("ui_capacity").value );
     localStorage.setItem("ui_efficiency", document.getElementById("ui_efficiency").value );
+    setMapStyle(document.getElementById("ui_map_style").value);
     localStorage.setItem("ui_elevation_provider", document.getElementById("ui_elevation_provider").value );
 
     setUIUnits();

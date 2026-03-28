@@ -4,9 +4,23 @@ import { data, updatingWpAltitudes, setUpdatingWpAltitudes, DestinationCoordinat
 // pixelRatio: 1 renders at CSS pixel scale so the OS compositor handles
 // upscaling — matching OpenLayers behaviour on high-DPI / OS-scaled displays.
 
+var MAP_STYLES = {
+    'dark':    'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    'liberty': 'https://tiles.openfreemap.org/styles/liberty',
+};
+
+function getInitialMapStyle() {
+    return MAP_STYLES[localStorage.getItem('ui_map_style')] || MAP_STYLES['dark'];
+}
+
+export function setMapStyle(styleKey) {
+    localStorage.setItem('ui_map_style', styleKey);
+    map.setStyle(MAP_STYLES[styleKey] || MAP_STYLES['dark']);
+}
+
 var map = new maplibregl.Map({
     container: 'map',
-    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    style: getInitialMapStyle(),
     center: [-46.6652, -23.5467],
     zoom: 16,
     attributionControl: false,
@@ -44,7 +58,7 @@ map.on('zoomend', function() {
 
 // GeoJSON sources and line layers are added once the style finishes loading.
 // Draw functions guard against being called before sources exist.
-map.on('load', function() {
+map.on('style.load', function() {
     map.resize();
 
     // Flight path (orange)
