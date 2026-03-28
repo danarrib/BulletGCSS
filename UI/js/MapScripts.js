@@ -10,12 +10,12 @@ var MAP_STYLES = {
 };
 
 function getInitialMapStyle() {
-    return MAP_STYLES[localStorage.getItem('ui_map_style')] || MAP_STYLES['dark'];
+    return MAP_STYLES[localStorage.getItem('ui_map_style')] || MAP_STYLES['liberty'];
 }
 
 export function setMapStyle(styleKey) {
     localStorage.setItem('ui_map_style', styleKey);
-    map.setStyle(MAP_STYLES[styleKey] || MAP_STYLES['dark']);
+    map.setStyle(MAP_STYLES[styleKey] || MAP_STYLES['liberty']);
 }
 
 var map = new maplibregl.Map({

@@ -68,7 +68,7 @@ function checkForDefaultSettings()
         localStorage.setItem("ui_efficiency", "mahkm" );
 
     if(localStorage.getItem("ui_map_style") === null)
-        localStorage.setItem("ui_map_style", "dark");
+        localStorage.setItem("ui_map_style", "liberty");
 
     if(localStorage.getItem("ui_elevation_provider") === null)
         if(location.href.indexOf("bulletgcss.outros.net") > 0)
@@ -463,7 +463,7 @@ function openUISettings()
     document.getElementById("ui_current").value = localStorage.getItem("ui_current");
     document.getElementById("ui_capacity").value = localStorage.getItem("ui_capacity");
     document.getElementById("ui_efficiency").value = localStorage.getItem("ui_efficiency");
-    document.getElementById("ui_map_style").value = localStorage.getItem("ui_map_style") || "dark";
+    document.getElementById("ui_map_style").value = localStorage.getItem("ui_map_style") || "liberty";
     document.getElementById("ui_elevation_provider").value = localStorage.getItem("ui_elevation_provider");
 
     document.getElementById("uiSettings").style.width = "100%";
