@@ -441,8 +441,6 @@ export function getMissionWaypointsAltitude() {
         if (xmlhttp.readyState === XMLHttpRequest.DONE) {
             if (xmlhttp.status === 200) {
                 var jsonResponse = JSON.parse(xmlhttp.responseText);
-                console.log('Elevation Reply:');
-                console.log(jsonResponse);
                 updateElevationData(jsonResponse);
             } else {
                 console.log('Error getting waypoint altitudes. Status: ' + xmlhttp.status);
