@@ -760,3 +760,11 @@ select
       background: #777;
   }
 }
+/* ─── MapLibre compass button ────────────────────────────────────────────── */
+.maplibregl-ctrl-compass {
+    width: 44px !important;
+    height: 44px !important;
+}
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+    background-size: 30px 30px !important;
+}
