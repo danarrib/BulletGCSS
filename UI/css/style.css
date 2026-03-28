@@ -768,3 +768,19 @@ select
 .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
     background-size: calc(var(--compass-size, 44px) * 0.68) !important;
 }
+
+.maplibregl-ctrl-center {
+    width: var(--compass-size, 44px) !important;
+    height: var(--compass-size, 44px) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: #333;
+}
+.maplibregl-ctrl-center svg {
+    width: calc(var(--compass-size, 44px) * 0.55);
+    height: calc(var(--compass-size, 44px) * 0.55);
+}

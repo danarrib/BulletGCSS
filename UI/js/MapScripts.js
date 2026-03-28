@@ -42,6 +42,36 @@ export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
 
 map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
+
+var CenterOnAircraftControl = {
+    onAdd: function() {
+        this._btn = document.createElement('button');
+        this._btn.type = 'button';
+        this._btn.title = 'Center on aircraft';
+        this._btn.className = 'maplibregl-ctrl-icon maplibregl-ctrl-center';
+        this._btn.innerHTML = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+            '<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>' +
+            '<circle cx="12" cy="12" r="2" fill="currentColor"/>' +
+            '<line x1="12" y1="2" x2="12" y2="7" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="12" y1="17" x2="12" y2="22" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="2" y1="12" x2="7" y2="12" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="17" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/>' +
+            '</svg>';
+        this._btn.addEventListener('click', function() {
+            user_moved_map = false;
+            centerMap(data);
+        });
+        this._container = document.createElement('div');
+        this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        this._container.appendChild(this._btn);
+        return this._container;
+    },
+    onRemove: function() {
+        this._container.parentNode.removeChild(this._container);
+    }
+};
+map.addControl(CenterOnAircraftControl, 'top-right');
+
 document.documentElement.style.setProperty('--compass-size', (44 * window.devicePixelRatio) + 'px');
 
 map.on('drag', function() {
