@@ -42,6 +42,7 @@ export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
 
 map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
+document.documentElement.style.setProperty('--compass-size', (44 * window.devicePixelRatio) + 'px');
 
 map.on('drag', function() {
     user_moved_map = true;
