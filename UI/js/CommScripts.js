@@ -516,7 +516,8 @@ export function resetDataObject()
         fmCruise: 0,   // 1 = Cruise/Course Hold flight mode active (any source)
         fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
         fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
-        extCmdsSupported: 0, // 0 = none; >= 1 = extended MSP commands supported (FC version > 9.0.1)
+        fcVersion: "",       // FC firmware version string, e.g. "9.0.1" (empty = not yet received)
+        extCmdsSupported: 0, // computed from fcVersion: 0 = none; >= 1 = extended MSP commands supported
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -990,9 +991,16 @@ function parseStandardTelemetryMessage(payload)
                 if (/^[A-Za-z0-9+/]{43}=$/.test(arrData[1]))
                     data.firmwarePublicKey = arrData[1];
                 break;
-            case "excm":
-                raw = parseInt(arrData[1]);
-                if (!isNaN(raw) && raw >= 0) data.extCmdsSupported = raw;
+            case "fcver":
+                if (/^\d+\.\d+\.\d+$/.test(arrData[1])) {
+                    data.fcVersion = arrData[1];
+                    var parts = arrData[1].split('.').map(Number);
+                    var major = parts[0], minor = parts[1], patch = parts[2];
+                    // Extended commands (setheading, setalt, jumpwp) require FC version > 9.0.1
+                    data.extCmdsSupported = (major > 9 ||
+                        (major === 9 && minor > 0) ||
+                        (major === 9 && minor === 0 && patch > 1)) ? 1 : 0;
+                }
                 break;
             default:
                 break;

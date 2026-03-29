@@ -1074,12 +1074,10 @@ void msp_get_fc_version() {
     MSP_FC_VERSION_t fcVer;
     uint16_t recvSize = 0;
     if (msp.request(MSP_FC_VERSION, &fcVer, sizeof(fcVer), &recvSize) && recvSize == sizeof(fcVer)) {
+        uavstatus.fcVersionMajor = fcVer.versionMajor;
+        uavstatus.fcVersionMinor = fcVer.versionMinor;
+        uavstatus.fcVersionPatch = fcVer.versionPatchLevel;
         SerialMon.printf("FC version: %d.%d.%d\n", fcVer.versionMajor, fcVer.versionMinor, fcVer.versionPatchLevel);
-        // Extended commands (setheading, setalt, jumpwp) require FC version > 9.0.1
-        bool supported = (fcVer.versionMajor > 9) ||
-                         (fcVer.versionMajor == 9 && fcVer.versionMinor > 0) ||
-                         (fcVer.versionMajor == 9 && fcVer.versionMinor == 0 && fcVer.versionPatchLevel > 1);
-        uavstatus.extCmdsSupported = supported ? 1 : 0;
         fcVersionFetched = true;
         lastMspCommunicationTs = millis();
     } else {
@@ -1862,7 +1860,7 @@ void buildLowPriorityMessage(char* message) {
 
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
 
-  sprintf(message, "%sexcm:%d,", message, publishedStatus.extCmdsSupported); // extended commands level
+  sprintf(message, "%sfcver:%d.%d.%d,", message, publishedStatus.fcVersionMajor, publishedStatus.fcVersionMinor, publishedStatus.fcVersionPatch); // FC firmware version
 
   char pkBase64[45];
   base64Encode32(commandPublicKey, pkBase64);
