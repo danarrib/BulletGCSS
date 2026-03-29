@@ -729,6 +729,20 @@ select
     border-color: #555;
 }
 
+/* Number input for parametric commands (Set Heading, Jump WP, Set Altitude) */
+.cmd-number-input {
+    width: 5.5em;
+    height: 2.5em;
+    background: #2a2a2a;
+    color: #eee;
+    border: 1px solid #666;
+    border-radius: 4px;
+    font-size: 0.95em;
+    text-align: center;
+    padding: 0 0.3em;
+    touch-action: manipulation;
+}
+
 /* Floating action button — quick access to commands panel */
 .fab-commands {
     position: fixed;

@@ -526,7 +526,10 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   char cid[8]     = "";
   char seqStr[12] = "";  // uint32 max = 10 digits
   char sig[89]    = "";  // Ed25519 base64 signature = 88 chars + null
-  char stateStr[4] = ""; // "0" or "1" for RC channel commands
+  char stateStr[4]   = ""; // "0" or "1" for RC channel commands
+  char headingStr[8] = ""; // degrees 0-359 for setheading
+  char wpStr[4]      = ""; // waypoint index 0-255 for jumpwp
+  char altStr[12]    = ""; // altitude in cm (signed) for setalt
 
   char* token = strtok(buf, ",");
   while (token != NULL) {
@@ -535,11 +538,14 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       *colon = '\0';
       char* key   = token;
       char* value = colon + 1;
-      if (strcmp(key, "cmd")   == 0) strncpy(cmd,      value, sizeof(cmd)      - 1);
-      if (strcmp(key, "cid")   == 0) strncpy(cid,      value, sizeof(cid)      - 1);
-      if (strcmp(key, "seq")   == 0) strncpy(seqStr,   value, sizeof(seqStr)   - 1);
-      if (strcmp(key, "sig")   == 0) strncpy(sig,      value, sizeof(sig)      - 1);
-      if (strcmp(key, "state") == 0) strncpy(stateStr, value, sizeof(stateStr) - 1);
+      if (strcmp(key, "cmd")     == 0) strncpy(cmd,        value, sizeof(cmd)        - 1);
+      if (strcmp(key, "cid")     == 0) strncpy(cid,        value, sizeof(cid)        - 1);
+      if (strcmp(key, "seq")     == 0) strncpy(seqStr,     value, sizeof(seqStr)     - 1);
+      if (strcmp(key, "sig")     == 0) strncpy(sig,        value, sizeof(sig)        - 1);
+      if (strcmp(key, "state")   == 0) strncpy(stateStr,   value, sizeof(stateStr)   - 1);
+      if (strcmp(key, "heading") == 0) strncpy(headingStr, value, sizeof(headingStr) - 1);
+      if (strcmp(key, "wp")      == 0) strncpy(wpStr,      value, sizeof(wpStr)      - 1);
+      if (strcmp(key, "alt")     == 0) strncpy(altStr,     value, sizeof(altStr)     - 1);
     }
     token = strtok(NULL, ",");
   }
@@ -591,6 +597,52 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   // ── Step 7: Execute the command ───────────────────────────────────────────────
   if (strcmp(cmd, "ping") == 0) {
       // Stateless — ack already sent above. Nothing else to do.
+
+  } else if (strcmp(cmd, "setheading") == 0) {
+      // Set heading hold target while in Cruise mode.
+      // Payload field: heading:<degrees 0-359>
+      // MSP_SET_HEAD expects centidegrees (U16).
+      if (strlen(headingStr) == 0) {
+          SerialMon.println("setheading: missing heading field");
+          return;
+      }
+      int deg = atoi(headingStr);
+      if (deg < 0 || deg > 359) {
+          SerialMon.printf("setheading: invalid heading %d\n", deg);
+          return;
+      }
+      uint16_t centideg = (uint16_t)(deg * 100);
+      msp.send(MSP_SET_HEAD, &centideg, sizeof(centideg));
+      SerialMon.printf("setheading: sent %d° (%d centideg)\n", deg, centideg);
+
+  } else if (strcmp(cmd, "jumpwp") == 0) {
+      // Jump to waypoint N during an active WP mission.
+      // Payload field: wp:<index 0-based>
+      // MSP2_INAV_SET_WP_INDEX expects a U8.
+      if (strlen(wpStr) == 0) {
+          SerialMon.println("jumpwp: missing wp field");
+          return;
+      }
+      int wpIdx = atoi(wpStr);
+      if (wpIdx < 0 || wpIdx > 254) {
+          SerialMon.printf("jumpwp: invalid wp index %d\n", wpIdx);
+          return;
+      }
+      uint8_t wpIdxU8 = (uint8_t)wpIdx;
+      msp.send(MSP2_INAV_SET_WP_INDEX, &wpIdxU8, sizeof(wpIdxU8));
+      SerialMon.printf("jumpwp: sent index %d\n", wpIdxU8);
+
+  } else if (strcmp(cmd, "setalt") == 0) {
+      // Set target altitude while altitude-hold / cruise / WP mode is active.
+      // Payload field: alt:<centimetres, signed, relative to home>
+      // MSP2_INAV_SET_ALT_TARGET expects I32.
+      if (strlen(altStr) == 0) {
+          SerialMon.println("setalt: missing alt field");
+          return;
+      }
+      int32_t altCm = (int32_t)atoi(altStr);
+      msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
+      SerialMon.printf("setalt: sent %d cm\n", altCm);
 
   } else {
       // Look up the command in the flight mode table.

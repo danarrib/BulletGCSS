@@ -51,6 +51,9 @@
 #define MSP_SET_RAW_RC        200
 #define MSP2_INAV_ANALOG      0x2002
 #define MSP2_INAV_MISC2       0x203A
+#define MSP_SET_HEAD          211   // in: set heading hold target (U16 centidegrees)
+#define MSP2_INAV_SET_WP_INDEX   0x2221  // in: jump to WP N during active mission (U8 index, 0-based)
+#define MSP2_INAV_SET_ALT_TARGET 0x2222  // in: set target altitude (I32 cm, relative to home)
 
 // Permanent IDs for MSP_MODE_RANGES entries (from INAV src/main/fc/fc_msp_box.c).
 // These are NOT the same as boxId_e enum values — do not confuse them.

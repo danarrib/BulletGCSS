@@ -225,6 +225,27 @@
 				</div>
 			</div>
 			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Set Heading</span>
+				<div class="rc-cmd-btns">
+					<input type="number" class="cmd-number-input" id="inputHeading" min="0" max="359" step="1" placeholder="0-359°" />
+					<input type="button" class="btRcCmd" id="btSendHeading" value="Send" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Jump to WP</span>
+				<div class="rc-cmd-btns">
+					<input type="number" class="cmd-number-input" id="inputWpIndex" min="0" max="254" step="1" placeholder="WP #" />
+					<input type="button" class="btRcCmd" id="btSendJumpWp" value="Send" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Set Altitude</span>
+				<div class="rc-cmd-btns">
+					<input type="number" class="cmd-number-input" id="inputAltitude" min="-100" max="5000" step="1" placeholder="m" />
+					<input type="button" class="btRcCmd" id="btSendAltitude" value="Send" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
 				<span class="rc-cmd-label">Ping</span>
 				<div class="rc-cmd-btns">
 					<input type="button" class="btRcCmd" id="btSendPing" value="Send" />

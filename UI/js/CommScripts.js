@@ -349,10 +349,15 @@ async function signCanonical(canonical) {
     return btoa(binary);
 }
 
-// state: null for stateless commands (ping), 0 or 1 for RC channel commands.
-// state is included in the payload but NOT in the signed canonical — the
-// firmware verifies only cmd/cid/seq and reads state as a separate field.
-export async function publishCommand(cmdType, state = null) {
+// state:       null for stateless commands (ping), 0 or 1 for RC channel commands.
+// extraFields: optional object of additional key:value pairs appended to the
+//              payload but NOT part of the signed canonical (same as state).
+//              Example: { heading: 270 }
+// historyLabel: optional string override for the command history display.
+//
+// Extra fields are included in the payload but NOT in the signed canonical — the
+// firmware verifies only cmd/cid/seq and reads the extra fields separately.
+export async function publishCommand(cmdType, state = null, extraFields = null, historyLabel = null) {
     if (!mqttConnected || !commandTopic) return null;
     if (!localStorage.getItem("commandPrivateKey")) {
         console.warn("publishCommand: no private key configured — command not sent");
@@ -371,7 +376,13 @@ export async function publishCommand(cmdType, state = null) {
     var payload = state !== null
         ? "cmd:" + cmdType + ",state:" + state + ",cid:" + cid + ",seq:" + seq + ",sig:" + sig + ","
         : canonical + ",sig:" + sig + ",";
-    var historyType = state !== null ? cmdType + ":" + (state ? "ON" : "OFF") : cmdType;
+    if (extraFields !== null) {
+        for (var k in extraFields) {
+            payload += k + ":" + extraFields[k] + ",";
+        }
+    }
+    var historyType = historyLabel !== null ? historyLabel
+        : state !== null ? cmdType + ":" + (state ? "ON" : "OFF") : cmdType;
     var entry = { cid: cid, type: historyType, timestamp: Date.now(), status: 'sent' };
     pendingCommands[cid] = { type: cmdType, messageCount: 0 };
     commandHistory.unshift(entry);

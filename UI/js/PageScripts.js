@@ -111,6 +111,9 @@ function updateCommandsPanel() {
     document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
+    document.getElementById("btSendHeading").disabled  = !downlinkOk;
+    document.getElementById("btSendJumpWp").disabled   = !downlinkOk;
+    document.getElementById("btSendAltitude").disabled = !downlinkOk;
 
     for (var i = 0; i < rcCommands.length; i++) {
         var entry  = rcCommands[i];
@@ -608,6 +611,44 @@ document.getElementById("closeCommandsMenu").addEventListener("click", closeComm
 document.getElementById("btSendPing").addEventListener("click", function() {
     if (!mqttConnected || data.downlinkStatus !== 1) return;
     publishCommand("ping");
+    updateCommandsPanel();
+});
+
+document.getElementById("btSendHeading").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var val = parseInt(document.getElementById("inputHeading").value, 10);
+    if (isNaN(val) || val < 0 || val > 359) {
+        alert("Please enter a heading between 0 and 359 degrees.");
+        return;
+    }
+    publishCommand("setheading", null, { heading: val }, "setheading:" + val + "\u00b0");
+    updateCommandsPanel();
+});
+
+document.getElementById("btSendJumpWp").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var val = parseInt(document.getElementById("inputWpIndex").value, 10);
+    if (isNaN(val) || val < 0 || val > 254) {
+        alert("Please enter a waypoint index between 0 and 254.");
+        return;
+    }
+    publishCommand("jumpwp", null, { wp: val }, "jumpwp:" + val);
+    updateCommandsPanel();
+});
+
+document.getElementById("btSendAltitude").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var altUnit = localStorage.getItem("ui_altitude") || "m";
+    var rawVal = parseFloat(document.getElementById("inputAltitude").value);
+    if (isNaN(rawVal)) {
+        alert("Please enter a target altitude.");
+        return;
+    }
+    // Convert to centimetres for INAV (MSP2_INAV_SET_ALT_TARGET expects cm relative to home)
+    var altM = (altUnit === "ft") ? rawVal * 0.3048 : rawVal;
+    var altCm = Math.round(altM * 100);
+    var label = "setalt:" + rawVal + (altUnit === "ft" ? "ft" : "m");
+    publishCommand("setalt", null, { alt: altCm }, label);
     updateCommandsPanel();
 });
 
