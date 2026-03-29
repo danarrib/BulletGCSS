@@ -287,7 +287,7 @@ These fields report whether each flight mode is actually active on the flight co
 | `fmalt` | Altitude Hold mode active | `data.fmAltHold` | 0 or 1 |
 | `fmwp` | WP Mission mode active | `data.fmWp` | 0 or 1 |
 
-> The UI uses these fields to gate the `setheading`, `setalt`, and `jumpwp` commands respectively — a command that has no effect when the relevant mode is inactive is not shown as available.
+> The UI uses these fields to gate the `setheading`, `setalt`, and `jumpwp` commands respectively — a command that has no effect when the relevant mode is inactive is not shown as available. `fmwp` additionally gates the map waypoint-click jump feature: clicking a waypoint marker while WP Mission is active prompts the user to jump to that waypoint.
 
 ### Flight Mode
 
@@ -327,12 +327,14 @@ Flight mode ID values:
 | `flt` | Flight time (time since arm) | Seconds | `data.flightTime` | 0 to 86400 |
 | `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
 | `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
+| `fcver` | Flight controller firmware version | String `"M.m.p"` | `data.fcVersion`; also sets `data.extCmdsSupported` | Pattern `^\d+\.\d+\.\d+$` |
 | `pk` | Command signing public key (Ed25519) | Base64 (44 chars) | `data.firmwarePublicKey` | 44-char base64 string |
 
 > `pv` was introduced in protocol version 1. Firmware that predates this field sends no `pv` key; the UI treats a missing `pv` as version 1 (same as the current protocol). The version is an integer incremented only on breaking changes (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
 > `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
 > `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
 > `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
+> `fcver` is read from the FC once at startup via `MSP_FC_VERSION` and re-read on reconnect. The UI parses the version and derives `data.extCmdsSupported` (integer, 0 = none, ≥ 1 = extended commands available): currently set to 1 for FC version > 9.0.1, which is the first INAV release expected to include `MSP2_INAV_SET_WP_INDEX`, `MSP2_INAV_SET_ALT_TARGET`, and `MSP2_INAV_SET_CRUISE_HEADING`. The capability threshold will be updated here when the INAV PR is merged into an official release. All three extended command buttons and the map waypoint-click jump feature are disabled when `extCmdsSupported` is 0.
 > `pk` is always sent, including when the key is all zeros (base64 `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`), which means signing is not yet configured. The UI uses this field to verify that its stored public key matches the one flashed to the firmware. Public keys are safe to broadcast — they can only be used to verify signatures, not forge them.
 
 ---
@@ -405,6 +407,7 @@ The FC task runs every **160 ms** (`TASK_MSP_READ_MS`). Telemetry messages are d
 | `MSP_NAV_STATUS` | Nav state, active waypoint number | Group 3 |
 | `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle | Group 4 |
 | `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent | Group 5 |
+| `MSP_FC_VERSION` (3) | FC firmware version (major, minor, patch) | Once at startup |
 | `MSP_BOXNAMES` (116) | Flight mode names → discovers `MSP RC OVERRIDE` box ID | Once at startup |
 | `MSP_MODE_RANGES` (34) | RC channel-to-mode mapping → discovers channel/PWM for each mode | Once at startup |
 | `MSP2_COMMON_SETTING` (0x1003) | Reads `msp_override_channels` bitmask | Once at startup (also to confirm write) |
@@ -415,6 +418,6 @@ The FC task runs every **160 ms** (`TASK_MSP_READ_MS`). Telemetry messages are d
 | `MSP2_INAV_SET_ALT_TARGET` (0x2222) | Set altitude hold target (I32, centimetres relative to home) | On `setalt` command |
 | `MSP2_INAV_SET_CRUISE_HEADING` (0x2223) | Set Cruise/Course Hold heading target (I32, centidegrees) | On `setheading` command |
 
-**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
+**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_FC_VERSION` → `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
 
 MSPv2 frame format: `$X<` header, 1-byte flags, 2-byte message ID, 2-byte payload length, payload, 1-byte CRC8-DVB-S2 checksum.
