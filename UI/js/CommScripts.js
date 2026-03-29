@@ -453,6 +453,7 @@ function onMessageArrived(message) {
 
 // MQTTconnect();
 export let data = {};
+window._gcssData = data; // dev console override: e.g. _gcssData.extCmdsSupported = 1
 export function resetDataObject()
 {
     data = {
