@@ -34,16 +34,7 @@ Design considerations:
 - `data` object becomes a keyed map of per-aircraft state.
 - Map renders all aircraft icons simultaneously; clicking one selects it as the active aircraft for the data panel and EFIS.
 
-### F2. Replace status bar PNG icons with inline SVG
-The status bar icons (connection, cell signal, RC signal, battery, GPS, hardware health) are currently ~35 PNG files in `UI/img/`. Replace them with inline SVG elements embedded directly in `basicui.html`. JS switches state by changing a CSS class or attribute rather than swapping `src` paths. Benefits: eliminates the PNG files from the repo, reduces first-load network requests, and SVG is the right format for symbolic icons.
-
-**Design notes:**
-- One SVG element per icon type in the HTML, with state-driven CSS classes (e.g. `class="icon-ok"`, `class="icon-warning"`, `class="icon-error"`).
-- The `getXxxIcon()` functions in `InfoPanelScripts.js` would change from returning a file path to returning a class name or state string.
-- CSS handles color/opacity changes per state — no drawing code needed.
-- The `aircraft.png` map marker and other non-status images are out of scope for this change.
-
-### F3. Mission planner
+### F2. Mission planner
 Allow the operator to plan a waypoint mission directly in the UI, rather than requiring a separate ground control application.
 
 **High-level scope:**
@@ -54,7 +45,7 @@ Allow the operator to plan a waypoint mission directly in the UI, rather than re
 - When ready, the mission is uploaded to the aircraft via the command channel.
 - Mission files should be exportable/importable in a standard format (INAV/Betaflight mission JSON or similar).
 
-### F4. ESP32-Cam integration — aerial image capture
+### F3. ESP32-Cam integration — aerial image capture
 Support an ESP32-Cam module connected to the UAV, allowing the operator to trigger image captures and view them in the ground station.
 
 **Scope:**
