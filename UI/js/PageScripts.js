@@ -1,7 +1,7 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle, setOnWaypointClick } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -747,6 +747,14 @@ window.addEventListener("DOMContentLoaded", async function() {
             } catch (e) {
                 console.error("Session restore after replay failed:", e);
             }
+        }
+    });
+
+    setOnWaypointClick(function(wpNumber) {
+        if (data.fmWp !== 1) return;
+        if (!mqttConnected || data.downlinkStatus !== 1) return;
+        if (confirm("Jump to WP " + wpNumber + "?")) {
+            publishCommand("jumpwp", null, { wp: wpNumber - 1 }, "jumpwp:" + wpNumber);
         }
     });
 
