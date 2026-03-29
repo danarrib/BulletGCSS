@@ -785,6 +785,3 @@ select
     height: calc(var(--compass-size, 44px) * 0.55);
 }
 
-.aircraft-marker {
-    /* size set via JS using devicePixelRatio */
-}

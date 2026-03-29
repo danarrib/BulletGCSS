@@ -132,9 +132,7 @@ map.on('style.load', function() {
 // ─── Aircraft marker ──────────────────────────────────────────────────────────
 
 var aircraftEl = document.createElement('img');
-aircraftEl.className = 'aircraft-marker';
-var _s = (3 * window.devicePixelRatio) + 'px';
-aircraftEl.style.filter = 'drop-shadow(0 0 ' + _s + ' white) drop-shadow(0 0 ' + _s + ' white)';
+
 aircraftEl.src = 'img/aircraft.png';
 aircraftEl.style.width  = (44 * window.devicePixelRatio) + 'px';
 aircraftEl.style.height = (44 * window.devicePixelRatio) + 'px';
