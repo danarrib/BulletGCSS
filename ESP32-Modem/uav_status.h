@@ -75,6 +75,7 @@ struct uav_status
     uint8_t fmCruise;       // 1 = Cruise/Course Hold flight mode active (any source)
     uint8_t fmAltHold;      // 1 = Altitude Hold flight mode active (any source)
     uint8_t fmWp;           // 1 = WP/Mission flight mode active (any source)
+    uint8_t extCmdsSupported; // 0 = none; 1 = setheading/setalt/jumpwp (FC version > 9.0.1)
 
     // Low priority information
     uint32_t onTime; 

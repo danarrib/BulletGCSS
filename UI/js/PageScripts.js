@@ -111,9 +111,10 @@ function updateCommandsPanel() {
     document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
-    document.getElementById("btSendHeading").disabled  = !(downlinkOk && data.fmCruise === 1);
-    document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && data.fmWp === 1);
-    document.getElementById("btSendAltitude").disabled = !(downlinkOk && data.fmAltHold === 1);
+    var extOk = data.extCmdsSupported >= 1;
+    document.getElementById("btSendHeading").disabled  = !(downlinkOk && extOk && data.fmCruise === 1);
+    document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && extOk && data.fmWp === 1);
+    document.getElementById("btSendAltitude").disabled = !(downlinkOk && extOk && data.fmAltHold === 1);
 
     // Keep Jump to WP input bounded by the loaded mission's waypoint count
     var wpInput = document.getElementById("inputWpIndex");
@@ -753,6 +754,7 @@ window.addEventListener("DOMContentLoaded", async function() {
     setOnWaypointClick(function(wpNumber) {
         if (data.fmWp !== 1) return;
         if (!mqttConnected || data.downlinkStatus !== 1) return;
+        if (data.extCmdsSupported < 1) return;
         if (confirm("Jump to WP " + wpNumber + "?")) {
             publishCommand("jumpwp", null, { wp: wpNumber - 1 }, "jumpwp:" + wpNumber);
         }

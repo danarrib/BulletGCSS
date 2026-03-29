@@ -198,6 +198,7 @@ uint32_t lastFcProbeTs = 0;
  // Flags that prevents some routines to run more than one time
 bool boxIdsFetched = 0;
 bool modeRangesFetched = false;
+bool fcVersionFetched = false;
 bool callsignFetched = 0;
 uint8_t waypointFetchCounter = 0;
 uint8_t waypointMessageCounter = 0;
@@ -253,6 +254,7 @@ void msp_get_sensor_status();
 void msp2_get_misc2();
 void get_all_waypoints();
 void msp_get_wp(uint8_t wp_no);
+void msp_get_fc_version();
 void msp_get_boxnames();
 void msp_get_mode_ranges();
 void msp_get_override_channels();
@@ -745,6 +747,7 @@ void getTelemetryData()
   // ─────────────────────────────────────────────────────────────────────────
 
   // Startup-only — each has an internal flag and returns immediately once done.
+  msp_get_fc_version();
   msp_get_boxnames();
   msp_get_mode_ranges();
   msp_get_override_channels();
@@ -809,6 +812,7 @@ void getTelemetryData()
       fcReady           = false;
       boxIdsFetched     = false;
       modeRangesFetched = false;
+      fcVersionFetched  = false;
       mspOverrideFetched = false;
       callsignFetched   = false;
       rcChannelCount    = 0;
@@ -1060,6 +1064,26 @@ void msp_get_wp(uint8_t wp_no) {
     else
     {
       SerialMon.println("MSP WP returned false!");
+    }
+}
+
+void msp_get_fc_version() {
+    if (fcVersionFetched)
+        return;
+
+    MSP_FC_VERSION_t fcVer;
+    uint16_t recvSize = 0;
+    if (msp.request(MSP_FC_VERSION, &fcVer, sizeof(fcVer), &recvSize) && recvSize == sizeof(fcVer)) {
+        SerialMon.printf("FC version: %d.%d.%d\n", fcVer.versionMajor, fcVer.versionMinor, fcVer.versionPatchLevel);
+        // Extended commands (setheading, setalt, jumpwp) require FC version > 9.0.1
+        bool supported = (fcVer.versionMajor > 9) ||
+                         (fcVer.versionMajor == 9 && fcVer.versionMinor > 0) ||
+                         (fcVer.versionMajor == 9 && fcVer.versionMinor == 0 && fcVer.versionPatchLevel > 1);
+        uavstatus.extCmdsSupported = supported ? 1 : 0;
+        fcVersionFetched = true;
+        lastMspCommunicationTs = millis();
+    } else {
+        SerialMon.println("MSP FC_VERSION returned false!");
     }
 }
 
@@ -1837,6 +1861,8 @@ void buildLowPriorityMessage(char* message) {
   sprintf(message, "%sftm:%d,", message, publishedStatus.flightModeId); // flightModeId
 
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
+
+  sprintf(message, "%sexcm:%d,", message, publishedStatus.extCmdsSupported); // extended commands level
 
   char pkBase64[45];
   base64Encode32(commandPublicKey, pkBase64);

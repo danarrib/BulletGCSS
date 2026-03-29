@@ -32,6 +32,7 @@
 #include <Arduino.h>
 #include <Stream.h>
 
+#define MSP_FC_VERSION        3
 #define MSP_NAME              10
 #define MSP_WP_GETINFO        20
 #define MSP_MODE_RANGES       34
@@ -146,6 +147,13 @@ typedef enum {
 typedef uint32_t bitarrayElement_t;
 #define BITARRAY_DECLARE(name, bits) bitarrayElement_t name[(bits + 31) / 32]
 typedef struct boxBitmask_s { BITARRAY_DECLARE(bits, CHECKBOX_ITEM_COUNT); } boxBitmask_t;
+
+struct MSP_FC_VERSION_t
+{
+    uint8_t versionMajor;
+    uint8_t versionMinor;
+    uint8_t versionPatchLevel;
+} __attribute__((packed));
 
 struct MSP_WP_GETINFO_t
 {

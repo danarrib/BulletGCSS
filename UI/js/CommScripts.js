@@ -516,6 +516,7 @@ export function resetDataObject()
         fmCruise: 0,   // 1 = Cruise/Course Hold flight mode active (any source)
         fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
         fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
+        extCmdsSupported: 0, // 0 = none; >= 1 = extended MSP commands supported (FC version > 9.0.1)
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -988,6 +989,10 @@ function parseStandardTelemetryMessage(payload)
                 // Base64-encoded Ed25519 public key (44 chars: 43 base64 chars + 1 '=' padding)
                 if (/^[A-Za-z0-9+/]{43}=$/.test(arrData[1]))
                     data.firmwarePublicKey = arrData[1];
+                break;
+            case "excm":
+                raw = parseInt(arrData[1]);
+                if (!isNaN(raw) && raw >= 0) data.extCmdsSupported = raw;
                 break;
             default:
                 break;
