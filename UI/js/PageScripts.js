@@ -1,7 +1,7 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -579,6 +579,16 @@ document.getElementById("closeSettingsMenu").addEventListener("click", closeSett
 document.getElementById("navBrokerSettings").addEventListener("click", openBrokerSettings);
 document.getElementById("uisettingslink").addEventListener("click", openUISettings);
 document.getElementById("navKeepAwake").addEventListener("click", keepScreenAwake);
+document.getElementById("navEnableCompass").addEventListener("click", function() {
+    startOrientationTracking().then(function(granted) {
+        if (granted) {
+            document.getElementById("navEnableCompass").textContent = "Compass enabled \u2713";
+        } else {
+            alert("Compass permission was denied.");
+        }
+    });
+    closeNav();
+});
 document.getElementById("navRefreshApp").addEventListener("click", reloadApplication);
 document.getElementById("btSaveBrokerSettings").addEventListener("click", saveBrokerSettings);
 document.getElementById("btResetBrokerSettings").addEventListener("click", resetBrokerSettings);
@@ -686,6 +696,16 @@ window.addEventListener("DOMContentLoaded", async function() {
 
     getUserLocation();
     drawUserOnMap(data);
+
+    // Compass heading via DeviceOrientationEvent.
+    // iOS 13+ requires a permission prompt triggered by a user gesture — show the
+    // sidebar button and let the user tap it. On all other platforms start immediately.
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        document.getElementById('navEnableCompass').style.display = '';
+    } else {
+        startOrientationTracking();
+    }
 
     var timerEFIS = setInterval(function(){
         estimateEfis();

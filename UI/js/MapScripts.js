@@ -366,6 +366,55 @@ export function drawUserOnMap(inputData) {
     }
 }
 
+// ─── Compass heading (DeviceOrientationEvent) ─────────────────────────────────
+// When active, compass heading takes priority over GPS movement heading so the
+// marker rotates even when the user is standing still.
+
+var compassActive = false;
+
+function handleOrientationEvent(event) {
+    var heading = null;
+    if (typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)) {
+        // iOS: direct magnetic compass heading (0 = N, clockwise)
+        heading = event.webkitCompassHeading;
+    } else if (event.absolute === true && typeof event.alpha === 'number' && event.alpha !== null) {
+        // Android / Chrome with absolute orientation: alpha is CCW from north → convert to CW
+        heading = (360 - event.alpha) % 360;
+    }
+    if (heading !== null) {
+        compassActive = true;
+        data.userHeading = heading;
+    }
+}
+
+// Export so PageScripts can call it from a user gesture (required on iOS 13+).
+// On non-iOS devices this can be called without a gesture; it returns a resolved Promise.
+export function startOrientationTracking() {
+    if (typeof DeviceOrientationEvent === 'undefined') {
+        return Promise.resolve(false);
+    }
+
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ — permission must be requested from a user gesture
+        return DeviceOrientationEvent.requestPermission().then(function(state) {
+            if (state === 'granted') {
+                window.addEventListener('deviceorientation', handleOrientationEvent);
+                return true;
+            }
+            return false;
+        }).catch(function() { return false; });
+    }
+
+    // Android / desktop — no permission needed
+    // Prefer deviceorientationabsolute (guaranteed relative to magnetic north)
+    if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', handleOrientationEvent);
+    } else {
+        window.addEventListener('deviceorientation', handleOrientationEvent);
+    }
+    return Promise.resolve(true);
+}
+
 // ─── Map centering ────────────────────────────────────────────────────────────
 
 export function centerMap(inputData) {
@@ -396,7 +445,11 @@ export function getUserLocation() {
 function getUserPosition(position) {
     data.userLatitude    = position.coords.latitude;
     data.userLongitude   = position.coords.longitude;
-    data.userHeading     = position.coords.heading;
+    // Only use GPS movement heading if the compass sensor is not active —
+    // GPS heading is null when stationary and is the wrong value for orientation.
+    if (!compassActive) {
+        data.userHeading = position.coords.heading;
+    }
     data.userAltitudeSL  = position.coords.altitude;
     hasUserLocation = true;
 }

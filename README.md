@@ -27,9 +27,18 @@ The UI is connected to this same MQTT Broker, and every time it gets a new telem
 
 Check out this [Demonstration Video](https://youtu.be/Iwv_Eo0fOuc?si=-nH5KV7GBwPIXf3V&t=623), action starts at 10:23.
 
-## A note on privacy
+## ⚠ Security Notice
 
-By default, Bullet GCSS uses a public MQTT broker. This means your aircraft's telemetry (GPS position, altitude, battery, etc.) can be seen by anyone who subscribes to the same topic. For most hobbyist flights this is perfectly fine — but if you'd rather keep your flights private, it's easy to set up your own broker. See [How to self-host a MQTT Broker](docs/Self-Hosting-a-MQTT-server--(broker).md).
+By default, Bullet GCSS uses a **public MQTT broker** (`broker.emqx.io`). This means:
+
+- Your aircraft's **real-time GPS location**, altitude, battery, and all other telemetry is visible to **anyone** who subscribes to the same topic.
+- Anyone who knows your topic string can read your flight data while you fly.
+
+For most hobby flights this is an acceptable trade-off, but you should be aware of it before flying in sensitive locations or with identifiable callsigns.
+
+**If privacy matters to you:** It is straightforward to run your own private MQTT broker. See [How to self-host a MQTT Broker](docs/Self-Hosting-a-MQTT-server--(broker).md).
+
+**Commands are protected:** Even on a public broker, nobody can send commands to your aircraft. All downlink commands are authenticated with Ed25519 digital signatures — the firmware rejects any command that is not signed with the key you generated and flashed.
 
 ## How can I use it?
 

@@ -273,6 +273,7 @@ Tapping the hamburger/menu icon opens the sidebar. The first-level menu items ar
 - **Send command** — opens the Commands panel (see below). Also accessible via the floating **CMD** button that appears in the bottom-right corner of the screen.
 - **Sessions…** — opens the Sessions panel to manage recorded flight sessions.
 - **Keep screen awake** — keeps the smartphone screen lit at all times (see below).
+- **Enable compass heading** — (iOS only) requests permission to use the device compass sensor so the user location marker rotates to match the direction you are facing. On Android and desktop the compass starts automatically; this button only appears on iOS 13+.
 - **Settings…** — opens the Settings submenu (see below).
 - **Refresh App** — reloads the page to pick up a new version.
 - **Help** — links to the documentation.

@@ -6,14 +6,8 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ## Known Bugs
 
-### 1. User location icon on the map always points north
-The operator's location marker on the map has a fixed orientation — it does not rotate with the phone's compass, so the arrow always points north regardless of which direction the operator is facing.
-
-**What to do:**
-- Use the `DeviceOrientationEvent` browser API to read compass heading. On iOS, `webkitCompassHeading` gives a direct magnetic heading. On Android, heading must be derived from the `alpha` angle with appropriate correction.
-- Note: iOS 13+ requires a user permission prompt before `DeviceOrientationEvent` fires — this must be triggered by a user gesture (e.g. a button tap).
-- Rotate the user marker SVG/icon on the map to match the live heading.
-- Degrade gracefully on devices that do not expose orientation (desktop browsers, some Android devices) — keep the marker visible but without rotation.
+### ~~1. User location icon on the map always points north~~ ✓ COMPLETE
+`DeviceOrientationEvent` integrated in `MapScripts.js` via `startOrientationTracking()`. iOS uses `webkitCompassHeading`; Android/Chrome uses `deviceorientationabsolute` (alpha converted to CW heading). iOS 13+ permission prompt triggered by the "Enable compass heading" sidebar button (shown only on iOS; hidden on all other platforms). Non-iOS devices start automatically on page load. GPS movement heading (`position.coords.heading`) is only used as fallback when the compass sensor is not active. Degrades gracefully on desktop — marker remains visible without rotation.
 
 ---
 
@@ -39,11 +33,8 @@ QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft 
 ### ~~5. Document INAV 9 minimum version requirement~~ ✓ COMPLETE
 Update all relevant documentation to state that Bullet GCSS requires **INAV 9 or newer**. Files to update: `README.md`, `docs/README.md`, `docs/Setup-modem.md`, and any other doc that mentions INAV without a version constraint.
 
-### 6. No security warning in `README.md`
-The README gives no indication that the default configuration broadcasts the aircraft's real-time GPS location to a public server readable by anyone. This is a meaningful privacy and safety concern for new users.
-
-**What to do:**
-- Add a **Security Notice** section to `README.md` explaining the public broker risk and linking to `docs/Self-Hosting-a-MQTT-server--(broker).md`.
+### ~~6. No security warning in `README.md`~~ ✓ COMPLETE
+Added a prominent **⚠ Security Notice** section to `README.md` explaining the public broker risk (GPS location visible to anyone on the same topic), linking to the self-hosting guide, and noting that commands are protected by Ed25519 signatures regardless.
 
 ### 7. Documentation screenshots are outdated
 Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes, MapLibre map migration).
