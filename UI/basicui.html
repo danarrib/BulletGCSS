@@ -204,24 +204,17 @@
 				</div>
 			</div>
 			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Set Altitude</span>
+				<div class="rc-cmd-btns">
+					<input type="number" class="cmd-number-input" id="inputAltitude" min="-10000" max="100000" step="1" placeholder="m" />
+					<input type="button" class="btRcCmd" id="btSendAltitude" value="Send" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
 				<span class="rc-cmd-label">Cruise</span>
 				<div class="rc-cmd-btns">
 					<input type="button" class="btRcCmd" id="btCruiseOn" value="ON" />
 					<input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" />
-				</div>
-			</div>
-			<div class="rc-cmd-row">
-				<span class="rc-cmd-label">Beeper</span>
-				<div class="rc-cmd-btns">
-					<input type="button" class="btRcCmd" id="btBeeperOn" value="ON" />
-					<input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" />
-				</div>
-			</div>
-			<div class="rc-cmd-row">
-				<span class="rc-cmd-label">Waypoint</span>
-				<div class="rc-cmd-btns">
-					<input type="button" class="btRcCmd" id="btWpOn" value="ON" />
-					<input type="button" class="btRcCmd" id="btWpOff" value="OFF" />
 				</div>
 			</div>
 			<div class="rc-cmd-row">
@@ -232,6 +225,13 @@
 				</div>
 			</div>
 			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">WP Mission</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btWpOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btWpOff" value="OFF" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
 				<span class="rc-cmd-label">Jump to WP</span>
 				<div class="rc-cmd-btns">
 					<input type="number" class="cmd-number-input" id="inputWpIndex" min="1" max="255" step="1" placeholder="WP #" />
@@ -239,10 +239,10 @@
 				</div>
 			</div>
 			<div class="rc-cmd-row">
-				<span class="rc-cmd-label">Set Altitude</span>
+				<span class="rc-cmd-label">Beeper</span>
 				<div class="rc-cmd-btns">
-					<input type="number" class="cmd-number-input" id="inputAltitude" min="-100" max="5000" step="1" placeholder="m" />
-					<input type="button" class="btRcCmd" id="btSendAltitude" value="Send" />
+					<input type="button" class="btRcCmd" id="btBeeperOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" />
 				</div>
 			</div>
 			<div class="rc-cmd-row">

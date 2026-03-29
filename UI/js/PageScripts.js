@@ -100,7 +100,7 @@ var rcCommands = [
     { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff", dataKey: "cmdAltHold" },
     { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  dataKey: "cmdCruise"  },
     { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  dataKey: "cmdBeeper"  },
-    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp"      },
+    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp",      onCondition: function() { return data.isWaypointMissionValid === 1; } },
 ];
 
 function updateCommandsPanel() {
@@ -111,9 +111,15 @@ function updateCommandsPanel() {
     document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
-    document.getElementById("btSendHeading").disabled  = !downlinkOk;
-    document.getElementById("btSendJumpWp").disabled   = !downlinkOk;
-    document.getElementById("btSendAltitude").disabled = !downlinkOk;
+    document.getElementById("btSendHeading").disabled  = !(downlinkOk && data.fmCruise === 1);
+    document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && data.fmWp === 1);
+    document.getElementById("btSendAltitude").disabled = !(downlinkOk && data.fmAltHold === 1);
+
+    // Keep Jump to WP input bounded by the loaded mission's waypoint count
+    var wpInput = document.getElementById("inputWpIndex");
+    var maxWp = data.waypointCount > 0 ? data.waypointCount : 255;
+    wpInput.max = maxWp;
+    wpInput.placeholder = "1\u2013" + maxWp;
 
     for (var i = 0; i < rcCommands.length; i++) {
         var entry  = rcCommands[i];
@@ -121,8 +127,9 @@ function updateCommandsPanel() {
         var offBtn = document.getElementById(entry.offId);
 
         var modeActive = rcOk && data[entry.dataKey] === 1;
+        var onAllowed  = rcOk && (!entry.onCondition || entry.onCondition());
 
-        onBtn.disabled  = !rcOk;
+        onBtn.disabled  = !onAllowed;
         offBtn.disabled = !modeActive;  // only enabled when firmware confirms mode is active
 
         onBtn.classList.toggle('btn-active', modeActive);
@@ -621,9 +628,11 @@ document.getElementById("btSendPing").addEventListener("click", function() {
 
 document.getElementById("btSendHeading").addEventListener("click", function() {
     if (!mqttConnected || data.downlinkStatus !== 1) return;
-    var val = parseInt(document.getElementById("inputHeading").value, 10);
+    var input = document.getElementById("inputHeading");
+    var val = parseInt(input.value, 10);
     if (isNaN(val) || val < 0 || val > 359) {
         alert("Please enter a heading between 0 and 359 degrees.");
+        input.value = "";
         return;
     }
     publishCommand("setheading", null, { heading: val }, "setheading:" + val + "\u00b0");
@@ -632,9 +641,12 @@ document.getElementById("btSendHeading").addEventListener("click", function() {
 
 document.getElementById("btSendJumpWp").addEventListener("click", function() {
     if (!mqttConnected || data.downlinkStatus !== 1) return;
-    var val = parseInt(document.getElementById("inputWpIndex").value, 10);
-    if (isNaN(val) || val < 1 || val > 255) {
-        alert("Please enter a waypoint number between 1 and 255.");
+    var input = document.getElementById("inputWpIndex");
+    var val = parseInt(input.value, 10);
+    var maxWp = data.waypointCount > 0 ? data.waypointCount : 255;
+    if (isNaN(val) || val < 1 || val > maxWp) {
+        alert("Please enter a waypoint number between 1 and " + maxWp + ".");
+        input.value = "";
         return;
     }
     // INAV Configurator displays WPs as 1-based; firmware expects 0-based index
@@ -645,9 +657,11 @@ document.getElementById("btSendJumpWp").addEventListener("click", function() {
 document.getElementById("btSendAltitude").addEventListener("click", function() {
     if (!mqttConnected || data.downlinkStatus !== 1) return;
     var altUnit = localStorage.getItem("ui_altitude") || "m";
-    var rawVal = parseFloat(document.getElementById("inputAltitude").value);
-    if (isNaN(rawVal)) {
-        alert("Please enter a target altitude.");
+    var input = document.getElementById("inputAltitude");
+    var rawVal = parseFloat(input.value);
+    if (isNaN(rawVal) || rawVal < -10000 || rawVal > 100000) {
+        alert("Please enter an altitude between -10000 and 100000 " + (altUnit === "ft" ? "ft" : "m") + ".");
+        input.value = "";
         return;
     }
     // Convert to centimetres for INAV (MSP2_INAV_SET_ALT_TARGET expects cm relative to home)

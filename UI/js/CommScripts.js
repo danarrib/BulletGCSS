@@ -513,6 +513,9 @@ export function resetDataObject()
         cmdCruise: 0,
         cmdBeeper: 0,
         cmdWp: 0,
+        fmCruise: 0,   // 1 = Cruise/Course Hold flight mode active (any source)
+        fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
+        fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -896,6 +899,18 @@ function parseStandardTelemetryMessage(payload)
             case "cmdwp":
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1) data.cmdWp = raw;
+                break;
+            case "fmcrs":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmCruise = raw;
+                break;
+            case "fmalt":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmAltHold = raw;
+                break;
+            case "fmwp":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmWp = raw;
                 break;
             case "wpv":
                 raw = parseInt(arrData[1]);

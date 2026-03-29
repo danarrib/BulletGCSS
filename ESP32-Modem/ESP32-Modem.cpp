@@ -1563,6 +1563,9 @@ void msp_get_activeboxes() {
 
       uavstatus.uavIsArmed = fmArm;
       uavstatus.isFailsafeActive = fmFailsafe;
+      uavstatus.fmCruise  = fmCruise;
+      uavstatus.fmAltHold = fmAltHold;
+      uavstatus.fmWp      = fmWaypoint;
 
       // Detect MSP RC Override going inactive — clear all command states so
       // stale commands don't fire when the pilot switches the mode back on.
@@ -1760,6 +1763,12 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%scmdbep:%d,", message, publishedStatus.cmdBeeper);
   if(lastStatus.cmdWp != publishedStatus.cmdWp || msgGroup == 7)
     sprintf(message, "%scmdwp:%d,", message, publishedStatus.cmdWp);
+  if(lastStatus.fmCruise != publishedStatus.fmCruise || msgGroup == 7)
+    sprintf(message, "%sfmcrs:%d,", message, publishedStatus.fmCruise);
+  if(lastStatus.fmAltHold != publishedStatus.fmAltHold || msgGroup == 7)
+    sprintf(message, "%sfmalt:%d,", message, publishedStatus.fmAltHold);
+  if(lastStatus.fmWp != publishedStatus.fmWp || msgGroup == 7)
+    sprintf(message, "%sfmwp:%d,", message, publishedStatus.fmWp);
 
   if(lastStatus.waypointCount != publishedStatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, publishedStatus.waypointCount); // waypointCount
