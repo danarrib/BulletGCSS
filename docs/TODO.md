@@ -31,7 +31,33 @@ Send a target heading to the aircraft while in Cruise Mode, so the operator can 
 
 **Investigated commands that are NOT available in INAV:**
 - **Set Altitude** (for Altitude Hold) — no MSP command exists; INAV captures altitude at mode activation and adjusts via RC throttle stick only.
-- **Jump to Waypoint** (skip to WP N during active mission) — the active waypoint index is managed entirely by the INAV navigation state machine and is not writable via MSP.
+- **Jump to Waypoint** — see C2 below for a workaround approach.
+
+---
+
+### C2. Jump to Waypoint (skip to WP N during active mission)
+
+No dedicated MSP command exists in INAV for this. The controlling variable is `posControl.activeWaypointIndex` (`int8_t` inside the global `posControl` struct, defined in `navigation_private.h:494`). It is managed entirely by the navigation state machine and is not directly writable via MSP.
+
+**Workaround using MSP_SET_WP + JUMP action:**
+
+INAV's existing `MSP_SET_WP` (code **209**) can write waypoint data into `posControl.waypointList[]` mid-flight. INAV supports waypoint action **6 = JUMP**, which is a meta-action: when INAV activates a JUMP waypoint it immediately sets `activeWaypointIndex = waypointList[current].p1 + startWpIndex` without navigating to any position. This can be exploited to implement a jump:
+
+1. **Save** the current waypoint's data from the firmware's cached `waypointList[]` into a temporary variable.
+2. **Overwrite** the current `activeWaypointIndex` slot via `MSP_SET_WP` with `action=6 (JUMP)`, `p1=<target_wp>`, `p3=1` (execute once — `p3=-1`/`0xFFFF` = infinite loop, must avoid), position fields set to original values.
+3. **INAV processes the JUMP immediately** (it is not a positional waypoint — no "fly to position" step), sets `activeWaypointIndex` to the target, and the aircraft starts navigating toward the target WP.
+4. **Detect completion** by monitoring `MSP_NAV_STATUS` (`activeWaypointNumber` field, already polled in round-robin group 3 every ~960 ms). When it changes to the target, the jump has executed.
+5. **Restore** the original waypoint data to the overwritten slot via `MSP_SET_WP`. By this point the slot is no longer active, so there is no race condition with the navigation logic.
+
+**Implementation scope:**
+- Entirely in the firmware — the UI sends `cmd:jumpwp,wp:<n>` and the firmware handles the save → overwrite → detect → restore cycle internally using its already-cached waypoint list.
+- The UI does not need to manage waypoint state.
+
+**Edge cases to handle during implementation:**
+- **`flag` field must be preserved** — if the overwritten slot was the last WP (`flag=0x80`), this must be restored correctly.
+- **Do not jump to the current waypoint** — jumping from WP N to WP N is a no-op but would confuse the detection logic; the UI should guard against this.
+- **Mission loops** — if the original mission has a JUMP that sends execution back to the modified slot before restoration, the slot will briefly have wrong data. This resolves itself on the next `get_all_waypoints()` slow-poll (10 s) at the latest, but the firmware should restore as quickly as possible after detection.
+- **Timing** — the round-robin group polls nav status every ~960 ms, so restoration happens within one full cycle after the jump executes.
 
 ---
 
