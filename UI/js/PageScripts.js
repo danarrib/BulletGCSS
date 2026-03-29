@@ -112,10 +112,6 @@ function updateCommandsPanel() {
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
     var extOk = data.extCmdsSupported >= 1;
-    var extDisplay = extOk ? "" : "none";
-    document.getElementById("rowSetHeading").style.display  = extDisplay;
-    document.getElementById("rowSetAltitude").style.display = extDisplay;
-    document.getElementById("rowJumpWp").style.display      = extDisplay;
     document.getElementById("btSendHeading").disabled  = !(downlinkOk && extOk && data.fmCruise === 1);
     document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && extOk && data.fmWp === 1);
     document.getElementById("btSendAltitude").disabled = !(downlinkOk && extOk && data.fmAltHold === 1);
