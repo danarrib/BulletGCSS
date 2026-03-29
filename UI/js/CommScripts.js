@@ -349,10 +349,15 @@ async function signCanonical(canonical) {
     return btoa(binary);
 }
 
-// state: null for stateless commands (ping), 0 or 1 for RC channel commands.
-// state is included in the payload but NOT in the signed canonical — the
-// firmware verifies only cmd/cid/seq and reads state as a separate field.
-export async function publishCommand(cmdType, state = null) {
+// state:       null for stateless commands (ping), 0 or 1 for RC channel commands.
+// extraFields: optional object of additional key:value pairs appended to the
+//              payload but NOT part of the signed canonical (same as state).
+//              Example: { heading: 270 }
+// historyLabel: optional string override for the command history display.
+//
+// Extra fields are included in the payload but NOT in the signed canonical — the
+// firmware verifies only cmd/cid/seq and reads the extra fields separately.
+export async function publishCommand(cmdType, state = null, extraFields = null, historyLabel = null) {
     if (!mqttConnected || !commandTopic) return null;
     if (!localStorage.getItem("commandPrivateKey")) {
         console.warn("publishCommand: no private key configured — command not sent");
@@ -371,7 +376,13 @@ export async function publishCommand(cmdType, state = null) {
     var payload = state !== null
         ? "cmd:" + cmdType + ",state:" + state + ",cid:" + cid + ",seq:" + seq + ",sig:" + sig + ","
         : canonical + ",sig:" + sig + ",";
-    var historyType = state !== null ? cmdType + ":" + (state ? "ON" : "OFF") : cmdType;
+    if (extraFields !== null) {
+        for (var k in extraFields) {
+            payload += k + ":" + extraFields[k] + ",";
+        }
+    }
+    var historyType = historyLabel !== null ? historyLabel
+        : state !== null ? cmdType + ":" + (state ? "ON" : "OFF") : cmdType;
     var entry = { cid: cid, type: historyType, timestamp: Date.now(), status: 'sent' };
     pendingCommands[cid] = { type: cmdType, messageCount: 0 };
     commandHistory.unshift(entry);
@@ -442,6 +453,7 @@ function onMessageArrived(message) {
 
 // MQTTconnect();
 export let data = {};
+window._gcssData = data; // dev console override: e.g. _gcssData.extCmdsSupported = 1
 export function resetDataObject()
 {
     data = {
@@ -502,6 +514,11 @@ export function resetDataObject()
         cmdCruise: 0,
         cmdBeeper: 0,
         cmdWp: 0,
+        fmCruise: 0,   // 1 = Cruise/Course Hold flight mode active (any source)
+        fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
+        fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
+        fcVersion: "",       // FC firmware version string, e.g. "9.0.1" (empty = not yet received)
+        extCmdsSupported: 0, // computed from fcVersion: 0 = none; >= 1 = extended MSP commands supported
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -886,6 +903,18 @@ function parseStandardTelemetryMessage(payload)
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1) data.cmdWp = raw;
                 break;
+            case "fmcrs":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmCruise = raw;
+                break;
+            case "fmalt":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmAltHold = raw;
+                break;
+            case "fmwp":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmWp = raw;
+                break;
             case "wpv":
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1)
@@ -962,6 +991,17 @@ function parseStandardTelemetryMessage(payload)
                 // Base64-encoded Ed25519 public key (44 chars: 43 base64 chars + 1 '=' padding)
                 if (/^[A-Za-z0-9+/]{43}=$/.test(arrData[1]))
                     data.firmwarePublicKey = arrData[1];
+                break;
+            case "fcver":
+                if (/^\d+\.\d+\.\d+$/.test(arrData[1])) {
+                    data.fcVersion = arrData[1];
+                    var parts = arrData[1].split('.').map(Number);
+                    var major = parts[0], minor = parts[1], patch = parts[2];
+                    // Extended commands (setheading, setalt, jumpwp) require FC version > 9.0.1
+                    data.extCmdsSupported = (major > 9 ||
+                        (major === 9 && minor > 0) ||
+                        (major === 9 && minor === 0 && patch > 1)) ? 1 : 0;
+                }
                 break;
             default:
                 break;

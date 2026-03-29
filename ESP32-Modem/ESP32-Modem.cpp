@@ -139,7 +139,9 @@ msp_set_wp_t currentWPMission[256];
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
-uint16_t failureCounter = 0; // Count how many times it fails sending the messages
+uint16_t failureCounter = 0;    // Count how many times it fails sending the messages
+uint8_t  gprsFailureCounter = 0; // Count GPRS-level reconnect failures (separate escalation ladder)
+bool     modemInitialized = false; // True after first successful GPRS connection
 
 // Box IDs for flight modes used only for telemetry detection (not remotely commandable).
 // Populated once from MSP_BOXNAMES; read in msp_get_activeboxes() only.
@@ -198,6 +200,7 @@ uint32_t lastFcProbeTs = 0;
  // Flags that prevents some routines to run more than one time
 bool boxIdsFetched = 0;
 bool modeRangesFetched = false;
+bool fcVersionFetched = false;
 bool callsignFetched = 0;
 uint8_t waypointFetchCounter = 0;
 uint8_t waypointMessageCounter = 0;
@@ -253,6 +256,7 @@ void msp_get_sensor_status();
 void msp2_get_misc2();
 void get_all_waypoints();
 void msp_get_wp(uint8_t wp_no);
+void msp_get_fc_version();
 void msp_get_boxnames();
 void msp_get_mode_ranges();
 void msp_get_override_channels();
@@ -361,102 +365,135 @@ void connectToTheInternet() {
 
   void connectToGprsNetwork()
   {
-    if (modem.isGprsConnected())
-      return; // Gprs already connected. Skipping
+    if (modem.isGprsConnected()) {
+      gprsFailureCounter = 0; // connection is healthy — reset counter
+      return;
+    }
 
-    // Set modem reset, enable, power pins
-    pinMode(MODEM_PWKEY, OUTPUT);
-    pinMode(MODEM_POWER_ON, OUTPUT);
+    if (!modemInitialized) {
+      // ── Cold start: runs once at boot (or after a full power cycle) ────────
+      // Full hardware setup, modem restart, and blocking network wait are all
+      // acceptable here — nothing is flying yet.
 
-    #ifdef TINY_GSM_MODEM_SIM800
-    pinMode(MODEM_RST, OUTPUT);
-    // Start I2C communication
-    I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
-    
-    // Keep power when running from battery
-    bool isOk = setPowerBoostKeepOn(1);
-    SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
-    digitalWrite(MODEM_RST, HIGH);
-    #endif
+      pinMode(MODEM_PWKEY, OUTPUT);
+      pinMode(MODEM_POWER_ON, OUTPUT);
 
-    #ifdef TINY_GSM_MODEM_SIM7600
-    digitalWrite(MODEM_PWKEY, HIGH);
-    delay(500);    
-    #endif
-    
-    digitalWrite(MODEM_PWKEY, LOW);
-    digitalWrite(MODEM_POWER_ON, HIGH);
-    
-    SerialMon.println("Wait...");
-  
-    delay(3000);
+      #ifdef TINY_GSM_MODEM_SIM800
+      pinMode(MODEM_RST, OUTPUT);
+      I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
+      bool isOk = setPowerBoostKeepOn(1);
+      SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
+      digitalWrite(MODEM_RST, HIGH);
+      #endif
 
-    // Set GSM module baud rate and UART pins
-    SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
-    delay(6000);
-  
-    // Restart takes quite some time
-    // To skip it, call init() instead of restart()
-    SerialMon.println("Initializing modem...");
-    modem.restart();
-    //modem.init();
+      #ifdef TINY_GSM_MODEM_SIM7600
+      digitalWrite(MODEM_POWER_ON, HIGH);
+      delay(100);
+      digitalWrite(MODEM_PWKEY, HIGH);
+      delay(500);
+      #endif
 
+      digitalWrite(MODEM_PWKEY, LOW);
+      digitalWrite(MODEM_POWER_ON, HIGH);
 
-    #ifdef TINY_GSM_MODEM_SIM7600
+      SerialMon.println("Wait...");
+      delay(3000);
+      SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+      delay(6000);
+
+      SerialMon.println("Initializing modem...");
+      modem.restart();
+
+      #ifdef TINY_GSM_MODEM_SIM7600
       modem.setNetworkMode(38);
       delay(1000);
-  
       String modemName = modem.getModemName();
       SerialMon.print("Modem Name: ");
       SerialMon.println(modemName);
-    #endif
-    
-    String modemInfo = modem.getModemInfo();
-    SerialMon.print("Modem Info: ");
-    SerialMon.println(modemInfo);
-  
-    // Unlock your SIM card with a PIN if needed
-    if (strlen(GSM_PIN) > 0) {
-      SimStatus simStatus = modem.getSimStatus();
-      if (simStatus == SIM_LOCKED) {
-        SerialMon.println("SIM card is PIN-locked. Attempting to unlock...");
-        if (modem.simUnlock(GSM_PIN)) {
-          SerialMon.println("SIM card unlocked successfully.");
-        } else {
-          SerialMon.println("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
-          // Restart so the user sees the error message repeatedly rather than
-          // silently hanging on network registration with a locked SIM.
-          delay(5000);
-          ESP.restart();
+      #endif
+
+      String modemInfo = modem.getModemInfo();
+      SerialMon.print("Modem Info: ");
+      SerialMon.println(modemInfo);
+
+      if (strlen(GSM_PIN) > 0) {
+        SimStatus simStatus = modem.getSimStatus();
+        if (simStatus == SIM_LOCKED) {
+          SerialMon.println("SIM card is PIN-locked. Attempting to unlock...");
+          if (modem.simUnlock(GSM_PIN)) {
+            SerialMon.println("SIM card unlocked successfully.");
+          } else {
+            SerialMon.println("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
+            delay(5000);
+            ESP.restart();
+          }
+        } else if (simStatus == SIM_READY) {
+          SerialMon.println("SIM card is ready (no PIN required).");
         }
-      } else if (simStatus == SIM_READY) {
-        SerialMon.println("SIM card is ready (no PIN required).");
+      }
+
+      // Block until registered — acceptable at boot, nothing is flying yet
+      while (!modem.waitForNetwork(600000L)) {
+        SerialMon.println("Waiting for network...");
+        delay(10000);
+      }
+      SerialMon.println("Network connected");
+
+    } else {
+      // ── Reconnect path: GPRS dropped mid-flight ─────────────────────────────
+      // Do NOT restart the modem on every drop — that causes the 2-minute hang.
+      // Instead, count failures and escalate progressively.
+      gprsFailureCounter++;
+      SerialMon.printf("GPRS disconnected (failure %d)\n", gprsFailureCounter);
+
+      // Every 5 failures, do a soft modem restart to recover from states like
+      // CSQ 99,99 (network registration lost) without a full hardware power cycle.
+      if (gprsFailureCounter % 5 == 0) {
+        SerialMon.println("Restarting modem for GPRS recovery...");
+        modem.restart();
+        #ifdef TINY_GSM_MODEM_SIM7600
+        modem.setNetworkMode(38);
+        delay(1000);
+        #endif
+        failureCounter++; // counts toward the ESP32 restart threshold too
+      }
+
+      // Hard ceiling: if we can't recover after 15 attempts, restart the ESP32
+      if (gprsFailureCounter >= 15) {
+        SerialMon.println("GPRS unrecoverable after 15 attempts. Restarting ESP32...");
+        ESP.restart();
+      }
+
+      // Wait briefly for network re-registration — short enough that the main
+      // loop keeps running and the FC task is not starved for long.
+      if (!modem.isNetworkConnected()) {
+        SerialMon.println("Waiting for network re-registration (60s)...");
+        if (!modem.waitForNetwork(60000L)) {
+          SerialMon.println("Network not available yet. Will retry next cycle.");
+          return; // come back next 1-second tick
+        }
       }
     }
 
-    while (!modem.waitForNetwork(600000L))
-    {
-        SerialMon.print("Waiting network...");
-        delay(10000);
-    }
-
-    if (modem.isNetworkConnected()) {
-        SerialMon.println("Network connected");
-    }
-    
+    // ── Connect GPRS (shared by cold-start and reconnect paths) ─────────────
     SerialMon.print("Connecting to APN: ");
     SerialMon.print(apn);
     if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
       SerialMon.println(" fail");
-      ESP.restart();
+      if (!modemInitialized) {
+        // Cold-start GPRS failure — hard restart (nothing is flying yet)
+        ESP.restart();
+      }
+      // Reconnect failure: already counted above, retry next cycle
+      return;
     }
-    else {
-      SerialMon.println(" OK");
-    }
-    
+    SerialMon.println(" OK");
+
     if (modem.isGprsConnected()) {
       SerialMon.println("GPRS connected");
-    }    
+      modemInitialized = true; // set only on first successful GPRS connection
+      gprsFailureCounter = 0;
+    }
   }
 #endif
 
@@ -526,7 +563,10 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   char cid[8]     = "";
   char seqStr[12] = "";  // uint32 max = 10 digits
   char sig[89]    = "";  // Ed25519 base64 signature = 88 chars + null
-  char stateStr[4] = ""; // "0" or "1" for RC channel commands
+  char stateStr[4]   = ""; // "0" or "1" for RC channel commands
+  char headingStr[8] = ""; // degrees 0-359 for setheading
+  char wpStr[4]      = ""; // waypoint index 0-255 for jumpwp
+  char altStr[12]    = ""; // altitude in cm (signed) for setalt
 
   char* token = strtok(buf, ",");
   while (token != NULL) {
@@ -535,11 +575,14 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       *colon = '\0';
       char* key   = token;
       char* value = colon + 1;
-      if (strcmp(key, "cmd")   == 0) strncpy(cmd,      value, sizeof(cmd)      - 1);
-      if (strcmp(key, "cid")   == 0) strncpy(cid,      value, sizeof(cid)      - 1);
-      if (strcmp(key, "seq")   == 0) strncpy(seqStr,   value, sizeof(seqStr)   - 1);
-      if (strcmp(key, "sig")   == 0) strncpy(sig,      value, sizeof(sig)      - 1);
-      if (strcmp(key, "state") == 0) strncpy(stateStr, value, sizeof(stateStr) - 1);
+      if (strcmp(key, "cmd")     == 0) strncpy(cmd,        value, sizeof(cmd)        - 1);
+      if (strcmp(key, "cid")     == 0) strncpy(cid,        value, sizeof(cid)        - 1);
+      if (strcmp(key, "seq")     == 0) strncpy(seqStr,     value, sizeof(seqStr)     - 1);
+      if (strcmp(key, "sig")     == 0) strncpy(sig,        value, sizeof(sig)        - 1);
+      if (strcmp(key, "state")   == 0) strncpy(stateStr,   value, sizeof(stateStr)   - 1);
+      if (strcmp(key, "heading") == 0) strncpy(headingStr, value, sizeof(headingStr) - 1);
+      if (strcmp(key, "wp")      == 0) strncpy(wpStr,      value, sizeof(wpStr)      - 1);
+      if (strcmp(key, "alt")     == 0) strncpy(altStr,     value, sizeof(altStr)     - 1);
     }
     token = strtok(NULL, ",");
   }
@@ -591,6 +634,52 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   // ── Step 7: Execute the command ───────────────────────────────────────────────
   if (strcmp(cmd, "ping") == 0) {
       // Stateless — ack already sent above. Nothing else to do.
+
+  } else if (strcmp(cmd, "setheading") == 0) {
+      // Set heading hold target while in Cruise mode.
+      // Payload field: heading:<degrees 0-359>
+      // MSP_SET_HEAD expects centidegrees (U16).
+      if (strlen(headingStr) == 0) {
+          SerialMon.println("setheading: missing heading field");
+          return;
+      }
+      int deg = atoi(headingStr);
+      if (deg < 0 || deg > 359) {
+          SerialMon.printf("setheading: invalid heading %d\n", deg);
+          return;
+      }
+      int32_t centideg = (int32_t)(deg * 100);
+      msp.send(MSP2_INAV_SET_CRUISE_HEADING, &centideg, sizeof(centideg));
+      SerialMon.printf("setheading: sent %d° (%d centideg)\n", deg, centideg);
+
+  } else if (strcmp(cmd, "jumpwp") == 0) {
+      // Jump to waypoint N during an active WP mission.
+      // Payload field: wp:<index 0-based>
+      // MSP2_INAV_SET_WP_INDEX expects a U8.
+      if (strlen(wpStr) == 0) {
+          SerialMon.println("jumpwp: missing wp field");
+          return;
+      }
+      int wpIdx = atoi(wpStr);
+      if (wpIdx < 0 || wpIdx > 254) {
+          SerialMon.printf("jumpwp: invalid wp index %d\n", wpIdx);
+          return;
+      }
+      uint8_t wpIdxU8 = (uint8_t)wpIdx;
+      msp.send(MSP2_INAV_SET_WP_INDEX, &wpIdxU8, sizeof(wpIdxU8));
+      SerialMon.printf("jumpwp: sent index %d\n", wpIdxU8);
+
+  } else if (strcmp(cmd, "setalt") == 0) {
+      // Set target altitude while altitude-hold / cruise / WP mode is active.
+      // Payload field: alt:<centimetres, signed, relative to home>
+      // MSP2_INAV_SET_ALT_TARGET expects I32.
+      if (strlen(altStr) == 0) {
+          SerialMon.println("setalt: missing alt field");
+          return;
+      }
+      int32_t altCm = (int32_t)atoi(altStr);
+      msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
+      SerialMon.printf("setalt: sent %d cm\n", altCm);
 
   } else {
       // Look up the command in the flight mode table.
@@ -693,6 +782,7 @@ void getTelemetryData()
   // ─────────────────────────────────────────────────────────────────────────
 
   // Startup-only — each has an internal flag and returns immediately once done.
+  msp_get_fc_version();
   msp_get_boxnames();
   msp_get_mode_ranges();
   msp_get_override_channels();
@@ -757,6 +847,7 @@ void getTelemetryData()
       fcReady           = false;
       boxIdsFetched     = false;
       modeRangesFetched = false;
+      fcVersionFetched  = false;
       mspOverrideFetched = false;
       callsignFetched   = false;
       rcChannelCount    = 0;
@@ -1008,6 +1099,24 @@ void msp_get_wp(uint8_t wp_no) {
     else
     {
       SerialMon.println("MSP WP returned false!");
+    }
+}
+
+void msp_get_fc_version() {
+    if (fcVersionFetched)
+        return;
+
+    MSP_FC_VERSION_t fcVer;
+    uint16_t recvSize = 0;
+    if (msp.request(MSP_FC_VERSION, &fcVer, sizeof(fcVer), &recvSize) && recvSize == sizeof(fcVer)) {
+        uavstatus.fcVersionMajor = fcVer.versionMajor;
+        uavstatus.fcVersionMinor = fcVer.versionMinor;
+        uavstatus.fcVersionPatch = fcVer.versionPatchLevel;
+        SerialMon.printf("FC version: %d.%d.%d\n", fcVer.versionMajor, fcVer.versionMinor, fcVer.versionPatchLevel);
+        fcVersionFetched = true;
+        lastMspCommunicationTs = millis();
+    } else {
+        SerialMon.println("MSP FC_VERSION returned false!");
     }
 }
 
@@ -1511,6 +1620,9 @@ void msp_get_activeboxes() {
 
       uavstatus.uavIsArmed = fmArm;
       uavstatus.isFailsafeActive = fmFailsafe;
+      uavstatus.fmCruise  = fmCruise;
+      uavstatus.fmAltHold = fmAltHold;
+      uavstatus.fmWp      = fmWaypoint;
 
       // Detect MSP RC Override going inactive — clear all command states so
       // stale commands don't fire when the pilot switches the mode back on.
@@ -1708,6 +1820,12 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%scmdbep:%d,", message, publishedStatus.cmdBeeper);
   if(lastStatus.cmdWp != publishedStatus.cmdWp || msgGroup == 7)
     sprintf(message, "%scmdwp:%d,", message, publishedStatus.cmdWp);
+  if(lastStatus.fmCruise != publishedStatus.fmCruise || msgGroup == 7)
+    sprintf(message, "%sfmcrs:%d,", message, publishedStatus.fmCruise);
+  if(lastStatus.fmAltHold != publishedStatus.fmAltHold || msgGroup == 7)
+    sprintf(message, "%sfmalt:%d,", message, publishedStatus.fmAltHold);
+  if(lastStatus.fmWp != publishedStatus.fmWp || msgGroup == 7)
+    sprintf(message, "%sfmwp:%d,", message, publishedStatus.fmWp);
 
   if(lastStatus.waypointCount != publishedStatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, publishedStatus.waypointCount); // waypointCount
@@ -1776,6 +1894,8 @@ void buildLowPriorityMessage(char* message) {
   sprintf(message, "%sftm:%d,", message, publishedStatus.flightModeId); // flightModeId
 
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
+
+  sprintf(message, "%sfcver:%d.%d.%d,", message, publishedStatus.fcVersionMajor, publishedStatus.fcVersionMinor, publishedStatus.fcVersionPatch); // FC firmware version
 
   char pkBase64[45];
   base64Encode32(commandPublicKey, pkBase64);

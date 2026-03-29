@@ -1,7 +1,7 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle, setOnWaypointClick } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -100,7 +100,7 @@ var rcCommands = [
     { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff", dataKey: "cmdAltHold" },
     { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  dataKey: "cmdCruise"  },
     { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  dataKey: "cmdBeeper"  },
-    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp"      },
+    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp",      onCondition: function() { return data.isWaypointMissionValid === 1; } },
 ];
 
 function updateCommandsPanel() {
@@ -111,18 +111,29 @@ function updateCommandsPanel() {
     document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
+    var extOk = data.extCmdsSupported >= 1;
+    document.getElementById("btSendHeading").disabled  = !(downlinkOk && extOk && data.fmCruise === 1);
+    document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && extOk && data.fmWp === 1);
+    document.getElementById("btSendAltitude").disabled = !(downlinkOk && extOk && data.fmAltHold === 1);
+
+    // Keep Jump to WP input bounded by the loaded mission's waypoint count
+    var wpInput = document.getElementById("inputWpIndex");
+    var maxWp = data.waypointCount > 0 ? data.waypointCount : 255;
+    wpInput.max = maxWp;
+    wpInput.placeholder = "1\u2013" + maxWp;
 
     for (var i = 0; i < rcCommands.length; i++) {
         var entry  = rcCommands[i];
         var onBtn  = document.getElementById(entry.onId);
         var offBtn = document.getElementById(entry.offId);
 
-        onBtn.disabled  = !rcOk;
-        offBtn.disabled = !rcOk;
+        var modeActive = rcOk && data[entry.dataKey] === 1;
+        var onAllowed  = rcOk && (!entry.onCondition || entry.onCondition());
 
-        // ON button turns green when firmware confirms the mode is active.
-        // OFF button is always in its normal state — inactive is the natural state.
-        onBtn.classList.toggle('btn-active', rcOk && data[entry.dataKey] === 1);
+        onBtn.disabled  = !onAllowed;
+        offBtn.disabled = !modeActive;  // only enabled when firmware confirms mode is active
+
+        onBtn.classList.toggle('btn-active', modeActive);
         onBtn.classList.remove('btn-inactive');
         offBtn.classList.remove('btn-active', 'btn-inactive');
     }
@@ -285,6 +296,11 @@ async function newSession() {
     if (currentSessionId !== null) {
         await closeSession(currentSessionId);
     }
+    resetDataObject();
+    drawAircraftOnMap(data);
+    drawAircraftPathOnMap(data);
+    drawMissionOnMap(data);
+    drawHomeOnMap(data);
     var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
     currentSessionId = await createSession(defaultName);
     await renderSessionsList();
@@ -611,6 +627,52 @@ document.getElementById("btSendPing").addEventListener("click", function() {
     updateCommandsPanel();
 });
 
+document.getElementById("btSendHeading").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var input = document.getElementById("inputHeading");
+    var val = parseInt(input.value, 10);
+    if (isNaN(val) || val < 0 || val > 359) {
+        alert("Please enter a heading between 0 and 359 degrees.");
+        input.value = "";
+        return;
+    }
+    publishCommand("setheading", null, { heading: val }, "setheading:" + val + "\u00b0");
+    updateCommandsPanel();
+});
+
+document.getElementById("btSendJumpWp").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var input = document.getElementById("inputWpIndex");
+    var val = parseInt(input.value, 10);
+    var maxWp = data.waypointCount > 0 ? data.waypointCount : 255;
+    if (isNaN(val) || val < 1 || val > maxWp) {
+        alert("Please enter a waypoint number between 1 and " + maxWp + ".");
+        input.value = "";
+        return;
+    }
+    // INAV Configurator displays WPs as 1-based; firmware expects 0-based index
+    publishCommand("jumpwp", null, { wp: val - 1 }, "jumpwp:" + val);
+    updateCommandsPanel();
+});
+
+document.getElementById("btSendAltitude").addEventListener("click", function() {
+    if (!mqttConnected || data.downlinkStatus !== 1) return;
+    var altUnit = localStorage.getItem("ui_altitude") || "m";
+    var input = document.getElementById("inputAltitude");
+    var rawVal = parseFloat(input.value);
+    if (isNaN(rawVal) || rawVal < -10000 || rawVal > 100000) {
+        alert("Please enter an altitude between -10000 and 100000 " + (altUnit === "ft" ? "ft" : "m") + ".");
+        input.value = "";
+        return;
+    }
+    // Convert to centimetres for INAV (MSP2_INAV_SET_ALT_TARGET expects cm relative to home)
+    var altM = (altUnit === "ft") ? rawVal * 0.3048 : rawVal;
+    var altCm = Math.round(altM * 100);
+    var label = "setalt:" + rawVal + (altUnit === "ft" ? "ft" : "m");
+    publishCommand("setalt", null, { alt: altCm }, label);
+    updateCommandsPanel();
+});
+
 (function() {
     for (var i = 0; i < rcCommands.length; i++) {
         (function(entry) {
@@ -686,6 +748,15 @@ window.addEventListener("DOMContentLoaded", async function() {
             } catch (e) {
                 console.error("Session restore after replay failed:", e);
             }
+        }
+    });
+
+    setOnWaypointClick(function(wpNumber) {
+        if (data.fmWp !== 1) return;
+        if (!mqttConnected || data.downlinkStatus !== 1) return;
+        if (data.extCmdsSupported < 1) return;
+        if (confirm("Jump to WP " + wpNumber + "?")) {
+            publishCommand("jumpwp", null, { wp: wpNumber - 1 }, "jumpwp:" + wpNumber);
         }
     });
 

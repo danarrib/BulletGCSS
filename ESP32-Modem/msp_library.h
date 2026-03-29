@@ -32,6 +32,7 @@
 #include <Arduino.h>
 #include <Stream.h>
 
+#define MSP_FC_VERSION        3
 #define MSP_NAME              10
 #define MSP_WP_GETINFO        20
 #define MSP_MODE_RANGES       34
@@ -51,6 +52,9 @@
 #define MSP_SET_RAW_RC        200
 #define MSP2_INAV_ANALOG      0x2002
 #define MSP2_INAV_MISC2       0x203A
+#define MSP2_INAV_SET_WP_INDEX      0x2221  // in: jump to WP N during active mission (U8 index, 0-based)
+#define MSP2_INAV_SET_ALT_TARGET    0x2222  // in: set target altitude (I32 cm, relative to home)
+#define MSP2_INAV_SET_CRUISE_HEADING 0x2223 // in: set Cruise/Course Hold heading (I32 centidegrees)
 
 // Permanent IDs for MSP_MODE_RANGES entries (from INAV src/main/fc/fc_msp_box.c).
 // These are NOT the same as boxId_e enum values — do not confuse them.
@@ -143,6 +147,13 @@ typedef enum {
 typedef uint32_t bitarrayElement_t;
 #define BITARRAY_DECLARE(name, bits) bitarrayElement_t name[(bits + 31) / 32]
 typedef struct boxBitmask_s { BITARRAY_DECLARE(bits, CHECKBOX_ITEM_COUNT); } boxBitmask_t;
+
+struct MSP_FC_VERSION_t
+{
+    uint8_t versionMajor;
+    uint8_t versionMinor;
+    uint8_t versionPatchLevel;
+} __attribute__((packed));
 
 struct MSP_WP_GETINFO_t
 {

@@ -54,7 +54,7 @@ There is no message envelope, no length prefix, and no message-level checksum. E
 
 ## Message Types
 
-There are seven distinct message types, distinguished by their content.
+There are six distinct message types, distinguished by their content.
 
 ### 1. Session Start Message
 
@@ -85,7 +85,7 @@ Fields are divided into 10 groups (0–9). On each cycle, `msgCounter % 10` dete
 | 4 | `cud`, `cad`, `rsi` |
 | 5 | `gla`, `glo`, `gsc` |
 | 6 | `ghp`, `css`, `3df` |
-| 7 | `hwh`, `arm`, `mro` |
+| 7 | `hwh`, `arm`, `dls`, `mro`, `cmdrth`, `cmdalt`, `cmdcrs`, `cmdbep`, `cmdwp`, `fmcrs`, `fmalt`, `fmwp` |
 | 8 | `wpc`, `cwn`, `wpv` |
 | 9 | `fs`, `trp`, `att` |
 
@@ -123,11 +123,14 @@ cmd:rth,cid:ABC123,seq:43,state:1,sig:base64base64...==,
 
 | Field | Description |
 |---|---|
-| `cmd` | Command type: `ping`, `rth`, `althold`, `cruise`, `wp`, `angle`, `beeper` |
+| `cmd` | Command type — see table below |
 | `cid` | Command ID — 6-character random alphanumeric string, unique per command |
 | `seq` | Monotonically increasing sequence number (uint32, stored in `localStorage`). Used by the firmware to reject replayed commands. |
-| `state` | (RC commands only) `1` = activate the mode, `0` = deactivate. Informational — **not included in the signed payload**. |
-| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. Note: `state` is not part of the signed string. |
+| `state` | (RC mode commands only) `1` = activate the mode, `0` = deactivate. **Not included in the signed payload**. |
+| `heading` | (setheading only) Target heading in degrees (0–359). **Not included in the signed payload**. |
+| `wp` | (jumpwp only) 0-based waypoint index to jump to. The UI sends `displayed_wp_number - 1`. **Not included in the signed payload**. |
+| `alt` | (setalt only) Target altitude in centimetres relative to home. **Not included in the signed payload**. |
+| `sig` | Ed25519 signature of the canonical payload string `cmd:<cmd>,cid:<cid>,seq:<seq>` — base64-encoded, 88 characters. Extra fields (`state`, `heading`, `wp`, `alt`) are never part of the signed string. |
 
 The firmware verifies the signature against the stored `commandPublicKey` (32 bytes, configured in `Config.h`). Commands with an invalid signature, a missing `sig` field, a sequence number ≤ the last accepted sequence number, or sent while no public key is configured are **silently dropped** — no ack is sent. The last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot.
 
@@ -135,14 +138,17 @@ The UI only sends commands if a private key is present in `localStorage`. See th
 
 **Supported `cmd` values:**
 
-| `cmd` | Action |
-|---|---|
-| `ping` | No-op; used to verify the downlink channel is working |
-| `rth` | Return to Home — activates/deactivates the RTH flight mode (`BOXNAVRTH`) |
-| `althold` | Altitude Hold — activates/deactivates `BOXNAVALTHOLD` |
-| `cruise` | Cruise Mode — activates/deactivates `BOXNAVCRUISE` |
-| `wp` | Waypoint/Mission Mode — activates/deactivates `BOXNAVWP` |
-| `beeper` | Beeper — activates/deactivates `BOXBEEPERON` |
+| `cmd` | Extra fields | Action |
+|---|---|---|
+| `ping` | — | No-op; used to verify the downlink channel is working |
+| `rth` | `state` | Return to Home — activates/deactivates `BOXNAVRTH` via RC channel override |
+| `althold` | `state` | Altitude Hold — activates/deactivates `BOXNAVALTHOLD` via RC channel override |
+| `cruise` | `state` | Cruise Mode — activates/deactivates `BOXNAVCRUISE` via RC channel override |
+| `wp` | `state` | WP Mission Mode — activates/deactivates `BOXNAVWP` via RC channel override |
+| `beeper` | `state` | Beeper — activates/deactivates `BOXBEEPERON` via RC channel override |
+| `setheading` | `heading` | Sets the Cruise/Course Hold heading target (degrees 0–359). Only effective when Cruise mode is active. Firmware converts to centidegrees and sends `MSP2_INAV_SET_CRUISE_HEADING` (0x2223). |
+| `setalt` | `alt` | Sets the altitude hold target (centimetres relative to home). Only effective when Altitude Hold is active. Firmware sends `MSP2_INAV_SET_ALT_TARGET` (0x2222). |
+| `jumpwp` | `wp` | Jumps to a waypoint during an active WP mission (0-based index). Only effective when WP Mission mode is active. Firmware sends `MSP2_INAV_SET_WP_INDEX` (0x2221). |
 
 ---
 
@@ -257,6 +263,32 @@ Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
 
 > `mro` indicates whether the `MSP RC OVERRIDE` flight mode is active on the flight controller. This mode must be active for the firmware's channel override commands to take effect. Without it, commands sent via `MSP_SET_RAW_RC` will be ignored by INAV. The UI shows a dedicated status icon for this field.
 
+### Command Channel State
+
+These fields report which RC channel overrides the firmware is currently holding active. A value of `1` means the firmware is actively commanding that mode via `MSP_SET_RAW_RC`; `0` means the channel is set to its safe-off value.
+
+| Key | Description | JS field | Valid Range |
+|---|---|---|---|
+| `cmdrth` | RTH override active | `data.cmdRth` | 0 or 1 |
+| `cmdalt` | Altitude Hold override active | `data.cmdAltHold` | 0 or 1 |
+| `cmdcrs` | Cruise override active | `data.cmdCruise` | 0 or 1 |
+| `cmdbep` | Beeper override active | `data.cmdBeeper` | 0 or 1 |
+| `cmdwp` | WP Mission override active | `data.cmdWp` | 0 or 1 |
+
+> These reflect what the firmware is doing, not whether INAV has activated the mode. A `1` here with `mro:0` means the override is being sent but INAV is ignoring it (MSP RC Override mode not active on FC).
+
+### Flight Mode Active
+
+These fields report whether each flight mode is actually active on the flight controller, regardless of source (radio switch, Bullet GCSS command, or any other means). Derived from `MSP_ACTIVEBOXES`.
+
+| Key | Description | JS field | Valid Range |
+|---|---|---|---|
+| `fmcrs` | Cruise / Course Hold mode active | `data.fmCruise` | 0 or 1 |
+| `fmalt` | Altitude Hold mode active | `data.fmAltHold` | 0 or 1 |
+| `fmwp` | WP Mission mode active | `data.fmWp` | 0 or 1 |
+
+> The UI uses these fields to gate the `setheading`, `setalt`, and `jumpwp` commands respectively — a command that has no effect when the relevant mode is inactive is not shown as available. `fmwp` additionally gates the map waypoint-click jump feature: clicking a waypoint marker while WP Mission is active prompts the user to jump to that waypoint.
+
 ### Flight Mode
 
 | Key | Description | JS field | Valid Range |
@@ -295,12 +327,14 @@ Flight mode ID values:
 | `flt` | Flight time (time since arm) | Seconds | `data.flightTime` | 0 to 86400 |
 | `ftm` | Flight mode ID | See flight mode table | `data.flightMode` | 1 to 11 |
 | `mfr` | Message frequency (send interval) | Milliseconds | `pageSettings.messageInterval` | 100 to 10000 |
+| `fcver` | Flight controller firmware version | String `"M.m.p"` | `data.fcVersion`; also sets `data.extCmdsSupported` | Pattern `^\d+\.\d+\.\d+$` |
 | `pk` | Command signing public key (Ed25519) | Base64 (44 chars) | `data.firmwarePublicKey` | 44-char base64 string |
 
 > `pv` was introduced in protocol version 1. Firmware that predates this field sends no `pv` key; the UI treats a missing `pv` as version 1 (same as the current protocol). The version is an integer incremented only on breaking changes (removed or reinterpreted fields). Adding new optional fields is not a breaking change and does not require a version bump.
 > `hal` range covers Dead Sea (-430 m = -43000 cm) to above Everest (8849 m = 884900 cm), rounded to safe integers.
 > `ont` ceiling of 172800 s = 48 h. `flt` ceiling of 86400 s = 24 h.
 > `mfr` clamped to 100–10000 ms to prevent the UI from interpreting implausibly fast or slow rates.
+> `fcver` is read from the FC once at startup via `MSP_FC_VERSION` and re-read on reconnect. The UI parses the version and derives `data.extCmdsSupported` (integer, 0 = none, ≥ 1 = extended commands available): currently set to 1 for FC version > 9.0.1, which is the first INAV release expected to include `MSP2_INAV_SET_WP_INDEX`, `MSP2_INAV_SET_ALT_TARGET`, and `MSP2_INAV_SET_CRUISE_HEADING`. The capability threshold will be updated here when the INAV PR is merged into an official release. All three extended command buttons and the map waypoint-click jump feature are disabled when `extCmdsSupported` is 0.
 > `pk` is always sent, including when the key is all zeros (base64 `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`), which means signing is not yet configured. The UI uses this field to verify that its stored public key matches the one flashed to the firmware. Public keys are safe to broadcast — they can only be used to verify signatures, not forge them.
 
 ---
@@ -373,13 +407,17 @@ The FC task runs every **160 ms** (`TASK_MSP_READ_MS`). Telemetry messages are d
 | `MSP_NAV_STATUS` | Nav state, active waypoint number | Group 3 |
 | `MSP2_INAV_MISC2` | On-time, flight time, throttle, auto-throttle | Group 4 |
 | `MSP2_INAV_ANALOG` | Battery voltage, current, RSSI, fuel percent | Group 5 |
+| `MSP_FC_VERSION` (3) | FC firmware version (major, minor, patch) | Once at startup |
 | `MSP_BOXNAMES` (116) | Flight mode names → discovers `MSP RC OVERRIDE` box ID | Once at startup |
 | `MSP_MODE_RANGES` (34) | RC channel-to-mode mapping → discovers channel/PWM for each mode | Once at startup |
 | `MSP2_COMMON_SETTING` (0x1003) | Reads `msp_override_channels` bitmask | Once at startup (also to confirm write) |
 | `MSP2_COMMON_SET_SETTING` (0x1004) | Writes `msp_override_channels` to enable needed channels | Once at startup |
 | `MSP_NAME` | Aircraft callsign | Once at startup; re-polled every 10 s |
 | `MSP_WP` | Individual waypoint data | Every 10 s (slow-poll) |
+| `MSP2_INAV_SET_WP_INDEX` (0x2221) | Jump to waypoint N (U8, 0-based) during an active WP mission | On `jumpwp` command |
+| `MSP2_INAV_SET_ALT_TARGET` (0x2222) | Set altitude hold target (I32, centimetres relative to home) | On `setalt` command |
+| `MSP2_INAV_SET_CRUISE_HEADING` (0x2223) | Set Cruise/Course Hold heading target (I32, centidegrees) | On `setheading` command |
 
-**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
+**Startup sequence:** On each boot (or FC reconnect), the firmware probes for the FC every 2 seconds using `MSP_NAME`. Once the FC responds, the startup sequence runs: `MSP_FC_VERSION` → `MSP_BOXNAMES` → `MSP_MODE_RANGES` → `MSP2_COMMON_SETTING` (read) / `MSP2_COMMON_SET_SETTING` (write) / `MSP2_COMMON_SETTING` (confirm). After this, per-cycle polling begins. If MSP communication is lost for more than 1 second, all startup flags reset and the probe sequence restarts.
 
 MSPv2 frame format: `$X<` header, 1-byte flags, 2-byte message ID, 2-byte payload length, payload, 1-byte CRC8-DVB-S2 checksum.

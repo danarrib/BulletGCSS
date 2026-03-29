@@ -200,6 +200,8 @@ export function drawAircraftPathOnMap(inputData) {
 // ─── Mission waypoints and leg lines ─────────────────────────────────────────
 
 var waypointMarkers = [];
+var onWaypointClickCallback = null;
+export function setOnWaypointClick(fn) { onWaypointClickCallback = fn; }
 
 export function drawMissionOnMap(inputData) {
     waypointMarkers.forEach(function(m) { m.remove(); });
@@ -263,6 +265,13 @@ export function drawMissionOnMap(inputData) {
                                     'ABS alt: ' + grAlt.toFixed(0)        + ' m';
                 el.appendChild(infoDiv);
             }
+
+            (function(wpNumber) {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (onWaypointClickCallback) onWaypointClickCallback(wpNumber);
+                });
+            })(wp.waypointNumber);
 
             var marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
                 .setLngLat([wp.wpLongitude, wp.wpLatitude])
