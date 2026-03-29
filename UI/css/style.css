@@ -784,3 +784,7 @@ select
     width: calc(var(--compass-size, 44px) * 0.55);
     height: calc(var(--compass-size, 44px) * 0.55);
 }
+
+.aircraft-marker {
+    filter: drop-shadow(0 0 2px white) drop-shadow(0 0 2px white);
+}
