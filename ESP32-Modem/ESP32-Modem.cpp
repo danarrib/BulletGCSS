@@ -139,7 +139,9 @@ msp_set_wp_t currentWPMission[256];
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
-uint16_t failureCounter = 0; // Count how many times it fails sending the messages
+uint16_t failureCounter = 0;    // Count how many times it fails sending the messages
+uint8_t  gprsFailureCounter = 0; // Count GPRS-level reconnect failures (separate escalation ladder)
+bool     modemInitialized = false; // True after first successful GPRS connection
 
 // Box IDs for flight modes used only for telemetry detection (not remotely commandable).
 // Populated once from MSP_BOXNAMES; read in msp_get_activeboxes() only.
@@ -363,102 +365,135 @@ void connectToTheInternet() {
 
   void connectToGprsNetwork()
   {
-    if (modem.isGprsConnected())
-      return; // Gprs already connected. Skipping
+    if (modem.isGprsConnected()) {
+      gprsFailureCounter = 0; // connection is healthy — reset counter
+      return;
+    }
 
-    // Set modem reset, enable, power pins
-    pinMode(MODEM_PWKEY, OUTPUT);
-    pinMode(MODEM_POWER_ON, OUTPUT);
+    if (!modemInitialized) {
+      // ── Cold start: runs once at boot (or after a full power cycle) ────────
+      // Full hardware setup, modem restart, and blocking network wait are all
+      // acceptable here — nothing is flying yet.
 
-    #ifdef TINY_GSM_MODEM_SIM800
-    pinMode(MODEM_RST, OUTPUT);
-    // Start I2C communication
-    I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
-    
-    // Keep power when running from battery
-    bool isOk = setPowerBoostKeepOn(1);
-    SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
-    digitalWrite(MODEM_RST, HIGH);
-    #endif
+      pinMode(MODEM_PWKEY, OUTPUT);
+      pinMode(MODEM_POWER_ON, OUTPUT);
 
-    #ifdef TINY_GSM_MODEM_SIM7600
-    digitalWrite(MODEM_PWKEY, HIGH);
-    delay(500);    
-    #endif
-    
-    digitalWrite(MODEM_PWKEY, LOW);
-    digitalWrite(MODEM_POWER_ON, HIGH);
-    
-    SerialMon.println("Wait...");
-  
-    delay(3000);
+      #ifdef TINY_GSM_MODEM_SIM800
+      pinMode(MODEM_RST, OUTPUT);
+      I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
+      bool isOk = setPowerBoostKeepOn(1);
+      SerialMon.println(String("IP5306 KeepOn ") + (isOk ? "OK" : "FAIL"));
+      digitalWrite(MODEM_RST, HIGH);
+      #endif
 
-    // Set GSM module baud rate and UART pins
-    SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
-    delay(6000);
-  
-    // Restart takes quite some time
-    // To skip it, call init() instead of restart()
-    SerialMon.println("Initializing modem...");
-    modem.restart();
-    //modem.init();
+      #ifdef TINY_GSM_MODEM_SIM7600
+      digitalWrite(MODEM_POWER_ON, HIGH);
+      delay(100);
+      digitalWrite(MODEM_PWKEY, HIGH);
+      delay(500);
+      #endif
 
+      digitalWrite(MODEM_PWKEY, LOW);
+      digitalWrite(MODEM_POWER_ON, HIGH);
 
-    #ifdef TINY_GSM_MODEM_SIM7600
+      SerialMon.println("Wait...");
+      delay(3000);
+      SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+      delay(6000);
+
+      SerialMon.println("Initializing modem...");
+      modem.restart();
+
+      #ifdef TINY_GSM_MODEM_SIM7600
       modem.setNetworkMode(38);
       delay(1000);
-  
       String modemName = modem.getModemName();
       SerialMon.print("Modem Name: ");
       SerialMon.println(modemName);
-    #endif
-    
-    String modemInfo = modem.getModemInfo();
-    SerialMon.print("Modem Info: ");
-    SerialMon.println(modemInfo);
-  
-    // Unlock your SIM card with a PIN if needed
-    if (strlen(GSM_PIN) > 0) {
-      SimStatus simStatus = modem.getSimStatus();
-      if (simStatus == SIM_LOCKED) {
-        SerialMon.println("SIM card is PIN-locked. Attempting to unlock...");
-        if (modem.simUnlock(GSM_PIN)) {
-          SerialMon.println("SIM card unlocked successfully.");
-        } else {
-          SerialMon.println("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
-          // Restart so the user sees the error message repeatedly rather than
-          // silently hanging on network registration with a locked SIM.
-          delay(5000);
-          ESP.restart();
+      #endif
+
+      String modemInfo = modem.getModemInfo();
+      SerialMon.print("Modem Info: ");
+      SerialMon.println(modemInfo);
+
+      if (strlen(GSM_PIN) > 0) {
+        SimStatus simStatus = modem.getSimStatus();
+        if (simStatus == SIM_LOCKED) {
+          SerialMon.println("SIM card is PIN-locked. Attempting to unlock...");
+          if (modem.simUnlock(GSM_PIN)) {
+            SerialMon.println("SIM card unlocked successfully.");
+          } else {
+            SerialMon.println("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
+            delay(5000);
+            ESP.restart();
+          }
+        } else if (simStatus == SIM_READY) {
+          SerialMon.println("SIM card is ready (no PIN required).");
         }
-      } else if (simStatus == SIM_READY) {
-        SerialMon.println("SIM card is ready (no PIN required).");
+      }
+
+      // Block until registered — acceptable at boot, nothing is flying yet
+      while (!modem.waitForNetwork(600000L)) {
+        SerialMon.println("Waiting for network...");
+        delay(10000);
+      }
+      SerialMon.println("Network connected");
+
+    } else {
+      // ── Reconnect path: GPRS dropped mid-flight ─────────────────────────────
+      // Do NOT restart the modem on every drop — that causes the 2-minute hang.
+      // Instead, count failures and escalate progressively.
+      gprsFailureCounter++;
+      SerialMon.printf("GPRS disconnected (failure %d)\n", gprsFailureCounter);
+
+      // Every 5 failures, do a soft modem restart to recover from states like
+      // CSQ 99,99 (network registration lost) without a full hardware power cycle.
+      if (gprsFailureCounter % 5 == 0) {
+        SerialMon.println("Restarting modem for GPRS recovery...");
+        modem.restart();
+        #ifdef TINY_GSM_MODEM_SIM7600
+        modem.setNetworkMode(38);
+        delay(1000);
+        #endif
+        failureCounter++; // counts toward the ESP32 restart threshold too
+      }
+
+      // Hard ceiling: if we can't recover after 15 attempts, restart the ESP32
+      if (gprsFailureCounter >= 15) {
+        SerialMon.println("GPRS unrecoverable after 15 attempts. Restarting ESP32...");
+        ESP.restart();
+      }
+
+      // Wait briefly for network re-registration — short enough that the main
+      // loop keeps running and the FC task is not starved for long.
+      if (!modem.isNetworkConnected()) {
+        SerialMon.println("Waiting for network re-registration (60s)...");
+        if (!modem.waitForNetwork(60000L)) {
+          SerialMon.println("Network not available yet. Will retry next cycle.");
+          return; // come back next 1-second tick
+        }
       }
     }
 
-    while (!modem.waitForNetwork(600000L))
-    {
-        SerialMon.print("Waiting network...");
-        delay(10000);
-    }
-
-    if (modem.isNetworkConnected()) {
-        SerialMon.println("Network connected");
-    }
-    
+    // ── Connect GPRS (shared by cold-start and reconnect paths) ─────────────
     SerialMon.print("Connecting to APN: ");
     SerialMon.print(apn);
     if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
       SerialMon.println(" fail");
-      ESP.restart();
+      if (!modemInitialized) {
+        // Cold-start GPRS failure — hard restart (nothing is flying yet)
+        ESP.restart();
+      }
+      // Reconnect failure: already counted above, retry next cycle
+      return;
     }
-    else {
-      SerialMon.println(" OK");
-    }
-    
+    SerialMon.println(" OK");
+
     if (modem.isGprsConnected()) {
       SerialMon.println("GPRS connected");
-    }    
+      modemInitialized = true; // set only on first successful GPRS connection
+      gprsFailureCounter = 0;
+    }
   }
 #endif
 
