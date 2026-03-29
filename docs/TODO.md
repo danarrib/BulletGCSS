@@ -46,11 +46,13 @@ The README gives no indication that the default configuration broadcasts the air
 - Add a **Security Notice** section to `README.md` explaining the public broker risk and linking to `docs/Self-Hosting-a-MQTT-server--(broker).md`.
 
 ### 7. Documentation screenshots are outdated
-Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes).
+Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes, MapLibre map migration).
 
 **Known files to update:**
-- `docs/Find-a-MQTT-Broker.md` — screenshot of `Config.h` shows old topic structure.
-- Other docs may have stale screenshots — do a full pass before closing this item.
+- `docs/Find-a-MQTT-Broker.md` — screenshot of `Config.h` shows old topic structure; UI screenshot shows old broker settings panel.
+- `docs/User-Interface.md` — map screenshot shows old OpenLayers raster map; UI has changed significantly since (Commands panel, Sessions panel, Security panel, new status icons, MapLibre map).
+- `docs/README.md` — UI screenshot shows the old interface.
+- Do a full pass before closing this item.
 
 ---
 
@@ -131,31 +133,9 @@ The status bar icons (connection, cell signal, RC signal, battery, GPS, hardware
 - CSS handles color/opacity changes per state — no drawing code needed.
 - The `aircraft.png` map marker and other non-status images are out of scope for this change.
 
-### F4. Migrate map from OpenLayers + raster tiles to MapLibre GL JS + vector tiles
+### ~~F4. Migrate map from OpenLayers + raster tiles to MapLibre GL JS + vector tiles~~ ✓ COMPLETE
 
-**Motivation:** The current OpenLayers map uses raster image tiles (PNG/JPEG), which are large, zoom-level-specific, and optimised for street navigation rather than UAV operations. Aircraft typically fly in remote areas with poor cellular coverage, making data usage and offline capability important.
-
-**Chosen stack:**
-- **MapLibre GL JS** — open-source, WebGL-accelerated vector map renderer. No API key, no account required. Replaces OpenLayers entirely.
-- **OpenFreeMap** as the vector tile source — free, no API key, based on OpenStreetMap data. Includes contour lines and land cover.
-- **OpenTopoData.org** for point elevation queries — already in use for waypoint terrain elevation. No change needed here.
-
-**Why vector tiles over raster:**
-- Vector tiles (PBF format) are typically 5–20 KB vs 20–80 KB for raster tiles for the same area.
-- Zoom and pan re-render existing geometry client-side — fewer new tile fetches.
-- PWA tile caching becomes practical: pre-caching a flying area over WiFi before heading to a remote location is feasible with vector tiles but impractical with raster due to file count.
-
-**Map style for UAV operations:**
-- Dark theme matching the existing UI.
-- Terrain contour lines prominent.
-- Land cover colours: water, forest, open land clearly distinct.
-- Roads and settlements visible but visually secondary.
-- POI clutter (shops, restaurants, etc.) hidden or minimal.
-
-**Optional overlay — airspace:**
-OpenAIP provides free aviation overlay data (airspace classes, airfields, NOTAMs) that could be added as an optional layer without requiring an account.
-
-**Migration scope:** `UI/js/MapScripts.js` will largely be a rewrite. Core operations to reimplement: map initialisation, aircraft marker with heading rotation, flight track polyline, waypoint markers, track/pan mode, home position marker. OpenLayers (`UI/ol/`) can be removed from the repository once migration is complete.
+Migration complete. MapLibre GL JS replaces OpenLayers entirely. Two map styles available (user-selectable in UI Settings): **OpenFreeMap Liberty** (default) and **CARTO Dark Matter**. All map elements (line widths, marker sizes, fonts) are scaled by `window.devicePixelRatio`. Custom controls added: compass (north-up reset) and center-on-aircraft button. The `UI/ol/` directory has been removed.
 
 ### F5. Mission planner
 Allow the operator to plan a waypoint mission directly in the UI, rather than requiring a separate ground control application.

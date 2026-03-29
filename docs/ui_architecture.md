@@ -7,7 +7,7 @@ The UI is a single-page application (SPA) built as a PWA. There is no build step
 The application has three visual areas rendered simultaneously:
 
 - **Data panel** — tabular telemetry values (GPS, battery, navigation, flight times)
-- **Map** — OpenLayers raster map with aircraft icon, flight path, home point, mission waypoints
+- **Map** — MapLibre GL JS vector map with aircraft icon, flight path, home point, mission waypoints
 - **EFIS (HUD)** — canvas-drawn artificial horizon, heading tape, speed/altitude/vertical speed gauges
 
 All three areas are driven by a central `data` object that is populated by parsed MQTT telemetry messages.
@@ -148,10 +148,13 @@ The IndexedDB layer. Has no imports from other app modules.
 **Imports:** `CommScripts` (data, utilities, state) + `EfisScripts` (AngleToRadians).
 
 **Responsibilities:**
-- Initialises the OpenLayers map at startup (module top-level code runs on import)
+- Initialises the MapLibre GL JS map at startup (module top-level code runs on import)
 - Renders and updates map features: aircraft icon, home icon, user location icon, flight path, course line, mission waypoints
 - Tracks whether the user has manually panned the map (`user_moved_map`)
 - Fetches waypoint terrain elevation from OpenTopoData API
+- Supports runtime map style switching (CARTO Dark Matter / OpenFreeMap Liberty); style preference stored in `localStorage`
+- All marker sizes, line widths, and fonts scaled by `window.devicePixelRatio` for HiDPI displays
+- Custom map controls: compass (north-up reset) and center-on-aircraft button
 
 **Key exports:**
 
@@ -159,6 +162,7 @@ The IndexedDB layer. Has no imports from other app modules.
 |--------|------|---------|
 | `user_moved_map` | `let` | True if the user has manually panned the map |
 | `setUserMovedMap(val)` | function | Setter for `user_moved_map` (written by PageScripts timers) |
+| `setMapStyle(styleKey)` | function | Switch map style at runtime; `styleKey` is `'dark'` or `'liberty'`. Saves to `localStorage` and calls `map.setStyle()`. |
 | `drawAircraftOnMap(data)` | function | Update aircraft icon position and heading |
 | `drawAircraftPathOnMap(data)` | function | Draw the recorded flight path polyline |
 | `drawCourseLineOnMap(data)` | function | Draw the line from aircraft to next waypoint |
@@ -171,6 +175,8 @@ The IndexedDB layer. Has no imports from other app modules.
 | `getMissionWaypointsAltitude()` | function | Fetch terrain elevation for all waypoints via OpenTopoData |
 
 **Note on `DestinationCoordinates`:** Originally defined in MapScripts. Moved to CommScripts to break a circular dependency (CommScripts needed it for dead reckoning). MapScripts now imports it.
+
+**Note on style switching:** Custom GeoJSON sources and layers (flight path, mission, course line) are re-added inside a `map.on('style.load')` handler. This fires on every style change (`map.setStyle()`), ensuring custom layers survive style swaps at runtime.
 
 ---
 
@@ -375,7 +381,7 @@ Key fields:
 body
 ├── #container              ← Full screen, flex layout
 │   ├── #dataview           ← Telemetry table
-│   ├── #mapview            ← OpenLayers map canvas
+│   ├── #mapview            ← MapLibre GL JS map container
 │   └── #hudview            ← EFIS canvas (#cvsEFIS)
 ├── #sideMenu               ← Slide-in navigation sidebar (z-index 1)
 ├── #logMenu                ← Log save/replay panel (z-index 2)
@@ -390,13 +396,13 @@ The secondary panels all slide in over the primary sideMenu using z-index 2.
 
 ---
 
-## Third-Party Libraries (bundled, no CDN)
+## Third-Party Libraries
 
-| Library | File | Purpose |
-|---------|------|---------|
-| OpenLayers | `UI/ol/` | Raster tile map rendering |
-| Paho MQTT JS | `UI/js/` | MQTT over WebSocket |
-| NoSleep.js | `UI/js/NoSleep.min.js` | Prevent screen sleep on mobile |
-| Open Location Code | `UI/js/olc.min.js` | Convert GPS to Plus Codes |
+| Library | Source | Purpose |
+|---------|--------|---------|
+| MapLibre GL JS | CDN (`<link>`/`<script>` in `basicui.html`) | WebGL vector map rendering |
+| Paho MQTT JS | `UI/js/` (bundled) | MQTT over WebSocket |
+| NoSleep.js | `UI/js/NoSleep.min.js` (bundled) | Prevent screen sleep on mobile |
+| Open Location Code | `UI/js/olc.min.js` (bundled) | Convert GPS to Plus Codes |
 
-All libraries are loaded as traditional `<script src>` tags (not ES modules) before `PageScripts.js`, making their globals (`ol`, `Paho`, `NoSleep`, `OpenLocationCode`) available to all modules via the global scope.
+All libraries are loaded as traditional `<script src>` tags (not ES modules) before `PageScripts.js`, making their globals (`maplibregl`, `Paho`, `NoSleep`, `OpenLocationCode`) available to all modules via the global scope.

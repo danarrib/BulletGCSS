@@ -45,12 +45,12 @@ Static HTML/CSS/JS — no build step. Deployed directly to a web server.
 - [basicui.html](UI/basicui.html): Single-page app entry point. Status icon bar (connection, signal, battery, GPS), three views: Data, Map, Sidebar/Settings.
 - [js/CommScripts.js](UI/js/CommScripts.js): MQTT over WebSocket (Paho MQTT). Handles connect/subscribe/publish, message replay/logging, localStorage settings persistence. Exposes session recording hooks (`setOnMessageCallback`, `setOnReplayStop`) and replay/restore functions for IndexedDB sessions.
 - [js/SessionScripts.js](UI/js/SessionScripts.js): IndexedDB persistence layer for flight sessions. Two-store schema: `sessions` (metadata) and `session_messages` (log lines). Level 0 — no imports from other app modules.
-- [js/MapScripts.js](UI/js/MapScripts.js): OpenLayers-based map. Renders aircraft icon, real-time position updates, waypoint visualization, track/manual pan modes.
+- [js/MapScripts.js](UI/js/MapScripts.js): MapLibre GL JS-based vector map. Renders aircraft icon, real-time position updates, waypoint visualization, flight path, home point, user location. Supports runtime style switching between CARTO Dark Matter and OpenFreeMap Liberty styles (`setMapStyle`). Track/manual pan modes, compass control, center-on-aircraft button. All sizes scaled by `window.devicePixelRatio` for HiDPI displays.
 - [js/EfisScripts.js](UI/js/EfisScripts.js): Artificial horizon, heading indicator, altitude/speed gauges — canvas-based EFIS instruments.
 - [js/InfoPanelScripts.js](UI/js/InfoPanelScripts.js): Telemetry data panels (battery, GPS, navigation, flight times).
 - [js/PageScripts.js](UI/js/PageScripts.js): Viewport, NoSleep, sidebar menu (with Settings submenu), unit conversion preferences (speed/altitude/distance). Async `DOMContentLoaded` initialises IndexedDB, restores open session state, wires session recording and replay-stop callbacks. Also owns the Security panel and the Commands panel — Ed25519 key pair generation (Web Crypto API), key storage in `localStorage`, key status display (5 states), and RC command sending with `rcCommands[]` state tracking. FAB button (`#fabCommands`) provides quick access to the commands panel.
 
-**Key libraries bundled in repo:** OpenLayers ([UI/ol/](UI/ol/)), Paho MQTT JS, NoSleep, Open Location Code.
+**Key libraries bundled in repo:** Paho MQTT JS, NoSleep, Open Location Code. MapLibre GL JS is loaded from CDN (referenced in `basicui.html`). The old `UI/ol/` OpenLayers directory has been removed.
 
 **Deployment:** GitHub Actions ([.github/workflows/](.github/workflows/)) — `rsync` to production server on push to `master`. No compilation, just file copy.
 

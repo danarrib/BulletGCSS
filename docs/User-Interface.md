@@ -221,6 +221,13 @@ Past waypoints | Current waypoint | Next waypoints
 
 Each waypoint will also have some text next to it, indicating the Elevation (the ground altitude in relation to mean sea level), the Waypoint altitude (set by the mission on INAV), and the calculated aircraft altitude of the waypoint in relation to the ground.
 
+#### Map Controls
+
+Two buttons are available in the top-right corner of the map:
+
+- **Compass** — shows the current map bearing. Tap it to reset the map to north-up orientation.
+- **Center on aircraft** — re-centres the map on the aircraft and resumes automatic tracking (same as if the user had not panned away).
+
 #### User location
 
 <img src="https://user-images.githubusercontent.com/17026744/104850729-9a971800-58cf-11eb-8df2-dbd8d31242d2.png" width="100">
@@ -289,6 +296,10 @@ Both topics must use the same callsign suffix and match the values set in `Confi
 Allows the user to set the units of measurement for every aspect of the UI. Speed, Altitude, Distance, Current, Power, etc.
 
 Also allows the user to choose the Terrain elevation data provider. The default provider is "Open Topo Data (Direct)", which works best, but there are two alternative options if the primary method does not work.
+
+Also allows the user to choose the **Map Style**:
+- **Liberty (OpenFreeMap)** — default. A clean vector map with terrain contours, water, and land cover. Suitable for most flying conditions.
+- **Dark (CARTO)** — a dark-themed map that matches the UI and is easier to read in bright sunlight.
 
 #### Security…
 
