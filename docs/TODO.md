@@ -4,19 +4,9 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ---
 
-## Security
-
-### 1. No authentication on the telemetry stream ⚠️ Partially mitigated
-The telemetry uplink is unauthenticated by design: a bad actor injecting messages can only display incorrect data on the UI, not affect the flight. Command messages are protected by Ed25519 signing (Steps 5–6 complete) — the firmware rejects any unsigned command. Users who require privacy or data integrity on telemetry can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is documented in `README.md`.
-
----
-
 ## Architecture
 
-### 2. Custom CSV telemetry format — consider migrating to binary ⏳ Deferred
-JSON was considered but rejected — it adds overhead compared to the current key:value format, and the long-term plan is to migrate to a compact binary protocol instead. Deferred until the binary format design is ready.
-
-### 3. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
+### 1. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
 QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
 
 ---
@@ -43,10 +33,7 @@ Eventually migrate the UI to Bootstrap 5 for consistent, mobile-correct componen
 
 ## Future Features
 
-### F1. Binary telemetry protocol
-Replace the current ASCII key:value format with a compact binary protocol. Goal: reduce bytes per message, add implicit versioning, and make parsing deterministic on both the firmware and UI sides. Design TBD — the protocol format, framing, and versioning strategy need to be decided before implementation.
-
-### F2. Multi-aircraft monitoring
+### F1. Multi-aircraft monitoring
 Allow the UI to subscribe to multiple MQTT topics simultaneously and display all aircraft on a single map. Each aircraft would have its own icon on the map. A quick-selector in the data/EFIS panel would let the operator switch which aircraft's telemetry is displayed in detail.
 
 Design considerations:
@@ -54,7 +41,7 @@ Design considerations:
 - `data` object becomes a keyed map of per-aircraft state.
 - Map renders all aircraft icons simultaneously; clicking one selects it as the active aircraft for the data panel and EFIS.
 
-### F3. Replace status bar PNG icons with inline SVG
+### F2. Replace status bar PNG icons with inline SVG
 The status bar icons (connection, cell signal, RC signal, battery, GPS, hardware health) are currently ~35 PNG files in `UI/img/`. Replace them with inline SVG elements embedded directly in `basicui.html`. JS switches state by changing a CSS class or attribute rather than swapping `src` paths. Benefits: eliminates the PNG files from the repo, reduces first-load network requests, and SVG is the right format for symbolic icons.
 
 **Design notes:**
@@ -63,7 +50,7 @@ The status bar icons (connection, cell signal, RC signal, battery, GPS, hardware
 - CSS handles color/opacity changes per state — no drawing code needed.
 - The `aircraft.png` map marker and other non-status images are out of scope for this change.
 
-### F4. Mission planner
+### F3. Mission planner
 Allow the operator to plan a waypoint mission directly in the UI, rather than requiring a separate ground control application.
 
 **High-level scope:**
@@ -74,7 +61,7 @@ Allow the operator to plan a waypoint mission directly in the UI, rather than re
 - When ready, the mission is uploaded to the aircraft via the command channel.
 - Mission files should be exportable/importable in a standard format (INAV/Betaflight mission JSON or similar).
 
-### F5. ESP32-Cam integration — aerial image capture
+### F4. ESP32-Cam integration — aerial image capture
 Support an ESP32-Cam module connected to the UAV, allowing the operator to trigger image captures and view them in the ground station.
 
 **Scope:**
