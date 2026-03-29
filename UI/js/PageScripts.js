@@ -288,6 +288,11 @@ async function newSession() {
     if (currentSessionId !== null) {
         await closeSession(currentSessionId);
     }
+    resetDataObject();
+    drawAircraftOnMap(data);
+    drawAircraftPathOnMap(data);
+    drawMissionOnMap(data);
+    drawHomeOnMap(data);
     var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
     currentSessionId = await createSession(defaultName);
     await renderSessionsList();
