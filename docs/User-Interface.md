@@ -21,7 +21,7 @@ You can use [Bullet GCSS directly from Outros.net](https://bulletgcss.outros.net
 Screen is always divided into 4 main parts: The Status lights, the Information Panel, the Map and the EFIS PFD (Electronic Flight Information System Primary Flight Display). It's important that you learn how every of this parts works to enjoy all the Bullet GCSS capabilities.
 
 ### Status lights
-![Status lights](https://user-images.githubusercontent.com/17026744/104824192-8cdd8600-582e-11eb-8221-e864b34b33db.png)
+<img width="756" height="89" alt="image" src="https://github.com/user-attachments/assets/a2bdb7e0-6472-4100-ba8c-8c6b6f975b98" />
 
 Status lights tells the overall health of the system and aircraft. Each icon has meaning:
 
@@ -33,6 +33,15 @@ Broken connection | Aircraft connection problem | Latency is too high | Connecti
 -- | -- | -- | --
 <img src="https://user-images.githubusercontent.com/17026744/104824245-d75f0280-582e-11eb-9e88-fd8ebb16bb2d.png" width="50"> | <img src="https://user-images.githubusercontent.com/17026744/104824349-ae8b3d00-582f-11eb-8195-a8e9a2083754.png" width="50"> | <img src="https://user-images.githubusercontent.com/17026744/104824391-07f36c00-5830-11eb-85d5-371c31c84905.png" width="50"> | <img src="https://user-images.githubusercontent.com/17026744/104824418-4d179e00-5830-11eb-8c15-1b9b219979d1.png" width="50">
 Means that the UI is not connected to the MQTT Broker. Without this connection, UI cannot receive any messages from aicraft. You should fix it by making sure your SmartPhone is connected to the Internet and by reviewing the MQTT Broker settings. | Means that the UI is connected to the MQTT Broker, but it's not receiving any messages for more than 30 seconds. It usually means that the aircraft is not sending any messages (due lack of connectivity or some other problem). | Means that both UI and Aircraft are connected to the MQTT Broker, but messages are taking too long to arrive. The yellow icon will show up if the last message sent from aircraft is more than 10 seconds old. | Means that both UI and Aircraft are connected to the MQTT Broker and messages are arriving on time.
+
+#### Command icon
+
+Shows how is the connection between Aircraft and the UI thru MQTT Broker. There are 3 possible states:
+
+Broken connection | Connected but not controlling | Control ok
+-- | -- | --
+<img src="../UI/img/command_error.png" width="50"> | <img src="../UI/img/command_warning.png" width="50"> | <img src="../UI/img/command_ok.png" width="50"> | <img src="https://user-images.githubusercontent.com/17026744/104824418-4d179e00-5830-11eb-8c15-1b9b219979d1.png" width="50">
+Means that the Aircraft is not connected to the MQTT Broker. Without this connection, UI cannot send any commands to the aicraft. | Means that the aircraft is connected to the MQTT Broker, but UI can't send any commands because the encryption keys don't match, or because the RC Override mode is not active. | Means that both UI and Aircraft are connected to the MQTT Broker and commands can be sent just fine.
 
 #### Signal bars
 
