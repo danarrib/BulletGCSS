@@ -54,7 +54,6 @@ export function savemqttlog()
     a.download = new Date().toISOString().replace(/:/g,"").replace(/-/g,"").substr(0,15) + '.txt';
     a.href = window.URL.createObjectURL(bb);
     a.click();
-    closeNav();
 }
 
 let replayIndex = 0;
@@ -431,7 +430,7 @@ function onMessageArrived(message) {
         var topic = message.destinationName;
         var payload = message.payloadString;
 
-        console.log(payload);
+        // console.log(payload);
         var line = new Date().getTime().toString() + '|' + payload;
         mqttlog.push(line);
         lastMessageDate = new Date();
@@ -498,6 +497,11 @@ export function resetDataObject()
         protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
         downlinkStatus: 0, // 0 = firmware not subscribed to command topic, 1 = subscribed ok
         mspRcOverride: 0, // 0 = MSP RC Override flight mode not active, 1 = active (commands can be sent)
+        cmdRth: 0,     // 1 = firmware actively overriding this channel, 0 = not overriding
+        cmdAltHold: 0,
+        cmdCruise: 0,
+        cmdBeeper: 0,
+        cmdWp: 0,
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -512,6 +516,7 @@ export function resetDataObject()
             altitude: 0,
             groundSpeed: 0,
             verticalSpeed: 0,
+            gpsGroundCourse: 0,
         },
         lastMessage: {
             rollAngle: 0,
@@ -520,6 +525,7 @@ export function resetDataObject()
             altitude: 0,
             groundSpeed: 0,
             verticalSpeed: 0,
+            gpsGroundCourse: 0,
         }
     };
 }
@@ -686,6 +692,18 @@ function parseStandardTelemetryMessage(payload)
 {
     var arrPayload = payload.split(",");
 
+    // Snapshot current smooth positions as the interpolation start point for all EFIS fields.
+    // This must happen before any field is updated so that fields absent from this message
+    // animate from where they currently are (no restart), while fields present in this message
+    // animate from their current smooth position to the new value.
+    data.lastMessage.rollAngle      = data.estimations.rollAngle;
+    data.lastMessage.pitchAngle     = data.estimations.pitchAngle;
+    data.lastMessage.heading        = data.estimations.heading;
+    data.lastMessage.altitude       = data.estimations.altitude;
+    data.lastMessage.groundSpeed    = data.estimations.groundSpeed;
+    data.lastMessage.verticalSpeed  = data.estimations.verticalSpeed;
+    data.lastMessage.gpsGroundCourse = data.estimations.gpsGroundCourse;
+
     // GPS and home coordinate pairs are collected first and validated together after the loop
     var rawGla = null, rawGlo = null;
     var rawHla = null, rawHlo = null;
@@ -701,28 +719,24 @@ function parseStandardTelemetryMessage(payload)
             case "ran":
                 raw = parseFloat(arrData[1]);
                 if(inRange(raw, -1800, 1800)) {
-                    data.lastMessage.rollAngle = data.rollAngle;
                     data.rollAngle = raw / 10.0;
                 }
                 break;
             case "pan":
                 raw = parseFloat(arrData[1]);
                 if(inRange(raw, -900, 900)) {
-                    data.lastMessage.pitchAngle = data.pitchAngle;
                     data.pitchAngle = raw / 10.0;
                 }
                 break;
             case "hea":
                 raw = parseFloat(arrData[1]);
                 if(inRange(raw, 0, 359)) {
-                    data.lastMessage.heading = data.heading;
                     data.heading = raw;
                 }
                 break;
             case "alt":
                 raw = parseInt(arrData[1]);
                 if(inRange(raw, -1000000, 10000000)) {
-                    data.lastMessage.altitude = data.altitude;
                     data.altitude = raw;
                 }
                 break;
@@ -734,14 +748,12 @@ function parseStandardTelemetryMessage(payload)
             case "gsp":
                 raw = parseInt(arrData[1]);
                 if(inRange(raw, 0, 15000)) {
-                    data.lastMessage.groundSpeed = data.groundSpeed;
                     data.groundSpeed = raw;
                 }
                 break;
             case "vsp":
                 raw = parseInt(arrData[1]);
                 if(inRange(raw, -60000, 60000)) {
-                    data.lastMessage.verticalSpeed = data.verticalSpeed;
                     data.verticalSpeed = raw;
                 }
                 break;
@@ -854,6 +866,26 @@ function parseStandardTelemetryMessage(payload)
                 if(raw === 0 || raw === 1)
                     data.mspRcOverride = raw;
                 break;
+            case "cmdrth":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdRth = raw;
+                break;
+            case "cmdalt":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdAltHold = raw;
+                break;
+            case "cmdcrs":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdCruise = raw;
+                break;
+            case "cmdbep":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdBeeper = raw;
+                break;
+            case "cmdwp":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdWp = raw;
+                break;
             case "wpv":
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1)
@@ -923,7 +955,7 @@ function parseStandardTelemetryMessage(payload)
                 raw = parseInt(arrData[1]);
                 if(inRange(raw, 1, 999)) {
                     data.protocolVersion = raw;
-                    console.log("Protocol version: " + raw);
+                    // console.log("Protocol version: " + raw);
                 }
                 break;
             case "pk":
@@ -1069,39 +1101,43 @@ export function estimateEfis()
     if(timeSinceLastFrame > pageSettings.messageInterval) // Stop estimating
     {
         
-        data.lastMessage.altitude = data.altitude;
-        data.lastMessage.rollAngle = data.rollAngle;
-        data.lastMessage.pitchAngle = data.pitchAngle;
-        data.lastMessage.groundSpeed = data.groundSpeed;
-        data.lastMessage.verticalSpeed = data.verticalSpeed;
-        data.lastMessage.heading = data.heading;
+        data.lastMessage.altitude        = data.altitude;
+        data.lastMessage.rollAngle       = data.rollAngle;
+        data.lastMessage.pitchAngle      = data.pitchAngle;
+        data.lastMessage.groundSpeed     = data.groundSpeed;
+        data.lastMessage.verticalSpeed   = data.verticalSpeed;
+        data.lastMessage.heading         = data.heading;
+        data.lastMessage.gpsGroundCourse = data.gpsGroundCourse;
 
-        data.estimations.altitude = data.altitude;
-        data.estimations.rollAngle = data.rollAngle;
-        data.estimations.pitchAngle = data.pitchAngle;
-        data.estimations.groundSpeed = data.groundSpeed;
-        data.estimations.verticalSpeed = data.verticalSpeed;
-        data.estimations.heading = data.heading;
+        data.estimations.altitude        = data.altitude;
+        data.estimations.rollAngle       = data.rollAngle;
+        data.estimations.pitchAngle      = data.pitchAngle;
+        data.estimations.groundSpeed     = data.groundSpeed;
+        data.estimations.verticalSpeed   = data.verticalSpeed;
+        data.estimations.heading         = data.heading;
+        data.estimations.gpsGroundCourse = data.gpsGroundCourse;
         return;
     }
 
     // This is the percentage of the movement to the last frame
     var movePercent = (timeSinceLastFrame / pageSettings.messageInterval) * 100;
-    
-    data.estimations.altitude = rangeNumbers(movePercent, 0, 100, data.lastMessage.altitude, data.altitude);
-    data.estimations.rollAngle = rangeNumbers(movePercent, 0, 100, data.lastMessage.rollAngle, data.rollAngle);
-    data.estimations.pitchAngle = rangeNumbers(movePercent, 0, 100, data.lastMessage.pitchAngle, data.pitchAngle);
-    data.estimations.groundSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.groundSpeed, data.groundSpeed);
-    data.estimations.verticalSpeed = rangeNumbers(movePercent, 0, 100, data.lastMessage.verticalSpeed, data.verticalSpeed);
-    data.estimations.heading = rangeNumbers360(movePercent, 0, 100, data.lastMessage.heading, data.heading);
+
+    data.estimations.altitude        = rangeNumbers(movePercent, 0, 100, data.lastMessage.altitude, data.altitude);
+    data.estimations.rollAngle       = rangeNumbers(movePercent, 0, 100, data.lastMessage.rollAngle, data.rollAngle);
+    data.estimations.pitchAngle      = rangeNumbers(movePercent, 0, 100, data.lastMessage.pitchAngle, data.pitchAngle);
+    data.estimations.groundSpeed     = rangeNumbers(movePercent, 0, 100, data.lastMessage.groundSpeed, data.groundSpeed);
+    data.estimations.verticalSpeed   = rangeNumbers(movePercent, 0, 100, data.lastMessage.verticalSpeed, data.verticalSpeed);
+    data.estimations.heading         = rangeNumbers360(movePercent, 0, 100, data.lastMessage.heading, data.heading);
+    data.estimations.gpsGroundCourse = rangeNumbers360(movePercent, 0, 100, data.lastMessage.gpsGroundCourse, data.gpsGroundCourse);
 
 
 }
 
 // Timing and refresh intervals (consumed by estimateEfis and PageScripts timers)
 export let pageSettings = {
-    efisRefreshInterval: 100,
-    mapAndDataRefreshInterval: 250,
+    efisRefreshInterval: 50,
+    mapFastRefreshInterval: 100,
+    mapAndDataRefreshInterval: 500,
     lowPriorityTasksInterval: 10000,
     messageInterval: 1000,
 };

@@ -161,6 +161,9 @@ body {
     color: #CCC;
     display: block;
     transition: 0.3s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
   }
   
   .menufooter
@@ -176,11 +179,13 @@ body {
   }
 
   /* When you mouse over the navigation links, change their color */
-  .sidebar a:hover,
-  #brokerSettings a:hover,
-  #uiSettings a:hover
-  {
-    color: #FFF;
+  @media (hover: hover) {
+    .sidebar a:hover,
+    #brokerSettings a:hover,
+    #uiSettings a:hover
+    {
+      color: #FFF;
+    }
   }
 
   .sidebar a:focus,
@@ -274,6 +279,9 @@ select
     font-size: 1em;
     width: 90%;
     height: 2em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
 }
 
 #securityMenu textarea {
@@ -406,8 +414,10 @@ select
   }
   
   /* On mouse-over, add a grey background color */
-  .checkboxtext:hover input ~ .checkmark {
-    background-color: #ccc;
+  @media (hover: hover) {
+    .checkboxtext:hover input ~ .checkmark {
+      background-color: #ccc;
+    }
   }
   
   /* When the checkbox is checked, add a blue background */
@@ -476,8 +486,10 @@ select
   }
   
   /* On mouse-over, add a grey background color */
-  .radiobuttontext:hover input ~ .radiomark {
-    background-color: #ccc;
+  @media (hover: hover) {
+    .radiobuttontext:hover input ~ .radiomark {
+      background-color: #ccc;
+    }
   }
   
   /* When the radio button is checked, add a blue background */
@@ -622,16 +634,18 @@ select
     white-space: nowrap;
 }
 
-.session-btn:hover {
-    background: #555;
-}
-
 .session-btn-delete {
     border-color: #933;
 }
 
-.session-btn-delete:hover {
-    background: #633;
+@media (hover: hover) {
+  .session-btn:hover {
+      background: #555;
+  }
+
+  .session-btn-delete:hover {
+      background: #633;
+  }
 }
 
 .cmd-item {
@@ -733,9 +747,41 @@ select
     cursor: pointer;
     z-index: 1;
     transition: background 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.fab-commands:hover,
 .fab-commands:active {
     background: #777;
 }
+
+@media (hover: hover) {
+  .fab-commands:hover {
+      background: #777;
+  }
+}
+/* ─── MapLibre compass button ────────────────────────────────────────────── */
+.maplibregl-ctrl-compass {
+    width: var(--compass-size, 44px) !important;
+    height: var(--compass-size, 44px) !important;
+}
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+    background-size: calc(var(--compass-size, 44px) * 0.68) !important;
+}
+
+.maplibregl-ctrl-center {
+    width: var(--compass-size, 44px) !important;
+    height: var(--compass-size, 44px) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: #333;
+}
+.maplibregl-ctrl-center svg {
+    width: calc(var(--compass-size, 44px) * 0.55);
+    height: calc(var(--compass-size, 44px) * 0.55);
+}
+

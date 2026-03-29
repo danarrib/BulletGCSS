@@ -4,74 +4,9 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ---
 
-## Roadmap
-
-The following sequence defines the planned implementation order. Each step is a prerequisite for the next.
-
-### ~~Step 1 — ES Modules refactor~~ ✓ COMPLETE
-
-### ~~Step 2 — Flight Sessions (item F5)~~ ✓ COMPLETE
-
-### ~~Step 3 — Protocol version detection (item 7)~~ ✓ COMPLETE
-`pv` field added to the low-priority message (sent every 60 s). UI reads `pv` and stores it as `data.protocolVersion`. Missing `pv` field (old firmware) is treated as version 1. Version information is logged to the browser console for debugging only — no user-facing warnings for now.
-
-### ~~Step 4 — Bidirectional channel setup + ping~~ ✓ COMPLETE
-Two MQTT topics configured separately — uplink (`bulletgcss/telem/<callsign>`) and downlink (`bulletgcss/cmd/<callsign>`). Firmware subscribes to downlink on connect, reports `dls:0/1` in telemetry. UI shows a downlink status icon. Commands carry a 6-character random `cid`; firmware echoes it back in `id:ack,cid:...,`. UI tracks pending commands and marks them received or lost (no ack after 10 messages). "Send command to UAV" panel in the sidebar has a Ping button and a live command history list.
-
-### ~~Step 5 — Key pair setup and distribution~~ ✓ COMPLETE
-UI generates an Ed25519 key pair using the Web Crypto API. Private key stored as JWK in `localStorage`; public key stored as hex. A new **Security** panel in the sidebar displays the ready-to-paste C declaration (`const uint8_t commandPublicKey[32] = { ... };`) with a copy button. `Config.h.example` now includes the `commandPublicKey` field (all zeros until the user generates and pastes a real key). The chosen approach is **Manual (Option A)** — the public key never travels over any network.
-
-### ~~Step 6 — Encrypted ping~~ ✓ COMPLETE
-All commands (starting with ping) use Ed25519 message signing. UI signs every command with the private key; firmware verifies with the stored `commandPublicKey` before responding. A monotonically increasing sequence number is included in the signed payload to prevent replay attacks, and the last accepted sequence number is persisted to NVS so replay protection survives a firmware reboot. Commands with a bad signature, missing fields, replayed sequence numbers, or sent without a configured public key are silently dropped (no ack).
-
-This is the foundation for all future uplink commands — adding new command types only requires dispatching on `cmd` in `mqttCommandCallback` after the shared verification logic passes.
-
-### ~~Step 7 — Flight controller commands~~ ✓ COMPLETE
-
-With the verified, signed bidirectional channel in place, actual flight controller commands are implemented via `MSP_SET_RAW_RC`. Each command follows the same Ed25519 signing pattern established in step 6.
-
-**Implemented commands:**
-
-| Command | MSP command | Notes |
-|---------|-------------|-------|
-| RTH on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVRTH` within/outside its activation range |
-| Mission Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVWP` |
-| Cruise Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVCRUISE` |
-| Altitude Hold on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXNAVALTHOLD` |
-| Angle Mode on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXANGLE` |
-| Beeper on/off | `MSP_SET_RAW_RC` (200) | Sets the RC channel mapped to `BOXBEEPERON` |
-
-**Key implementation details:**
-
-- The firmware uses a table-driven approach (`cmdModes[]`) — 6 entries, one per commandable mode. Each entry holds the `FlightMode` struct (range, available flag, active flag, boxId).
-- Channel deactivation uses a **gap-finding algorithm** (`findSafeOffValue()`): collects all PWM activation ranges assigned to a channel, finds the largest uncovered gap in [900, 2100], and sets the channel to the midpoint. This avoids inadvertently activating another mode that shares the same channel.
-- `msp_get_rc()` is called every cycle to keep `rcChannels[]` current (needed because MSP_RC returns overridden values when MSP RC Override is active).
-- `msp_send_rc_override()` is called every cycle to keep the FC freshness timer alive (INAV drops MSP RC Override if no `MSP_SET_RAW_RC` is received within 200 ms).
-
-**Startup routine:**
-1. `msp_get_boxnames()` — discovers `boxIdMspOverride` for the `MSP RC OVERRIDE` flight mode.
-2. `msp_get_mode_ranges()` — populates `FlightMode` structs with `rcChannelIndex`, `onValue`, `startPWM`, `endPWM`, `found`.
-3. `msp_get_override_channels()` — reads `msp_override_channels` via `MSP2_COMMON_SETTING`, ORs in channel bits needed for all discovered modes, writes back via `MSP2_COMMON_SET_SETTING`, confirms by re-reading. Applied in RAM only.
-
-**UI side:**
-- Commands panel uses a grid layout with ON/OFF buttons per mode.
-- Buttons show visual state: green border (active), dimmed (inactive), default (unknown).
-- A floating action button (FAB) gives quick access to the commands panel from anywhere in the UI.
-- The `state` field in each command payload indicates the desired on/off state (not signed — informational only for logging).
-
-**MSP_SET_WP (209) — waypoint upload:**
-- Payload: 21 bytes (`msp_set_wp_t`, already defined in `msp_library.h`).
-- Coordinates: degrees × 10⁷ (int32). Altitude: centimetres (int32).
-- Send waypoints sequentially (index 1, 2, … N). Mark the last one with flag `0xA5`.
-
----
-
 ## Known Bugs
 
-### ~~1. SIM cards with PIN lock are not supported~~ ✓ FIXED
-`connectToGprsNetwork()` now checks `modem.getSimStatus()` after modem init. If the SIM is locked and `GSM_PIN` is non-empty, it calls `modem.simUnlock()` and checks the return value. On failure it logs a clear error to Serial and restarts, rather than silently hanging on network registration. The redundant unused `simPIN` variable was removed from `Config.h`; `GSM_PIN` is the single setting.
-
-### 2. User location icon on the map always points north
+### 1. User location icon on the map always points north
 The operator's location marker on the map has a fixed orientation — it does not rotate with the phone's compass, so the arrow always points north regardless of which direction the operator is facing.
 
 **What to do:**
@@ -84,41 +19,93 @@ The operator's location marker on the map has a fixed orientation — it does no
 
 ## Security
 
-### 3. No authentication on the telemetry stream ⚠️ Partially mitigated — see roadmap
-The telemetry uplink is unauthenticated by design: a bad actor injecting messages can only display incorrect data on the UI, not affect the flight. However, now that a command downlink exists, injected command messages are a real concern. This is addressed in the roadmap via Ed25519 signing (Steps 5–6) — the firmware will reject any unsigned command. Until Steps 5–6 are complete, using a private broker is strongly recommended for anyone using the command channel. Users who require privacy or data integrity can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is already documented in `README.md`.
+### 2. No authentication on the telemetry stream ⚠️ Partially mitigated
+The telemetry uplink is unauthenticated by design: a bad actor injecting messages can only display incorrect data on the UI, not affect the flight. Command messages are protected by Ed25519 signing (Steps 5–6 complete) — the firmware rejects any unsigned command. Users who require privacy or data integrity on telemetry can self-host a private MQTT broker with ACLs (see `docs/Self-Hosting-a-MQTT-server--(broker).md`). The public broker risk is documented in `README.md`.
 
 ---
 
 ## Architecture
 
-### 4. Custom CSV telemetry format — consider migrating to binary ⏳ Deferred
+### 3. Custom CSV telemetry format — consider migrating to binary ⏳ Deferred
 JSON was considered but rejected — it adds overhead compared to the current key:value format, and the long-term plan is to migrate to a compact binary protocol instead. Deferred until the binary format design is ready.
 
-### 5. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
+### 4. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
 QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
-
-### ~~6. Flight controller commands over the uplink~~ ✓ COMPLETE
-RTH, Altitude Hold, Cruise, Mission, Angle, and Beeper commands implemented via `MSP_SET_RAW_RC`. All commands are Ed25519-signed. A gap-finding algorithm safely deactivates modes without interfering with other RC switches on the same channel. See Step 7 in the Roadmap for full implementation details.
-
-### 7. Protocol version detection and backwards compatibility ✓ COMPLETE
-`pv` field added to the low-priority message (sent every 60 s). The UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version information is logged to the browser console only. See `docs/BulletGCSS_protocol.md` for the full field reference.
 
 ---
 
 ## Documentation
 
-### 8. No security warning in `README.md`
+### ~~5. Document INAV 9 minimum version requirement~~ ✓ COMPLETE
+Update all relevant documentation to state that Bullet GCSS requires **INAV 9 or newer**. Files to update: `README.md`, `docs/README.md`, `docs/Setup-modem.md`, and any other doc that mentions INAV without a version constraint.
+
+### 6. No security warning in `README.md`
 The README gives no indication that the default configuration broadcasts the aircraft's real-time GPS location to a public server readable by anyone. This is a meaningful privacy and safety concern for new users.
 
 **What to do:**
 - Add a **Security Notice** section to `README.md` explaining the public broker risk and linking to `docs/Self-Hosting-a-MQTT-server--(broker).md`.
 
-### 9. Documentation screenshots are outdated
-Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes from Step 4, etc.).
+### 7. Documentation screenshots are outdated
+Several docs contain screenshots of the UI and `Config.h` that no longer match the current state of the project (new topics, new fields, UI changes).
 
 **Known files to update:**
 - `docs/Find-a-MQTT-Broker.md` — screenshot of `Config.h` shows old topic structure.
 - Other docs may have stale screenshots — do a full pass before closing this item.
+
+---
+
+## UI Improvements
+
+### ~~U1. CSS touch fixes~~ ✓ COMPLETE
+Add the following CSS rules to all interactive elements (menu items, buttons, links) to fix the "highlights but doesn't click" issue on mobile and eliminate the 300 ms tap delay:
+
+```css
+touch-action: manipulation;
+-webkit-tap-highlight-color: transparent;
+user-select: none;
+cursor: pointer;
+```
+
+Restrict `:hover` styles to pointer devices so they don't get stuck on touchscreens:
+
+```css
+@media (hover: hover) {
+  .menu-item:hover { ... }
+}
+```
+
+### ~~U2. Command state telemetry fields + commands panel visual feedback~~ ✓ COMPLETE
+
+Add per-command active state fields to the telemetry uplink so the UI knows which flight modes are actively being overridden by the firmware, independently of what the UI last sent.
+
+**New telemetry fields (firmware → UI):**
+
+| Field | Description |
+|---|---|
+| `cmdrth` | `1` = firmware is actively overriding the RTH channel, `0` = not overriding |
+| `cmdalt` | `1` = firmware is actively overriding the Altitude Hold channel |
+| `cmdcrs` | `1` = firmware is actively overriding the Cruise channel |
+| `cmdwp` | `1` = firmware is actively overriding the Waypoint/Mission channel |
+| `cmdbep` | `1` = firmware is actively overriding the Beeper channel |
+
+These fields reflect the firmware's actual RC override state — if the mode is deactivated for any reason (command cancel, MSP RC Override mode turned off, FC reconnect, etc.) the firmware sends `0` and the UI resets the button state accordingly.
+
+**Firmware changes:**
+- Add 6 new fields to `uav_status` struct in `uav_status.h`.
+- Set them from the `active` flag in each `cmdModes[]` entry inside `msp_send_rc_override()`.
+- Include them in the telemetry round-robin (add to an appropriate group in `ESP32-Modem.cpp`).
+
+**UI changes:**
+- Parse the new fields in `CommScripts.js` → `data.cmdRth`, `data.cmdAlt`, etc.
+- In the commands panel, drive the ON/OFF button visual state from these `data.cmdXxx` fields (not from the last button the user tapped). Green border = firmware confirms active; dimmed = firmware confirms inactive; default = field not yet received.
+
+**Protocol note:** these fields should be added to `docs/BulletGCSS_protocol.md` under Status Flags once implemented.
+
+### ~~U4. Add Alpine.js~~ ✓ COMPLETE
+Include Alpine.js (CDN, ~16 KB, no build step) to replace manual DOM manipulation for panel/menu open-close state, button active states, and any other reactive UI logic. This will make the menu and commands panel code cleaner and more reliable on mobile.
+
+### U5. Migrate UI to Bootstrap 5 ⏳ Deferred
+Eventually migrate the UI to Bootstrap 5 for consistent, mobile-correct components. Priority: replace the sidebar menus with Bootstrap's **Offcanvas** component (directly fixes the touch handling issues). Bootstrap 5.3 dark mode (`data-bs-theme="dark"`) reduces the conflict with the existing dark theme. Integration approach: adopt Bootstrap JS + utility classes first, keep existing custom CSS for layout and theme, audit conflicts incrementally. **Prerequisite:** U1 and U2 should be done first.
 
 ---
 
@@ -170,7 +157,7 @@ OpenAIP provides free aviation overlay data (airspace classes, airfields, NOTAMs
 
 **Migration scope:** `UI/js/MapScripts.js` will largely be a rewrite. Core operations to reimplement: map initialisation, aircraft marker with heading rotation, flight track polyline, waypoint markers, track/pan mode, home position marker. OpenLayers (`UI/ol/`) can be removed from the repository once migration is complete.
 
-### F6. Mission planner
+### F5. Mission planner
 Allow the operator to plan a waypoint mission directly in the UI, rather than requiring a separate ground control application.
 
 **High-level scope:**
@@ -178,12 +165,10 @@ Allow the operator to plan a waypoint mission directly in the UI, rather than re
 - Each waypoint has configurable properties: target altitude, fly-over speed, and action (none, take photo, loiter, RTH, land).
 - Waypoints can be reordered, moved (drag on map), or deleted.
 - The planned mission can be previewed as a polyline on the map with distance and estimated flight time.
-- When ready, the mission is uploaded to the aircraft via the uplink channel (depends on item 6 — uplink capability).
+- When ready, the mission is uploaded to the aircraft via the command channel.
 - Mission files should be exportable/importable in a standard format (INAV/Betaflight mission JSON or similar).
 
-**Dependencies:** uplink capability (item 6) must exist before missions can be sent to the aircraft. The planner UI can be built independently of that.
-
-### F7. ESP32-Cam integration — aerial image capture
+### F6. ESP32-Cam integration — aerial image capture
 Support an ESP32-Cam module connected to the UAV, allowing the operator to trigger image captures and view them in the ground station.
 
 **Scope:**
@@ -192,7 +177,7 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 
 **Open design questions:**
 - **Transport:** MQTT is not well-suited for binary image data. Options include: a separate direct HTTP endpoint on the ESP32-Cam, encoding images as base64 over MQTT (inefficient), or a dedicated WebSocket stream.
-- **Trigger mechanism:** the uplink channel (item 6) could carry the capture command, or a separate command channel could be defined for the camera.
+- **Trigger mechanism:** the command channel could carry the capture command, or a separate command channel could be defined for the camera.
 - **Image size vs data usage:** on cellular, full-resolution JPEG frames are expensive. The firmware should compress aggressively and allow the operator to configure resolution/quality.
 - **Live video:** out of scope for the initial implementation — single frame capture on demand is the target.
 
@@ -202,7 +187,13 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 
 | Item | Description |
 |------|-------------|
-| 10 | **ES Modules refactor** — All UI JS files migrated from global scripts to ES Modules (`import`/`export`). Global state eliminated; `CommScripts.js` owns the central `data` object. Cache-busting added via import map. |
-| F5 | **Flight Sessions** — Every MQTT message is persisted to IndexedDB in real time (two-store schema: `sessions` metadata + `session_messages` log lines). On page load the open session state is restored by fast-forwarding all stored messages through the parser. Sessions can be renamed, replayed with the existing timeline UI, or deleted from the Sessions panel in the sidebar menu. |
-| 7 | **Protocol version detection** — `pv` field added to the low-priority message (every 60 s). UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. Version 1 is the current protocol. |
+| Step 1 | **ES Modules refactor** — All UI JS files migrated from global scripts to ES Modules (`import`/`export`). Global state eliminated; `CommScripts.js` owns the central `data` object. Cache-busting added via import map. |
+| Step 2 / F5 | **Flight Sessions** — Every MQTT message is persisted to IndexedDB in real time (two-store schema: `sessions` metadata + `session_messages` log lines). On page load the open session state is restored by fast-forwarding all stored messages through the parser. Sessions can be renamed, replayed, exported, imported, or deleted from the Sessions panel. |
+| Step 3 | **Protocol version detection** — `pv` field added to the low-priority message (every 60 s). UI reads `pv` and stores it in `data.protocolVersion`. Missing `pv` (old firmware) is treated as version 1. |
+| Step 4 | **Bidirectional channel setup + ping** — Separate uplink/downlink MQTT topics. Firmware subscribes and acknowledges commands with a `cid`. UI tracks pending commands and marks them received or lost. |
+| Step 5 | **Key pair setup and distribution** — Ed25519 key pair generated via Web Crypto API. Private key in `localStorage`; public key pasted into `Config.h`. Security panel displays ready-to-paste C declaration. |
+| Step 6 | **Encrypted ping** — All commands signed with Ed25519. Monotonically increasing sequence number for replay protection, persisted to NVS across reboots. |
 | Step 7 | **Flight controller commands** — RTH, Altitude Hold, Cruise, Mission (WP), Angle, and Beeper toggled via `MSP_SET_RAW_RC`. Channel deactivation uses a gap-finding algorithm. UI commands panel with ON/OFF buttons, visual state indication, and a FAB for quick access. Single command channel status icon with 3 states (error / warning / ok). |
+| Bug 1 | **SIM cards with PIN lock** — `connectToGprsNetwork()` now calls `modem.simUnlock()` when `GSM_PIN` is set. On failure, logs a clear error and restarts. |
+| Arch 6 | **Flight controller commands over uplink** — Complete. See Step 7. |
+| Arch 7 | **Protocol version detection** — Complete. See Step 3. |

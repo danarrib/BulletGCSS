@@ -220,7 +220,7 @@ function drawEfisHeadingIndicator() {
         }
 
         efis.efisContext.beginPath();
-        efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+        efis.efisContext.lineWidth = 1;
         efis.efisContext.fillStyle = 'white';
         efis.efisContext.font = efis.fontSize + 'px ' + efis.DefaultFont;
         efis.efisContext.textAlign = "center";
@@ -412,10 +412,10 @@ function drawEfisArtifitialHorizonStepLines() {
                     efis.efisContext.moveTo(AHIStepLineNeg[0].x, AHIStepLineNeg[0].y);
                     efis.efisContext.lineTo(AHIStepLineNeg[1].x, AHIStepLineNeg[1].y);
                 }
-                efis.efisContext.lineWidth = 0.7 * window.devicePixelRatio;
+                efis.efisContext.lineWidth = (0.7 * window.devicePixelRatio);
             }
             else{
-                efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+                efis.efisContext.lineWidth = (1 * window.devicePixelRatio);
             }
             efis.efisContext.strokeStyle = 'white';
             efis.efisContext.stroke();
@@ -850,12 +850,20 @@ function drawEfisBatterySection() {
 export function renderEFIS(data) {
     var startTime = performance.now();
 
-    // Declare basic objects and resize canvas to the hud available size
-    efis.efisContext = efis.efisCanvas.getContext("2d"),
+    // Declare basic objects and resize canvas to the hud available size.
+    // Render at physical pixel resolution (offsetWidth × DPR) so the canvas
+    // is sharp on HiDPI displays, then constrain display to CSS pixel size.
+    // ctx.scale(dpr, dpr) keeps all drawing coordinates in CSS pixels so
+    // nothing else in this function needs to change.
+    efis.efisContext = efis.efisCanvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
     efis.efisWidth = efis.hudView.offsetWidth;
     efis.efisHeight = efis.hudView.offsetHeight;
-    efis.efisCanvas.width = efis.efisWidth;
-    efis.efisCanvas.height = efis.efisHeight;
+    efis.efisCanvas.width  = efis.efisWidth  * dpr;
+    efis.efisCanvas.height = efis.efisHeight * dpr;
+    efis.efisCanvas.style.width  = efis.efisWidth  + 'px';
+    efis.efisCanvas.style.height = efis.efisHeight + 'px';
+    efis.efisContext.scale(dpr, dpr);
     efis.efisContext.clearRect(0, 0, efis.efisWidth, efis.efisHeight);
     
     // Line length gets the diagonal size of the EFIS.

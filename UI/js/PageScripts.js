@@ -1,7 +1,7 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
-import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
+import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, user_moved_map, setUserMovedMap, setMapStyle } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -67,6 +67,9 @@ function checkForDefaultSettings()
     if(localStorage.getItem("ui_efficiency") === null)
         localStorage.setItem("ui_efficiency", "mahkm" );
 
+    if(localStorage.getItem("ui_map_style") === null)
+        localStorage.setItem("ui_map_style", "liberty");
+
     if(localStorage.getItem("ui_elevation_provider") === null)
         if(location.href.indexOf("bulletgcss.outros.net") > 0)
             localStorage.setItem("ui_elevation_provider", "OpenTopoDataDirect" );
@@ -90,15 +93,14 @@ function closeCommandsMenu() {
     document.getElementById("commandsMenu").style.width = "0";
 }
 
-// RC channel commands table — keeps button IDs, command names, and last-sent state in one place.
-// state: null = unknown, 1 = ON sent, 0 = OFF sent
+// RC channel commands table — maps button IDs to firmware telemetry state fields.
+// dataKey: the key in the `data` object that the firmware reports (null = not yet received).
 var rcCommands = [
-    { cmd: "rth",     onId: "btRthOn",     offId: "btRthOff",     state: null },
-    { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff", state: null },
-    { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  state: null },
-    { cmd: "angle",   onId: "btAngleOn",   offId: "btAngleOff",   state: null },
-    { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  state: null },
-    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      state: null },
+    { cmd: "rth",     onId: "btRthOn",     offId: "btRthOff",     dataKey: "cmdRth"     },
+    { cmd: "althold", onId: "btAltHoldOn", offId: "btAltHoldOff", dataKey: "cmdAltHold" },
+    { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  dataKey: "cmdCruise"  },
+    { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  dataKey: "cmdBeeper"  },
+    { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp"      },
 ];
 
 function updateCommandsPanel() {
@@ -118,11 +120,11 @@ function updateCommandsPanel() {
         onBtn.disabled  = !rcOk;
         offBtn.disabled = !rcOk;
 
-        // Highlight the last-sent state; clear both classes when disabled or unknown.
-        onBtn.classList.toggle('btn-active',   rcOk && entry.state === 1);
-        onBtn.classList.toggle('btn-inactive', rcOk && entry.state === 0);
-        offBtn.classList.toggle('btn-active',  rcOk && entry.state === 0);
-        offBtn.classList.toggle('btn-inactive',rcOk && entry.state === 1);
+        // ON button turns green when firmware confirms the mode is active.
+        // OFF button is always in its normal state — inactive is the natural state.
+        onBtn.classList.toggle('btn-active', rcOk && data[entry.dataKey] === 1);
+        onBtn.classList.remove('btn-inactive');
+        offBtn.classList.remove('btn-active', 'btn-inactive');
     }
 
     renderCommandHistory();
@@ -461,6 +463,7 @@ function openUISettings()
     document.getElementById("ui_current").value = localStorage.getItem("ui_current");
     document.getElementById("ui_capacity").value = localStorage.getItem("ui_capacity");
     document.getElementById("ui_efficiency").value = localStorage.getItem("ui_efficiency");
+    document.getElementById("ui_map_style").value = localStorage.getItem("ui_map_style") || "liberty";
     document.getElementById("ui_elevation_provider").value = localStorage.getItem("ui_elevation_provider");
 
     document.getElementById("uiSettings").style.width = "100%";
@@ -474,6 +477,7 @@ function saveUISettings()
     localStorage.setItem("ui_current", document.getElementById("ui_current").value );
     localStorage.setItem("ui_capacity", document.getElementById("ui_capacity").value );
     localStorage.setItem("ui_efficiency", document.getElementById("ui_efficiency").value );
+    setMapStyle(document.getElementById("ui_map_style").value);
     localStorage.setItem("ui_elevation_provider", document.getElementById("ui_elevation_provider").value );
 
     setUIUnits();
@@ -581,7 +585,7 @@ document.getElementById("btResetBrokerSettings").addEventListener("click", reset
 document.getElementById("closeBrokerSettings").addEventListener("click", closeBrokerSettings);
 document.getElementById("closeUISettings").addEventListener("click", closeUISettings);
 document.getElementById("btSaveUISettings").addEventListener("click", saveUISettings);
-document.getElementById("navExportSession").addEventListener("click", savemqttlog);
+document.getElementById("navExportSession").addEventListener("click", function() { savemqttlog(); closeNav(); });
 document.getElementById("navImportSession").addEventListener("click", replaymqttlog);
 document.getElementById("btStopReplay").addEventListener("click", stopreplaymqttlog);
 document.getElementById("senduavcommandlink").addEventListener("click", openCommandsMenu);
@@ -603,14 +607,10 @@ document.getElementById("btSendPing").addEventListener("click", function() {
             document.getElementById(entry.onId).addEventListener("click", function() {
                 if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
                 publishCommand(entry.cmd, 1);
-                entry.state = 1;
-                updateCommandsPanel();
             });
             document.getElementById(entry.offId).addEventListener("click", function() {
                 if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
                 publishCommand(entry.cmd, 0);
-                entry.state = 0;
-                updateCommandsPanel();
             });
         })(rcCommands[i]);
     }
@@ -628,11 +628,28 @@ window.addEventListener("DOMContentLoaded", async function() {
         await openDB();
         var openSession = await getOpenSession();
         if (openSession) {
-            currentSessionId = openSession.id;
-            var storedMessages = await getSessionMessages(openSession.id);
-            var storedLines = storedMessages.map(function(m) { return m.line; });
-            restoreFromSessionMessages(storedLines);
-            console.log("Session restored: " + openSession.name + " (" + storedLines.length + " messages)");
+            var messageCount = await countSessionMessages(openSession.id);
+            var loadExisting = true;
+            if (messageCount > 10000) {
+                loadExisting = window.confirm(
+                    "Your current session \"" + openSession.name + "\" has " + messageCount.toLocaleString() + " messages and may take a long time to load.\n\n" +
+                    "Press OK to load it anyway, or Cancel to close it and start a fresh session."
+                );
+                if (!loadExisting) {
+                    await closeSession(openSession.id);
+                }
+            }
+            if (loadExisting) {
+                currentSessionId = openSession.id;
+                var storedMessages = await getSessionMessages(openSession.id);
+                var storedLines = storedMessages.map(function(m) { return m.line; });
+                restoreFromSessionMessages(storedLines);
+                console.log("Session restored: " + openSession.name + " (" + storedLines.length + " messages)");
+            } else {
+                var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
+                currentSessionId = await createSession(defaultName);
+                console.log("New session created: " + defaultName);
+            }
         } else {
             var defaultName = "Flight " + new Date().toISOString().slice(0, 16).replace('T', ' ');
             currentSessionId = await createSession(defaultName);
@@ -675,14 +692,16 @@ window.addEventListener("DOMContentLoaded", async function() {
         renderEFIS(data);
     }, pageSettings.efisRefreshInterval);
 
+    var timerMapFast = setInterval(function(){
+        estimatePosition();
+        drawAircraftOnMap(data);
+        drawCourseLineOnMap(data);
+    }, pageSettings.mapFastRefreshInterval);
+
     var timerMapAndData = setInterval(function(){
         toggleBlinkFast();
 
-        estimatePosition();
-
-        drawAircraftOnMap(data);
         drawAircraftPathOnMap(data);
-        drawCourseLineOnMap(data);
         updateDataView(data);
 
         if (document.getElementById("commandsMenu").style.width === "100%")
@@ -728,7 +747,6 @@ window.addEventListener("DOMContentLoaded", async function() {
         && data.isWaypointMissionValid == 1 && updatingWpAltitudes == false
         && data.waypointCount == (data.currentMissionWaypoints.length - 1))
         {
-            console.log("Trying to get WP Elevation data...");
             getMissionWaypointsAltitude();
         }
 

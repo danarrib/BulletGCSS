@@ -142,7 +142,6 @@ The UI only sends commands if a private key is present in `localStorage`. See th
 | `althold` | Altitude Hold — activates/deactivates `BOXNAVALTHOLD` |
 | `cruise` | Cruise Mode — activates/deactivates `BOXNAVCRUISE` |
 | `wp` | Waypoint/Mission Mode — activates/deactivates `BOXNAVWP` |
-| `angle` | Angle Mode — activates/deactivates `BOXANGLE` |
 | `beeper` | Beeper — activates/deactivates `BOXBEEPERON` |
 
 ---

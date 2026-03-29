@@ -1,4 +1,4 @@
-You'll need a computer to configure and flash the TTGO T-Call or the TTGO T-PCIE boards. Bullet GCSS uses **PlatformIO** as its build system — see [Development Setup](Development-setup.md) for instructions on installing PlatformIO and opening the project.
+You'll need a computer to configure and flash the TTGO T-Call or the TTGO T-PCIE boards. The flight controller must be running **INAV 9 or newer**. Bullet GCSS uses **PlatformIO** as its build system — see [Development Setup](Development-setup.md) for instructions on installing PlatformIO and opening the project.
 
 ## Setting up the environment
 

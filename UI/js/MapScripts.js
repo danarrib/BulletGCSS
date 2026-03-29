@@ -1,709 +1,519 @@
-import { data, updatingWpAltitudes, setUpdatingWpAltitudes, getDistanceBetweenTwoPoints, DestinationCoordinates } from './CommScripts.js';
-import { AngleToRadians } from './EfisScripts.js';
+import { data, updatingWpAltitudes, setUpdatingWpAltitudes, DestinationCoordinates } from './CommScripts.js';
 
-// Setup Map
-var Map = ol.Map;
-var Overlay = ol.Overlay;
-var View = ol.View;
-var Feature = ol.Feature;
-var Point = ol.geom.Point;
-var TileJSON = ol.source.TileJSON;
-var VectorSource = ol.source.Vector;
-var TileLayer = ol.layer.Tile;
-var VectorLayer = ol.layer.Vector;
-var toStringHDMS = ol.coordinate.toStringHDMS;
-var toLonLat = ol.proj.toLonLat;
-var Icon = ol.style.Icon;
-var Style = ol.style.Style;
+// ─── Map initialisation ───────────────────────────────────────────────────────
+// pixelRatio: 1 renders at CSS pixel scale so the OS compositor handles
+// upscaling — matching OpenLayers behaviour on high-DPI / OS-scaled displays.
 
-var map = new ol.Map({
-target: 'map',
-layers: [
-    new ol.layer.Tile({
-    source: new ol.source.OSM()
-    })
-],
-view: new ol.View({
-    center: ol.proj.fromLonLat([-46.6652, -23.5467]),
-    zoom: 16
-})
+var MAP_STYLES = {
+    'dark':    'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    'liberty': 'https://tiles.openfreemap.org/styles/liberty',
+};
+
+function getInitialMapStyle() {
+    return MAP_STYLES[localStorage.getItem('ui_map_style')] || MAP_STYLES['liberty'];
+}
+
+export function setMapStyle(styleKey) {
+    localStorage.setItem('ui_map_style', styleKey);
+    map.setStyle(MAP_STYLES[styleKey] || MAP_STYLES['liberty']);
+}
+
+var map = new maplibregl.Map({
+    container: 'map',
+    style: getInitialMapStyle(),
+    center: [-46.6652, -23.5467],
+    zoom: 16,
+    attributionControl: false,
 });
+
+// Silence "Image could not be loaded" noise from the style's sprite sheet.
+// Providing placeholder images causes downstream null-expression warnings,
+// so we filter the original message at the console level instead.
+(function() {
+    var _warn = console.warn.bind(console);
+    console.warn = function() {
+        if (typeof arguments[0] === 'string' &&
+            arguments[0].indexOf('could not be loaded') !== -1) return;
+        _warn.apply(console, arguments);
+    };
+}());
 
 export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
-map.on('pointerdrag', function (event) {
-    if(user_moved_map == false) {
-        user_moved_map = true;
+
+map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
+
+var CenterOnAircraftControl = {
+    onAdd: function() {
+        this._btn = document.createElement('button');
+        this._btn.type = 'button';
+        this._btn.title = 'Center on aircraft';
+        this._btn.className = 'maplibregl-ctrl-icon maplibregl-ctrl-center';
+        this._btn.innerHTML = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+            '<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>' +
+            '<circle cx="12" cy="12" r="2" fill="currentColor"/>' +
+            '<line x1="12" y1="2" x2="12" y2="7" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="12" y1="17" x2="12" y2="22" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="2" y1="12" x2="7" y2="12" stroke="currentColor" stroke-width="2"/>' +
+            '<line x1="17" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/>' +
+            '</svg>';
+        this._btn.addEventListener('click', function() {
+            user_moved_map = false;
+            centerMap(data);
+        });
+        this._container = document.createElement('div');
+        this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        this._container.appendChild(this._btn);
+        return this._container;
+    },
+    onRemove: function() {
+        this._container.parentNode.removeChild(this._container);
     }
+};
+map.addControl(CenterOnAircraftControl, 'top-right');
+
+document.documentElement.style.setProperty('--compass-size', (44 * window.devicePixelRatio) + 'px');
+
+map.on('drag', function() {
+    user_moved_map = true;
 });
 
-var currZoom = map.getView().getZoom();
-map.on('moveend', function(e) {
-var newZoom = map.getView().getZoom();
-    if (currZoom != newZoom) {
+var currZoom = map.getZoom();
+map.on('zoomend', function() {
+    var newZoom = map.getZoom();
+    if (currZoom !== newZoom) {
         user_moved_map = true;
         currZoom = newZoom;
     }
 });
 
-// Add Aircraft Map Stuff
-var aircraftIconFeatures = [];
+// GeoJSON sources and line layers are added once the style finishes loading.
+// Draw functions guard against being called before sources exist.
+map.on('style.load', function() {
+    map.resize();
 
-var aircraftIconStyle = new ol.style.Style({
-    image: new ol.style.Icon({
-        anchor: [0.5, 0.5],
-        anchorXUnits: 'fraction',
-        anchorYUnits: 'fraction',
-        opacity: 1.0,
-        src: 'img/aircraft.png', 
-        scale: (0.04 * window.devicePixelRatio),
-        rotateWithView: true
-        })
-});
-
-var aircraftVectorSource = new ol.source.Vector({
-    features: aircraftIconFeatures //add an array of features
-});
-
-var aircraftVectorLayer = new ol.layer.Vector({
-    source: aircraftVectorSource,
-    style: aircraftIconStyle
-});
-
-
-export function drawAircraftOnMap(inputData)
-{
-    // Removing Previous Aircraft from the VectorSource
-    aircraftVectorSource.clear();
-
-    // Adding the updated aircraft position to the VectorSource
-    var iconGeometry = new ol.geom.Point(
-        ol.proj.transform([inputData.estimations.gpsLongitude, inputData.estimations.gpsLatitude], 'EPSG:4326','EPSG:3857')
-    );
-    
-    var aircraftIconFeature = new ol.Feature({
-        geometry: iconGeometry
+    // Flight path (orange)
+    map.addSource('flight-path-source', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
+    });
+    map.addLayer({
+        id: 'flight-path-layer',
+        type: 'line',
+        source: 'flight-path-source',
+        paint: { 'line-color': '#F96', 'line-width': (3 * window.devicePixelRatio) }
     });
 
-    // Clear previous aircraft and add new
-    aircraftIconFeatures = [];
-    aircraftIconFeatures.push(aircraftIconFeature);			
-    aircraftVectorSource.addFeatures(aircraftIconFeatures);
-    
-    // Set reading
-    aircraftIconStyle.getImage().setRotation(AngleToRadians(inputData.heading));
-}
-
-// Add User Map Stuff
-var userIconFeatures = [];
-
-var userIconStyle = new ol.style.Style({
-    image: new ol.style.Icon({
-        anchor: [0.5, 0.5],
-        anchorXUnits: 'fraction',
-        anchorYUnits: 'fraction',
-        opacity: 1.0,
-        src: 'img/user.png', 
-        scale: (0.06 * window.devicePixelRatio),
-        rotateWithView: true
-        })
-});
-
-var userVectorSource = new ol.source.Vector({
-    features: userIconFeatures //add an array of features
-});
-
-var userVectorLayer = new ol.layer.Vector({
-    source: userVectorSource,
-    style: userIconStyle
-});
-
-
-export function drawUserOnMap(data)
-{
-    if(!hasUserLocation)
-        return;
-
-    // Removing Previous Aircraft from the VectorSource
-    userVectorSource.clear();
-
-    // Adding the updated aircraft position to the VectorSource
-    var iconGeometry = new ol.geom.Point(
-        ol.proj.transform([data.userLongitude, data.userLatitude], 'EPSG:4326','EPSG:3857')
-    );
-    
-    var userIconFeature = new ol.Feature({
-        geometry: iconGeometry
+    // Course line (green)
+    map.addSource('course-source', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: null }
+    });
+    map.addLayer({
+        id: 'course-layer',
+        type: 'line',
+        source: 'course-source',
+        paint: { 'line-color': '#9C6', 'line-width': (3 * window.devicePixelRatio) }
     });
 
-    // Clear previous aircraft and add new
-    userIconFeatures = [];
-    userIconFeatures.push(userIconFeature);			
-    userVectorSource.addFeatures(userIconFeatures);
-    
-    // Set reading
-    userIconStyle.getImage().setRotation(AngleToRadians(data.userHeading));
-}
-
-// Add Home point on
-var homeIconFeatures = [];
-
-function fn_homeIconStyle(feature)
-{
-    var txtElevation = "Alt SL: " + data.homeAltitudeSL.toFixed(0) + " m";
-
-    var homeAlt = parseInt(feature.get("name"));
-
-    var homeIconStyle = new ol.style.Style({
-        image: new ol.style.Icon({
-            anchor: [0.5, 0.5],
-            anchorXUnits: 'fraction',
-            anchorYUnits: 'fraction',
-            opacity: 1.0,
-            src: 'img/home.png', 
-            scale: (0.04 * window.devicePixelRatio),
-            rotateWithView: false,
-            })
+    // Mission leg lines (blue)
+    map.addSource('mission-lines-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
     });
-
-    var home_textStyle = new ol.style.Style({
-        text: new ol.style.Text({
-			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
-			fill: new ol.style.Fill({ color: '#000' }),
-			stroke: new ol.style.Stroke({
-              color: '#fff', 
-              width: (2 * window.devicePixelRatio)
-            }),
-            textAlign: 'left',
-            // get the text from the feature - `this` is ol.Feature
-            // and show only under certain resolution
-            text: txtElevation,
-            offsetX: (20 * window.devicePixelRatio),
-            offsetY: (0 * window.devicePixelRatio)
-		})
+    map.addLayer({
+        id: 'mission-lines-layer',
+        type: 'line',
+        source: 'mission-lines-source',
+        paint: { 'line-color': '#69F', 'line-width': (3 * window.devicePixelRatio) }
     });
+});
 
-    return [homeIconStyle, home_textStyle];
+// ─── Aircraft marker ──────────────────────────────────────────────────────────
+
+var aircraftEl = document.createElement('img');
+
+aircraftEl.src = 'img/aircraft.png';
+aircraftEl.style.width  = (44 * window.devicePixelRatio) + 'px';
+aircraftEl.style.height = (44 * window.devicePixelRatio) + 'px';
+
+var aircraftMarker = new maplibregl.Marker({ element: aircraftEl, rotationAlignment: 'map' })
+    .setLngLat([-46.6652, -23.5467])
+    .addTo(map);
+
+export function drawAircraftOnMap(inputData) {
+    aircraftMarker.setLngLat([inputData.estimations.gpsLongitude, inputData.estimations.gpsLatitude]);
+    aircraftMarker.setRotation(inputData.estimations.heading);
 }
 
+// ─── Course line ──────────────────────────────────────────────────────────────
 
+export function drawCourseLineOnMap(inputData) {
+    var src = map.getSource('course-source');
+    if (!src) return;
 
-var homeVectorSource = new ol.source.Vector({
-    features: homeIconFeatures //add an array of features
-});
-
-var homeVectorLayer = new ol.layer.Vector({
-    source: homeVectorSource,
-    style: fn_homeIconStyle,
-});
-
-
-export function drawHomeOnMap(data)
-{
-    // Removing Previous Aircraft from the VectorSource
-    homeVectorSource.clear();
-
-    if(data.homeLongitude == 0 && data.homeLatitude == 0)
-        return;
-
-    // Adding the updated aircraft position to the VectorSource
-    var iconGeometry = new ol.geom.Point(
-        ol.proj.transform([data.homeLongitude, data.homeLatitude], 'EPSG:4326','EPSG:3857')
-    );
-    
-    var homeIconFeature = new ol.Feature({
-        geometry: iconGeometry
-    });
-
-    // Clear previous aircraft and add new
-    homeIconFeatures = [];
-    homeIconFeatures.push(homeIconFeature);			
-    homeVectorSource.addFeatures(homeIconFeatures);
-   
-}
-
-// Add Waypoints Map Stuff
-var waypointIconFeatures = [];
-
-var waypointVectorSource = new ol.source.Vector({
-    features: waypointIconFeatures //add an array of features
-});
-
-function fn_waypointIconStyle(feature)
-{
-    var wp_number = parseInt(feature.get("name"));
-    var wp_elevation = parseInt(feature.get("groundAltitude"));
-    var wp_action = parseInt(feature.get("wpAction"));
-    var wp_altitude = parseInt(feature.get("wpAltitude")) / 100;
-    var hp_altitudeSL = data.homeAltitudeSL;
-    var wp_groundAltitude = (hp_altitudeSL + wp_altitude) - wp_elevation;
-    var txtElevation = "";
-
-    if(wp_action == 1 && data.isCurrentMissionElevationSet)
-    {
-        txtElevation = "Elev: "  + wp_elevation.toFixed(0) + " m\n" +
-        "WP Alt: " + wp_altitude.toFixed(0) + " m\n" +
-        "GR Alt: " + wp_groundAltitude.toFixed(0) + " m";
-
-    }
-
-    var icon = 'img/map_pin_gray.png'
-    if(data.currentWaypointNumber ==  wp_number)
-        icon = 'img/map_pin_green.png'
-    else if(data.currentWaypointNumber < wp_number)
-        icon = 'img/map_pin_blue.png'
-
-    var wp_iconStyle = new ol.style.Style({
-        image: new ol.style.Icon({
-            anchor: [0.5, 0.9],
-            anchorXUnits: 'fraction',
-            anchorYUnits: 'fraction',
-            opacity: 1.0,
-            src: icon, 
-            scale: (0.10 * window.devicePixelRatio),
-            rotateWithView: false,
-        }),
-        text: new ol.style.Text({
-			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
-			fill: new ol.style.Fill({ color: '#000' }),
-			stroke: new ol.style.Stroke({
-              color: '#fff', 
-              width: (2 * window.devicePixelRatio)
-			}),
-            // get the text from the feature - `this` is ol.Feature
-            // and show only under certain resolution
-            text: wp_number.toString(),
-            offsetX: 0,
-            offsetY: (-24 * window.devicePixelRatio)
-		})
-    });
-
-    var wp_textStyle = new ol.style.Style({
-        text: new ol.style.Text({
-			font: (14 * window.devicePixelRatio) + 'px Ubuntu,sans-serif',
-			fill: new ol.style.Fill({ color: '#000' }),
-			stroke: new ol.style.Stroke({
-              color: '#fff', 
-              width: (2 * window.devicePixelRatio)
-            }),
-            textAlign: 'left',
-            // get the text from the feature - `this` is ol.Feature
-            // and show only under certain resolution
-            text: txtElevation,
-            offsetX: (20 * window.devicePixelRatio),
-            offsetY: (-20 * window.devicePixelRatio)
-		})
-    });
-    return [wp_iconStyle, wp_textStyle];
-}
-
-var waypointVectorLayer = new ol.layer.Vector({
-    source: waypointVectorSource,
-    //style: waypointIconStyle,
-    style: fn_waypointIconStyle,
-});
-
-var linesFeatures = [];
-
-var linesStyle = new ol.style.Style({
-    stroke: new ol.style.Stroke({
-        color: '#69F',
-        width: 3 * window.devicePixelRatio
-    })
-});
-
-var linesVectorSource = new ol.source.Vector({
-    features: linesFeatures //add an array of features
-});
-
-var linesVectorLayer = new ol.layer.Vector({
-    source: linesVectorSource,
-    style: linesStyle,
-});
-
-export function drawMissionOnMap(data) {
-    waypointVectorSource.clear();
-    waypointIconFeatures = [];
-
-    linesVectorSource.clear();
-    linesFeatures = [];
-
-    if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
-        return;
-
-    if(data.waypointCount != (data.currentMissionWaypoints.length - 1))
-    {
-        console.log("Waypoint count (" + data.waypointCount + ") is different than current mission WP count (" + data.currentMissionWaypoints.length + ").");
-        return;
-    }
-
-    // Starts at WP 1 since WP0 is home point
-    var previousWp;
-    for(var i = 1; i <= data.waypointCount; i++) {
-        const wp = data.currentMissionWaypoints[i];
-        if(wp !== undefined) {
-            // Action 0 = Regular Waypoint
-            if(wp.wpAction == 1) {
-                // Adding the updated aircraft position to the VectorSource
-                var iconGeometry = new ol.geom.Point(
-                    ol.proj.transform([wp.wpLongitude, wp.wpLatitude], 'EPSG:4326','EPSG:3857')
-                );
-                
-                var waypointIconFeature = new ol.Feature({
-                    geometry: iconGeometry,
-                    name: wp.waypointNumber,
-                    groundAltitude: wp.elevation,
-                    wpAltitude: wp.wpAltitude,
-                    wpAction: wp.wpAction,
-                });
-
-                waypointIconFeatures.push(waypointIconFeature);
-
-                // From the second wp, draw a line to the previous one.
-                if(i > 1) {
-                    var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
-                    var loc2 = ol.proj.fromLonLat([wp.wpLongitude, wp.wpLatitude]);
-                    
-                    iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-                    var lineFeature = new ol.Feature({
-                        geometry: iconGeometry,
-                        name: 'From ' + previousWp.waypointNumber + ' to ' + wp.waypointNumber,
-                    });
-
-                    linesFeatures.push(lineFeature);
-                }
-
-                previousWp = wp;
-            }
-            else if(wp.wpAction == 4 && data.homeLatitude != 0 && data.homeLatitude != 0) {
-                var loc1 = ol.proj.fromLonLat([previousWp.wpLongitude, previousWp.wpLatitude]);
-                var loc2 = ol.proj.fromLonLat([data.homeLongitude, data.homeLatitude]);
-                
-                iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-                var lineFeature = new ol.Feature({
-                    geometry: iconGeometry,
-                    name: 'From ' + previousWp.waypointNumber + ' to ' + wp.waypointNumber,
-                });
-
-                linesFeatures.push(lineFeature);
-
-                previousWp = wp;
-
-            }
-
-        }
-
-    }
-
-    waypointVectorSource.addFeatures(waypointIconFeatures);
-    linesVectorSource.addFeatures(linesFeatures);
-    
-}
-
-var flightLineFeatures = [];
-
-var flightLineStyle = new ol.style.Style({
-    stroke: new ol.style.Stroke({
-        color: '#F96',
-        width: 3 * window.devicePixelRatio
-    })
-});
-
-var flightLineVectorSource = new ol.source.Vector({
-    features: flightLineFeatures //add an array of features
-});
-
-var flightLineVectorLayer = new ol.layer.Vector({
-    source: flightLineVectorSource,
-    style: flightLineStyle,
-});
-
-export function drawAircraftPathOnMap(data)
-{
-    // Now, render the flight line
-    flightLineVectorSource.clear();
-    flightLineFeatures = [];
-    if(data.currentFlightWaypoints.length > 1) {
-        var loc1;
-        var loc2;
-        var flightLineFeature;
-        var iconGeometry;
-
-        for(var i = 1; i < data.currentFlightWaypoints.length; i++)
-        {
-            loc1 = ol.proj.fromLonLat([data.currentFlightWaypoints[i-1].wpLongitude, data.currentFlightWaypoints[i-1].wpLatitude]);
-            loc2 = ol.proj.fromLonLat([data.currentFlightWaypoints[i].wpLongitude, data.currentFlightWaypoints[i].wpLatitude]);
-            
-            iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-            flightLineFeature = new ol.Feature({
-                geometry: iconGeometry
-            });
-
-            flightLineFeatures.push(flightLineFeature);
-        }
-
-        // Add another one from the last waypoint to the aircraft
-        loc1 = loc2;
-        loc2 = ol.proj.fromLonLat([data.gpsLongitude, data.gpsLatitude]);
-        
-        iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-        flightLineFeature = new ol.Feature({
-            geometry: iconGeometry
-        });
-
-        flightLineFeatures.push(flightLineFeature);
-    }
-    
-
-    flightLineVectorSource.addFeatures(flightLineFeatures);
-}
-
-
-var courseLineFeatures = [];
-
-var courseLineStyle = new ol.style.Style({
-    stroke: new ol.style.Stroke({
-        color: '#9C6',
-        width: 3 * window.devicePixelRatio
-    })
-});
-
-var courseLineVectorSource = new ol.source.Vector({
-    features: courseLineFeatures //add an array of features
-});
-
-var courseLineVectorLayer = new ol.layer.Vector({
-    source: courseLineVectorSource,
-    style: courseLineStyle,
-});
-
-export function drawCourseLineOnMap(data)
-{
-    courseLineVectorSource.clear();
-    courseLineFeatures = [];
-
-    if(data.groundSpeed > 0) // Ground speed is cm/s
-    {
-        var distance = data.groundSpeed / 1.667;
-        var lineEndCoordinates = DestinationCoordinates(data.gpsLatitude, data.gpsLongitude, data.gpsGroundCourse, distance);
-        var loc1 = ol.proj.fromLonLat([lineEndCoordinates.lng, lineEndCoordinates.lat]);
-        var loc2 = ol.proj.fromLonLat([data.gpsLongitude, data.gpsLatitude]);
-
-        var iconGeometry = new ol.geom.LineString([loc1, loc2]);
-
-        var courseLineFeature = new ol.Feature({
-            geometry: iconGeometry
-        });
-
-        courseLineFeatures.push(courseLineFeature);
-    }
-
-    courseLineVectorSource.addFeatures(courseLineFeatures);
-}
-
-// DestinationCoordinates is imported from CommScripts.js
-
-export function centerMap(data) {
-    // Center the map
-    var oldCenter = map.getView().getCenter();
-    map.getView().setCenter(
-        ol.proj.fromLonLat([data.estimations.gpsLongitude, data.estimations.gpsLatitude])
+    if (inputData.estimations.groundSpeed > 0) {
+        var distance = inputData.estimations.groundSpeed / 1.667;
+        var end = DestinationCoordinates(
+            inputData.estimations.gpsLatitude,
+            inputData.estimations.gpsLongitude,
+            inputData.estimations.gpsGroundCourse,
+            distance
         );
-    var newCenter = map.getView().getCenter();
-    map.getView().setCenter(oldCenter);
-    map.getView().animate({center: newCenter});
+        src.setData({
+            type: 'Feature',
+            geometry: {
+                type: 'LineString',
+                coordinates: [
+                    [inputData.estimations.gpsLongitude, inputData.estimations.gpsLatitude],
+                    [end.lng, end.lat],
+                ]
+            }
+        });
+    } else {
+        src.setData({ type: 'Feature', geometry: null });
+    }
 }
+
+// ─── Flight path ──────────────────────────────────────────────────────────────
+
+export function drawAircraftPathOnMap(inputData) {
+    var src = map.getSource('flight-path-source');
+    if (!src) return;
+
+    if (inputData.currentFlightWaypoints.length < 2) {
+        src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+        return;
+    }
+
+    var coords = inputData.currentFlightWaypoints.map(function(wp) {
+        return [wp.wpLongitude, wp.wpLatitude];
+    });
+    coords.push([inputData.gpsLongitude, inputData.gpsLatitude]);
+
+    src.setData({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords }
+    });
+}
+
+// ─── Mission waypoints and leg lines ─────────────────────────────────────────
+
+var waypointMarkers = [];
+
+export function drawMissionOnMap(inputData) {
+    waypointMarkers.forEach(function(m) { m.remove(); });
+    waypointMarkers = [];
+
+    var src = map.getSource('mission-lines-source');
+    if (src) src.setData({ type: 'FeatureCollection', features: [] });
+
+    if (inputData.waypointCount === 0 || inputData.currentMissionWaypoints.length === 0)
+        return;
+
+    if (inputData.waypointCount !== (inputData.currentMissionWaypoints.length - 1)) {
+        console.log('Waypoint count (' + inputData.waypointCount + ') differs from mission WP count (' + inputData.currentMissionWaypoints.length + ').');
+        return;
+    }
+
+    var lineFeatures = [];
+    var previousWp;
+
+    for (var i = 1; i <= inputData.waypointCount; i++) {
+        var wp = inputData.currentMissionWaypoints[i];
+        if (wp === undefined) continue;
+
+        if (wp.wpAction === 1) {
+            var pinSrc;
+            if (inputData.currentWaypointNumber === wp.waypointNumber)
+                pinSrc = 'img/map_pin_green.png';
+            else if (inputData.currentWaypointNumber < wp.waypointNumber)
+                pinSrc = 'img/map_pin_blue.png';
+            else
+                pinSrc = 'img/map_pin_gray.png';
+
+            var elWidth  = 36 * window.devicePixelRatio;
+            var elHeight = 50 * window.devicePixelRatio;
+            var elFontSize = 14 * window.devicePixelRatio;
+
+            var el = document.createElement('div');
+            el.style.cssText = 'width:' + elWidth + 'px;height:' + elHeight + 'px;cursor:pointer;';
+
+            var pin = document.createElement('img');
+            pin.src = pinSrc;
+            pin.style.cssText = 'width:' + elWidth + 'px;height:' + elHeight + 'px;';
+
+            var numLabel = document.createElement('div');
+            numLabel.textContent = wp.waypointNumber;
+            numLabel.style.cssText = 'position:absolute;top:' + (12 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
+                'color:#000;font-size:' + elFontSize + 'px;font-family:Ubuntu,sans-serif;font-weight:bold;pointer-events:none;';
+
+            el.appendChild(pin);
+            el.appendChild(numLabel);
+
+            if (inputData.isCurrentMissionElevationSet && wp.elevation !== undefined) {
+                var wpAlt  = wp.wpAltitude / 100;
+                var grAlt  = (inputData.homeAltitudeSL + wpAlt) - wp.elevation;
+                var altColor = grAlt > 5 ? '#fff' : '#F33'; // Red if within 5m of ground or below
+                var infoDiv = document.createElement('div');
+                infoDiv.style.cssText = 'position:absolute;left:' + (40 * window.devicePixelRatio) + 'px;top:0;background:rgba(0,0,0,0.72);' +
+                    'color:' + altColor + ';font-size:' + (13 * window.devicePixelRatio) + 'px;white-space:nowrap;padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
+                    'font-family:Ubuntu,sans-serif;line-height:1.6;pointer-events:none;';
+                infoDiv.innerHTML = 'WP alt: ' + wpAlt.toFixed(0)        + ' m<br>' +
+                                    'ABS alt: ' + grAlt.toFixed(0)        + ' m';
+                el.appendChild(infoDiv);
+            }
+
+            var marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+                .setLngLat([wp.wpLongitude, wp.wpLatitude])
+                .addTo(map);
+            waypointMarkers.push(marker);
+
+            if (previousWp) {
+                lineFeatures.push({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [
+                            [previousWp.wpLongitude, previousWp.wpLatitude],
+                            [wp.wpLongitude, wp.wpLatitude],
+                        ]
+                    }
+                });
+            }
+            previousWp = wp;
+
+        } else if (wp.wpAction === 4 && inputData.homeLatitude !== 0 && previousWp) {
+            lineFeatures.push({
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: [
+                        [previousWp.wpLongitude, previousWp.wpLatitude],
+                        [inputData.homeLongitude, inputData.homeLatitude],
+                    ]
+                }
+            });
+            previousWp = wp;
+        }
+    }
+
+    if (src && lineFeatures.length > 0) {
+        src.setData({ type: 'FeatureCollection', features: lineFeatures });
+    }
+}
+
+// ─── Home marker ──────────────────────────────────────────────────────────────
+
+var homeMarker = null;
+
+export function drawHomeOnMap(inputData) {
+    if (homeMarker) {
+        homeMarker.remove();
+        homeMarker = null;
+    }
+
+    if (inputData.homeLongitude === 0 && inputData.homeLatitude === 0)
+        return;
+
+    var el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;';
+
+    var imgWH = 44 * window.devicePixelRatio;
+
+    var img = document.createElement('img');
+    img.src = 'img/home.png';
+    img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;';
+
+    var label = document.createElement('div');
+    label.style.cssText = 'position:absolute;left:' + ((44 + 4) * window.devicePixelRatio) + 'px;background:rgba(0,0,0,0.72);color:#fff;' +
+        'font-size:' + (13 * window.devicePixelRatio) + 'px;white-space:nowrap;padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;border-radius:' + (3 * window.devicePixelRatio) + 'px;font-family:Ubuntu,sans-serif;';
+    label.textContent = 'Alt SL: ' + inputData.homeAltitudeSL.toFixed(0) + ' m';
+
+    el.appendChild(img);
+    el.appendChild(label);
+
+    homeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([inputData.homeLongitude, inputData.homeLatitude])
+        .addTo(map);
+}
+
+// ─── User location marker ─────────────────────────────────────────────────────
 
 export let hasUserLocation = false;
+var userMarker = null;
+
+export function drawUserOnMap(inputData) {
+    if (!hasUserLocation) return;
+
+    if (!userMarker) {
+        var el = document.createElement('img');
+        var imgWH = 56 * window.devicePixelRatio;
+
+        el.src = 'img/user.png';
+        el.style.width  = imgWH + 'px';
+        el.style.height = imgWH + 'px';
+
+        userMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
+            .setLngLat([inputData.userLongitude, inputData.userLatitude])
+            .addTo(map);
+    } else {
+        userMarker.setLngLat([inputData.userLongitude, inputData.userLatitude]);
+    }
+
+    if (inputData.userHeading !== null) {
+        userMarker.setRotation(inputData.userHeading);
+    }
+}
+
+// ─── Map centering ────────────────────────────────────────────────────────────
+
+export function centerMap(inputData) {
+    map.easeTo({
+        center: [inputData.estimations.gpsLongitude, inputData.estimations.gpsLatitude],
+        duration: 200,
+    });
+}
+
+// ─── Geolocation ──────────────────────────────────────────────────────────────
+
 var geoOptions = {
     enableHighAccuracy: true,
     maximumAge: 5000,
 };
-var watchPositionId;
 
 export function getUserLocation() {
-    if(window.location.protocol === 'file:')
+    if (window.location.protocol === 'file:')
         return;
-        
+
     if (navigator.geolocation) {
-        watchPositionId = navigator.geolocation.watchPosition(getUserPosition, showUserLocationError, geoOptions);
-    } else { 
-      console.log("Geolocation is not supported by this browser.");
+        navigator.geolocation.watchPosition(getUserPosition, showUserLocationError, geoOptions);
+    } else {
+        console.log('Geolocation is not supported by this browser.');
     }
-  }
-  
-  function getUserPosition(position) {
-    data.userLatitude = position.coords.latitude;
-    data.userLongitude = position.coords.longitude;
-    data.userHeading = position.coords.heading;
-    data.userAltitudeSL = position.coords.altitude;
-      
+}
+
+function getUserPosition(position) {
+    data.userLatitude    = position.coords.latitude;
+    data.userLongitude   = position.coords.longitude;
+    data.userHeading     = position.coords.heading;
+    data.userAltitudeSL  = position.coords.altitude;
     hasUserLocation = true;
-  }
-  
-  function showUserLocationError(error) {
+}
+
+function showUserLocationError(error) {
     console.log(error);
-
-    switch(error.code) {
-      case error.PERMISSION_DENIED:
-        console.log("User denied the request for Geolocation.");
-        break;
-      case error.POSITION_UNAVAILABLE:
-        console.log("Location information is unavailable.");
-        break;
-      case error.TIMEOUT:
-        console.log("The request to get user location timed out.");
-        break;
-      case error.UNKNOWN_ERROR:
-        console.log("An unknown error occurred.");
-        break;
+    switch (error.code) {
+        case error.PERMISSION_DENIED:
+            console.log('User denied the request for Geolocation.'); break;
+        case error.POSITION_UNAVAILABLE:
+            console.log('Location information is unavailable.'); break;
+        case error.TIMEOUT:
+            console.log('The request to get user location timed out.'); break;
+        case error.UNKNOWN_ERROR:
+            console.log('An unknown error occurred.'); break;
     }
-  }
+}
 
-function updateElevationData(elevData)
-{
-    var elevationProvider = localStorage.getItem("ui_elevation_provider");
+// ─── Elevation / waypoint altitude API ───────────────────────────────────────
+
+function updateElevationData(elevData) {
+    var elevationProvider = localStorage.getItem('ui_elevation_provider');
     var latitude;
     var longitude;
 
-    if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect")
-    {
-        // Check if it's not a valid result
-        if(elevData.status != "OK")
+    if (elevationProvider === 'OpenTopoData' || elevationProvider === 'OpenTopoDataDirect') {
+        if (elevData.status !== 'OK')
             return;
     }
 
-    for(var i=0; i<elevData.results.length; i++)
-    {
-        if(elevationProvider == "OpenElevation")
-        {
-            latitude = elevData.results[i].latitude;
+    for (var i = 0; i < elevData.results.length; i++) {
+        if (elevationProvider === 'OpenElevation') {
+            latitude  = elevData.results[i].latitude;
             longitude = elevData.results[i].longitude;
-        }
-        else if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect")
-        {
-            latitude = elevData.results[i].location.lat;
+        } else if (elevationProvider === 'OpenTopoData' || elevationProvider === 'OpenTopoDataDirect') {
+            latitude  = elevData.results[i].location.lat;
             longitude = elevData.results[i].location.lng;
         }
 
-        // Find the WP with same coordinates
-        for(var j=0; j< data.currentMissionWaypoints.length; j++)
-        {
-            if(typeof data.currentMissionWaypoints[j] == "undefined")
+        for (var j = 0; j < data.currentMissionWaypoints.length; j++) {
+            if (typeof data.currentMissionWaypoints[j] === 'undefined')
                 continue;
 
-            if(data.currentMissionWaypoints[j].wpLatitude == latitude
-                && data.currentMissionWaypoints[j].wpLongitude == longitude)
-                {
-                    data.currentMissionWaypoints[j].elevation = elevData.results[i].elevation;
-                }
+            if (data.currentMissionWaypoints[j].wpLatitude  === latitude &&
+                data.currentMissionWaypoints[j].wpLongitude === longitude) {
+                data.currentMissionWaypoints[j].elevation = elevData.results[i].elevation;
+            }
         }
     }
     data.isCurrentMissionElevationSet = true;
 }
 
-// updatingWpAltitudes is imported from CommScripts.js
+export function getMissionWaypointsAltitude() {
+    var elevationProvider = localStorage.getItem('ui_elevation_provider');
 
-export function getMissionWaypointsAltitude()
-{
-    var elevationProvider = localStorage.getItem("ui_elevation_provider");
-
-    // If not served by https, then it'll not work, just give up
-    if(location.protocol !== "https:")
+    if (location.protocol !== 'https:')
         return;
 
-    // If mission is not loaded, there's no need to process
-    if(data.waypointCount == 0 || data.currentMissionWaypoints.length == 0)
+    if (data.waypointCount === 0 || data.currentMissionWaypoints.length === 0)
         return;
 
-    if(data.waypointCount != (data.currentMissionWaypoints.length - 1))
+    if (data.waypointCount !== (data.currentMissionWaypoints.length - 1))
         return;
 
-    // First, build an object with all Waypoint coodinates
-    var arrWPs = { locations: [] };
-    var locations = "";
-    var apiURL = "";
+    var arrWPs    = { locations: [] };
+    var locations = '';
+    var apiURL    = '';
 
-    for(var i=1; i < data.currentMissionWaypoints.length; i++)
-    {
-        if(data.currentMissionWaypoints[i].wpLatitude == 0 && data.currentMissionWaypoints[i].wpLongitude == 0)
+    for (var i = 1; i < data.currentMissionWaypoints.length; i++) {
+        if (data.currentMissionWaypoints[i].wpLatitude  === 0 &&
+            data.currentMissionWaypoints[i].wpLongitude === 0)
             continue;
-            
-        if(elevationProvider == "OpenElevation")
-        {
+
+        if (elevationProvider === 'OpenElevation') {
             arrWPs.locations.push({
-                latitude: data.currentMissionWaypoints[i].wpLatitude,
+                latitude:  data.currentMissionWaypoints[i].wpLatitude,
                 longitude: data.currentMissionWaypoints[i].wpLongitude,
             });
-        }
-        else if(elevationProvider == "OpenTopoData" || elevationProvider == "OpenTopoDataDirect" )
-        {
-            if(locations.length > 0)
-                locations = locations + "|"
-
-            locations = locations + data.currentMissionWaypoints[i].wpLatitude + "," + data.currentMissionWaypoints[i].wpLongitude;
+        } else if (elevationProvider === 'OpenTopoData' || elevationProvider === 'OpenTopoDataDirect') {
+            if (locations.length > 0) locations += '|';
+            locations += data.currentMissionWaypoints[i].wpLatitude + ',' +
+                         data.currentMissionWaypoints[i].wpLongitude;
         }
     }
 
-    // Now get the altitudes from API
     var xmlhttp = new XMLHttpRequest();
-
     xmlhttp.onreadystatechange = function() {
-        if (xmlhttp.readyState == XMLHttpRequest.DONE) 
-        {
-            if (xmlhttp.status == 200) 
-            {
+        if (xmlhttp.readyState === XMLHttpRequest.DONE) {
+            if (xmlhttp.status === 200) {
                 var jsonResponse = JSON.parse(xmlhttp.responseText);
-                console.log("Elevation Reply:")
-                console.log(jsonResponse);
-
                 updateElevationData(jsonResponse);
-            }
-            else 
-            {
-                console.log("Error getting waypoint altitudes from API. Status: " + xmlhttp.status);
-                console.log("Response text: " + xmlhttp.responseText);
+            } else {
+                console.log('Error getting waypoint altitudes. Status: ' + xmlhttp.status);
+                console.log('Response: ' + xmlhttp.responseText);
             }
             setUpdatingWpAltitudes(false);
         }
     };
     setUpdatingWpAltitudes(true);
 
-    if(elevationProvider == "OpenElevation")
-    {
-        apiURL = "https://api.open-elevation.com/api/v1/lookup";
-        xmlhttp.open("POST", "proxy.php", true);
-        xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+    if (elevationProvider === 'OpenElevation') {
+        apiURL = 'https://api.open-elevation.com/api/v1/lookup';
+        xmlhttp.open('POST', 'proxy.php', true);
+        xmlhttp.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
         xmlhttp.setRequestHeader('Accept', '*/*');
         xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
         xmlhttp.send(JSON.stringify(arrWPs));
-    }
-    else if(elevationProvider == "OpenTopoData")
-    {
-        apiURL = "https://api.opentopodata.org/v1/mapzen?locations=" + locations;
-        xmlhttp.open("GET", "proxy.php", true);
-        xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+    } else if (elevationProvider === 'OpenTopoData') {
+        apiURL = 'https://api.opentopodata.org/v1/mapzen?locations=' + locations;
+        xmlhttp.open('GET', 'proxy.php', true);
+        xmlhttp.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
         xmlhttp.setRequestHeader('Accept', '*/*');
         xmlhttp.setRequestHeader('X-Proxy-Url', apiURL);
         xmlhttp.send();
-    }
-    else if(elevationProvider == "OpenTopoDataDirect")
-    {
-        apiURL = "https://fpvsampa.opentopodata.org/v1/mapzen?locations=" + locations;
-        xmlhttp.open("GET", apiURL, true);
+    } else if (elevationProvider === 'OpenTopoDataDirect') {
+        apiURL = 'https://fpvsampa.opentopodata.org/v1/mapzen?locations=' + locations;
+        xmlhttp.open('GET', apiURL, true);
         xmlhttp.send();
     }
 }
-
-// Adding Map Layers
-map.addLayer(linesVectorLayer);
-map.addLayer(flightLineVectorLayer);
-map.addLayer(courseLineVectorLayer);
-map.addLayer(waypointVectorLayer);
-map.addLayer(userVectorLayer);
-map.addLayer(homeVectorLayer);
-map.addLayer(aircraftVectorLayer);
