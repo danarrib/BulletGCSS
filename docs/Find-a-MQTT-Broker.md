@@ -20,8 +20,6 @@ By default, Bullet GCSS uses the service provided for free by [EQM](https://www.
 
 To change the MQTT parameters on the modem, edit the `Config.h` file before [flashing the firmware](Setup-modem.md).
 
-![image](https://user-images.githubusercontent.com/17026744/104539414-3ab51e80-55fc-11eb-8d15-e778d69ca5b2.png)
-
 * Host: `broker.emqx.io`
 * Port: `8883` (TLS encrypted port — the firmware encrypts the connection automatically)
 * Username: (any username will work)
@@ -32,7 +30,7 @@ To change the MQTT parameters on the modem, edit the `Config.h` file before [fla
 
 To change the MQTT parameters on the UI, click on the _gear_ icon on the top of the screen, and choose the _Broker settings_ option.
 
-![image](https://user-images.githubusercontent.com/17026744/104539152-bfec0380-55fb-11eb-9279-4bd63f646313.png)
+<img width="1493" height="800" alt="image" src="https://github.com/user-attachments/assets/f4f5ed58-035d-4d3a-a791-07ced5f55f1b" />
 
 Settings will be saved on your device, so next time you open Bullet GCSS, it'll connect using the same settings.
 
