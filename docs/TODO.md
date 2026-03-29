@@ -17,6 +17,24 @@ Several docs contain screenshots of the UI and `Config.h` that no longer match t
 
 ---
 
+## New Commands
+
+### C1. Set Course command (Cruise Mode heading)
+Send a target heading to the aircraft while in Cruise Mode, so the operator can redirect the flight without using the RC transmitter.
+
+**INAV MSP command:** `MSP_SET_HEAD` (code **211**) — payload: one `U16` value in centidegrees (0–36000). Already implemented in INAV; no firmware changes needed on the INAV side.
+
+**What needs to be done:**
+- **Firmware (`ESP32-Modem.cpp`):** add a new `cmd:setheading` handler that reads the `heading` field from the downlink message and sends `MSP_SET_HEAD` to the FC.
+- **UI (`PageScripts.js` / commands panel):** add a heading input field (0–359°) and a Send button to the Commands panel.
+- **Protocol (`BulletGCSS_protocol.md`):** document the new `cmd:setheading,heading:<centidegrees>` downlink message.
+
+**Investigated commands that are NOT available in INAV:**
+- **Set Altitude** (for Altitude Hold) — no MSP command exists; INAV captures altitude at mode activation and adjusts via RC throttle stick only.
+- **Jump to Waypoint** (skip to WP N during active mission) — the active waypoint index is managed entirely by the INAV navigation state machine and is not writable via MSP.
+
+---
+
 ## UI Improvements
 
 ### U1. Migrate UI to Bootstrap 5 ⏳ Deferred
