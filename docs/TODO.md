@@ -4,13 +4,6 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ---
 
-## Architecture
-
-### 1. MQTT QoS 0 — no delivery guarantee ⚠️ Won't fix / by design
-QoS 0 is intentional. Cellular coverage is inherently intermittent — aircraft routinely fly beyond antenna range — and operators already expect gaps in telemetry. A dropped packet means a one-second stale display; the 10-second force-refresh cycle re-syncs all fields automatically when connectivity returns. QoS 1 would add broker state and acknowledgment overhead without meaningfully improving the operator experience. Documented in `docs/BulletGCSS_protocol.md`.
-
----
-
 ## Documentation
 
 ### 4. Documentation screenshots are outdated
