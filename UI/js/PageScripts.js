@@ -633,11 +633,12 @@ document.getElementById("btSendHeading").addEventListener("click", function() {
 document.getElementById("btSendJumpWp").addEventListener("click", function() {
     if (!mqttConnected || data.downlinkStatus !== 1) return;
     var val = parseInt(document.getElementById("inputWpIndex").value, 10);
-    if (isNaN(val) || val < 0 || val > 254) {
-        alert("Please enter a waypoint index between 0 and 254.");
+    if (isNaN(val) || val < 1 || val > 255) {
+        alert("Please enter a waypoint number between 1 and 255.");
         return;
     }
-    publishCommand("jumpwp", null, { wp: val }, "jumpwp:" + val);
+    // INAV Configurator displays WPs as 1-based; firmware expects 0-based index
+    publishCommand("jumpwp", null, { wp: val - 1 }, "jumpwp:" + val);
     updateCommandsPanel();
 });
 

@@ -611,8 +611,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           SerialMon.printf("setheading: invalid heading %d\n", deg);
           return;
       }
-      uint16_t centideg = (uint16_t)(deg * 100);
-      msp.send(MSP_SET_HEAD, &centideg, sizeof(centideg));
+      int32_t centideg = (int32_t)(deg * 100);
+      msp.send(MSP2_INAV_SET_CRUISE_HEADING, &centideg, sizeof(centideg));
       SerialMon.printf("setheading: sent %d° (%d centideg)\n", deg, centideg);
 
   } else if (strcmp(cmd, "jumpwp") == 0) {
