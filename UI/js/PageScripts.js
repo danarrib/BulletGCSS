@@ -120,12 +120,12 @@ function updateCommandsPanel() {
         var onBtn  = document.getElementById(entry.onId);
         var offBtn = document.getElementById(entry.offId);
 
-        onBtn.disabled  = !rcOk;
-        offBtn.disabled = !rcOk;
+        var modeActive = rcOk && data[entry.dataKey] === 1;
 
-        // ON button turns green when firmware confirms the mode is active.
-        // OFF button is always in its normal state — inactive is the natural state.
-        onBtn.classList.toggle('btn-active', rcOk && data[entry.dataKey] === 1);
+        onBtn.disabled  = !rcOk;
+        offBtn.disabled = !modeActive;  // only enabled when firmware confirms mode is active
+
+        onBtn.classList.toggle('btn-active', modeActive);
         onBtn.classList.remove('btn-inactive');
         offBtn.classList.remove('btn-active', 'btn-inactive');
     }
