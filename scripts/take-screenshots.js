@@ -51,17 +51,42 @@ const HIGHLIGHT_PAD    = 10;  // extra space around the element bounding box
 
 // ─── Screenshot definitions ───────────────────────────────────────────────────
 
+// Shared setup for the main UI screenshots
+const MAIN_UI = {
+  url:      `${BASE_URL}/basicui.html`,
+  width:    1920,
+  height:   1080,
+  dpr:      2,
+  logFile:  'testflight3.txt',
+  logLines: 478,
+  zoom:     14,
+  waitMs:   3000,
+};
+
 const screenshots = [
   {
-    file:     'readme_userinterface01.png',
-    url:      `${BASE_URL}/basicui.html`,
-    width:    1920,
-    height:   1080,
-    dpr:      2,
-    logFile:  'testflight3.txt',
-    logLines: 478,
-    zoom:     14,
-    waitMs:   3000,
+    ...MAIN_UI,
+    file: 'readme_userinterface01.png',
+  },
+  {
+    ...MAIN_UI,
+    file:         'ui_statuslights.png',
+    clipSelector: '.statusIconBar',
+  },
+  {
+    ...MAIN_UI,
+    file:         'ui_infopanel.png',
+    clipSelector: '#dataview',
+  },
+  {
+    ...MAIN_UI,
+    file:         'ui_map.png',
+    clipSelector: '#mapview',
+  },
+  {
+    ...MAIN_UI,
+    file:         'ui_efis.png',
+    clipSelector: '#hudview',
   },
   {
     composition: 'mqtt_settings.png',
@@ -221,11 +246,19 @@ async function setupPage(page, def) {
   await page.waitForTimeout(3000);
 }
 
-/** Capture a single screenshot to a file. */
+/** Capture a single screenshot to a file, optionally clipped to an element. */
 async function capture(page, def) {
   const outPath = path.join(OUTPUT_DIR, def.file);
   await setupPage(page, def);
-  await page.screenshot({ path: outPath, fullPage: false });
+
+  let clip;
+  if (def.clipSelector) {
+    const box = await page.locator(def.clipSelector).boundingBox();
+    if (!box) throw new Error(`clipSelector not found: ${def.clipSelector}`);
+    clip = box;
+  }
+
+  await page.screenshot({ path: outPath, fullPage: false, ...(clip ? { clip } : {}) });
   console.log(`[capture] Saved → ${outPath}`);
 }
 
