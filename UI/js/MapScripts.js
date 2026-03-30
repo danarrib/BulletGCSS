@@ -43,8 +43,15 @@ export function setUserMovedMap(val) { user_moved_map = val; }
 
 window._gcssMap = map; // dev/screenshot access: _gcssMap.zoomTo(14), _gcssMap.setZoom(13), etc.
 
+// ─── Secondary aircraft label overlay ─────────────────────────────────────────
+// Labels live here (absolute inside #map) so they are never rotated with the marker.
+var secLabelContainer = document.createElement('div');
+secLabelContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:2;';
+document.getElementById('map').appendChild(secLabelContainer);
+
 // ─── Secondary aircraft map objects ───────────────────────────────────────────
-// Keyed by topic. Each value: { marker, markerEl, labelEl, courseSourceId, courseLayerId, pathSourceId, pathLayerId }
+// Keyed by topic. Each value: { marker, markerEl, labelEl, iconHalf, addedToMap,
+//                               courseSourceId, courseLayerId, pathSourceId, pathLayerId }
 var secondaryAircraftObjects = {};
 
 var onSecondaryAircraftClickCallback = null;
@@ -74,36 +81,37 @@ function addSecondarySourcesAndLayers(entry, obj) {
 
 function addSecondaryToMap(entry) {
     var safeId = sanitizeMapId(entry.topic);
+    var imgWH  = 44 * window.devicePixelRatio;
     var obj = {
         courseSourceId: safeId + '_cs',
         courseLayerId:  safeId + '_cl',
         pathSourceId:   safeId + '_ps',
         pathLayerId:    safeId + '_pl',
+        iconHalf:       imgWH / 2,
+        addedToMap:     false,
     };
 
-    var imgWH = 44 * window.devicePixelRatio;
-    var markerEl = document.createElement('div');
-    markerEl.style.cssText = 'position:relative;cursor:pointer;width:' + imgWH + 'px;height:' + imgWH + 'px;';
+    // Marker element: aircraft image only — no label inside so it won't rotate with the icon.
+    var markerEl = document.createElement('img');
+    markerEl.src = 'img/aircraft.png';
+    markerEl.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;' +
+        'filter:hue-rotate(' + entry.hueRotate + 'deg);cursor:pointer;display:block;';
 
-    var img = document.createElement('img');
-    img.src = 'img/aircraft.png';
-    img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;' +
-        'filter:hue-rotate(' + entry.hueRotate + 'deg);';
-    markerEl.appendChild(img);
-
+    // Label: lives in the screen-space overlay, positioned via map.project() each tick.
+    // This prevents it from rotating with the aircraft icon.
     var labelEl = document.createElement('div');
-    labelEl.style.cssText = 'position:absolute;left:' + (imgWH + 4) + 'px;top:' + Math.round(imgWH * 0.28) + 'px;' +
-        'background:rgba(0,0,0,0.72);color:#fff;white-space:nowrap;pointer-events:none;' +
+    labelEl.style.cssText = 'position:absolute;display:none;transform:translateY(-50%);' +
+        'background:rgba(0,0,0,0.72);color:#fff;white-space:nowrap;' +
         'font-size:' + (12 * window.devicePixelRatio) + 'px;' +
         'padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;' +
         'border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
         'font-family:Ubuntu,sans-serif;' +
         'border-left:' + (3 * window.devicePixelRatio) + 'px solid ' + entry.colour + ';';
-    markerEl.appendChild(labelEl);
+    secLabelContainer.appendChild(labelEl);
 
-    var marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: 'map' })
-        .setLngLat([0, 0])
-        .addTo(map);
+    // Marker is NOT added to the map yet — we add it on first valid GPS fix to
+    // avoid the marker flashing at [0, 0] before any telemetry arrives.
+    var marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: 'map' });
 
     markerEl.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -121,7 +129,8 @@ function addSecondaryToMap(entry) {
 function removeSecondaryFromMap(topic) {
     var obj = secondaryAircraftObjects[topic];
     if (!obj) return;
-    obj.marker.remove();
+    if (obj.addedToMap) obj.marker.remove();
+    obj.labelEl.remove();
     if (map.getLayer(obj.courseLayerId))   map.removeLayer(obj.courseLayerId);
     if (map.getSource(obj.courseSourceId)) map.removeSource(obj.courseSourceId);
     if (map.getLayer(obj.pathLayerId))     map.removeLayer(obj.pathLayerId);
@@ -147,32 +156,57 @@ export function updateSecondaryAircraftOnMap() {
         // Add map objects for newly registered topics
         if (!secondaryAircraftObjects[topic]) addSecondaryToMap(entry);
 
-        if (entry.lastSeen === 0) continue; // no data yet — don't move marker to 0,0
+        if (entry.lastSeen === 0) continue; // no data yet — wait for first GPS fix
 
-        var obj    = secondaryAircraftObjects[topic];
+        var obj = secondaryAircraftObjects[topic];
         if (!obj) continue;
 
-        var latDeg  = entry.lat / 10000000.0;
-        var lonDeg  = entry.lon / 10000000.0;
-        var stale   = (now - entry.lastSeen) > 10000;
+        // Dead-reckon position: project forward from last known fix using speed and course,
+        // same approach as estimatePosition() for the primary aircraft.
+        var latDeg, lonDeg;
+        var elapsedSec = (now - entry.lastSeen) / 1000;
+        if (entry.gsp > 0 && elapsedSec < 10) {
+            var distM = (entry.gsp / 100) * elapsedSec; // metres since last fix
+            var est   = DestinationCoordinates(entry.lat / 1e7, entry.lon / 1e7, entry.course, distM);
+            latDeg = est.lat;
+            lonDeg = est.lng;
+        } else {
+            latDeg = entry.lat / 1e7;
+            lonDeg = entry.lon / 1e7;
+        }
 
-        obj.marker.setLngLat([lonDeg, latDeg]);
+        var stale = (now - entry.lastSeen) > 10000;
+
+        // Add marker to map on first valid fix (avoids the [0,0] flash before data arrives)
+        if (!obj.addedToMap) {
+            obj.marker.setLngLat([lonDeg, latDeg]).addTo(map);
+            obj.addedToMap = true;
+            obj.labelEl.style.display = '';
+        } else {
+            obj.marker.setLngLat([lonDeg, latDeg]);
+        }
+
         obj.marker.setRotation(entry.course);
         obj.markerEl.style.opacity = stale ? '0.5' : '1';
 
-        // Label: CALLSIGN  ALT m  SPD km/h  ↑/↓/—
+        // Label: position in screen space via map.project() so it is never rotated.
+        var px = map.project([lonDeg, latDeg]);
+        obj.labelEl.style.left    = Math.round(px.x + obj.iconHalf + 4) + 'px';
+        obj.labelEl.style.top     = Math.round(px.y) + 'px';
+        obj.labelEl.style.opacity = stale ? '0.5' : '1';
+
         var altM    = (entry.alt / 100).toFixed(0);
         var spdKmh  = (entry.gsp / 27.78).toFixed(1);
         var climb   = entry.vsp > 20 ? '\u2191' : entry.vsp < -20 ? '\u2193' : '\u2014';
         var csLabel = entry.callsign || entry.topic.split('/').pop();
         obj.labelEl.textContent = csLabel + '  ' + altM + 'm  ' + spdKmh + '\u202fkm/h  ' + climb;
 
-        // Course line — same as primary: 1 minute of flight at current ground speed
+        // Course line — 1 minute of flight at current ground speed (same as primary)
         var courseSrc = map.getSource(obj.courseSourceId);
         if (courseSrc) {
             if (entry.gsp > 0) {
-                var distM = (entry.gsp / 100) * 60; // metres in 60 s
-                var end = DestinationCoordinates(latDeg, lonDeg, entry.course, distM);
+                var courseDistM = (entry.gsp / 100) * 60;
+                var end = DestinationCoordinates(latDeg, lonDeg, entry.course, courseDistM);
                 courseSrc.setData({ type: 'Feature', geometry: {
                     type: 'LineString',
                     coordinates: [[lonDeg, latDeg], [end.lng, end.lat]]
