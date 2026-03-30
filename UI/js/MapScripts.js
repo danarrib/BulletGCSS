@@ -41,6 +41,8 @@ var map = new maplibregl.Map({
 export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
 
+window._gcssMap = map; // dev/screenshot access: _gcssMap.zoomTo(14), _gcssMap.setZoom(13), etc.
+
 map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
 
 var CenterOnAircraftControl = {

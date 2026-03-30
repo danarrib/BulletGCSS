@@ -452,8 +452,27 @@ function onMessageArrived(message) {
 };
 
 // MQTTconnect();
+
+// Dev / screenshot injection — call from console or Playwright.
+// Accepts a single payload, a single log line (timestamp|payload),
+// or a multi-line string of either format — each line is processed in order.
+//   gcssInject("ran:25,hea:351,gla:-234816623,glo:-471517217,...")
+//   gcssInject("1702818853162|ran:25,hea:351,...\n1702818854089|ran:21,...")
+window.gcssInject = function(input) {
+    var lines = input.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        var payload = line.includes('|') ? line.slice(line.indexOf('|') + 1) : line;
+        parseTelemetryData(payload);
+    }
+    checkCommandTimeouts();
+};
+
 export let data = {};
-window._gcssData = data; // dev console override: e.g. _gcssData.extCmdsSupported = 1
+// _gcssData is a live getter so it always reflects the current data reference,
+// even after resetDataObject() replaces it. Use from console or Playwright.
+Object.defineProperty(window, '_gcssData', { get: () => data, configurable: true });
 export function resetDataObject()
 {
     data = {
