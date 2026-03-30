@@ -6,9 +6,29 @@
  * original message timing. Designed to run as a PHP CLI script via cron.
  *
  * Usage:
- *   php replayer.php
+ *   php replayer.php <log_file> <mqtt_topic> <callsign>
+ *
+ * Arguments:
+ *   log_file    Path to the flight log file (e.g. tools/testflight3.txt)
+ *   mqtt_topic  MQTT topic to publish to (e.g. bulletgcss/telem/alpha)
+ *   callsign    Callsign to substitute into each message payload, replacing
+ *               the callsign stored in the log file
+ *
+ * Example:
+ *   php replayer.php tools/testflight3.txt bulletgcss/telem/alpha ALPHA
  *
  */
+
+// ─── CLI arguments ────────────────────────────────────────────────────────────
+
+if ($argc !== 4) {
+    fwrite(STDERR, "Usage: php replayer.php <log_file> <mqtt_topic> <callsign>\n");
+    exit(1);
+}
+
+$logFile    = $argv[1];
+$mqttTopic  = $argv[2];
+$callsign   = $argv[3];
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -17,10 +37,7 @@ define('MQTT_PORT',      1883);           // 1883 = plain TCP, 8883 = TLS
 define('MQTT_USE_TLS',   false);
 define('MQTT_USERNAME',  'bulletgcss');
 define('MQTT_PASSWORD',  'bulletgcss');
-define('MQTT_TOPIC',     'bulletgcss/telem/your_callsign');
 define('MQTT_CLIENT_ID', 'replayer_' . substr(md5(uniqid()), 0, 8));
-
-define('LOG_FILE',       __DIR__ . '/testflight3.txt');
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -96,9 +113,20 @@ function mqtt_disconnect(mixed $socket): void
 
 // ─── Load and parse log file ──────────────────────────────────────────────────
 
-$lines = file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+$lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 if ($lines === false) {
-    die("Cannot read log file: " . LOG_FILE . "\n");
+    die("Cannot read log file: $logFile\n");
+}
+
+// Detect the callsign stored in the log file so we can replace it
+$logCallsign = null;
+foreach ($lines as $line) {
+    $parts = explode('|', $line, 2);
+    if (count($parts) !== 2) continue;
+    foreach (explode(',', $parts[1]) as $kv) {
+        [$k, $v] = array_pad(explode(':', $kv, 2), 2, '');
+        if ($k === 'cs') { $logCallsign = trim($v); break 2; }
+    }
 }
 
 $messages = [];
@@ -107,6 +135,10 @@ foreach ($lines as $line) {
     if (count($parts) !== 2) continue;
     [$ts, $payload] = $parts;
     if (str_starts_with($payload, 'Connected to')) continue;
+    // Replace the log file's callsign with the requested callsign
+    if ($logCallsign !== null && $logCallsign !== $callsign) {
+        $payload = preg_replace('/\bcs:' . preg_quote($logCallsign, '/') . '\b/', 'cs:' . $callsign, $payload);
+    }
     $messages[] = [(int)$ts, $payload];
 }
 
@@ -131,7 +163,7 @@ $totalMs  = $messages[count($messages) - 1][0] - $messages[0][0];
 $totalMin = (int)($totalMs / 60000);
 $totalSec = (int)(($totalMs % 60000) / 1000);
 
-echo date('Y-m-d H:i:s') . " Starting replay of " . count($messages) . " messages to " . MQTT_TOPIC . "\n";
+echo date('Y-m-d H:i:s') . " Starting replay of " . count($messages) . " messages to $mqttTopic\n";
 echo date('Y-m-d H:i:s') . " Session duration: {$totalMin}m {$totalSec}s\n";
 
 
@@ -162,7 +194,7 @@ foreach ($messages as [$ts, $payload]) {
         usleep((int)$sleepUs);
     }
 
-    mqtt_publish($socket, MQTT_TOPIC, $payload);
+    mqtt_publish($socket, $mqttTopic, $payload);
 }
 
 mqtt_disconnect($socket);
