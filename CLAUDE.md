@@ -52,7 +52,40 @@ Static HTML/CSS/JS — no build step. Deployed directly to a web server.
 
 **Key libraries bundled in repo:** Paho MQTT JS, NoSleep, Open Location Code. MapLibre GL JS is loaded from CDN (referenced in `basicui.html`). The old `UI/ol/` OpenLayers directory has been removed.
 
+**Dev/screenshot injection:** `CommScripts.js` exposes three globals for console and Playwright use:
+- `window.gcssInject(input)` — accepts a single payload, a single log line (`timestamp|payload`), or a multi-line block of either format; runs each line through the same parser path as a real MQTT message. Useful for putting the UI into a specific state without a live connection.
+- `window._gcssData` — live getter (always reflects the current `data` reference even after `resetDataObject()`) for reading or overriding telemetry values from the console. Example: `_gcssData.extCmdsSupported = 1`.
+- `window._gcssMap` — reference to the MapLibre GL JS `map` instance for zoom/pan control. Example: `_gcssMap.setZoom(14)`.
+
 **Deployment:** GitHub Actions ([.github/workflows/](.github/workflows/)) — `rsync` to production server on push to `master`. No compilation, just file copy.
+
+### 3. Screenshot Automation ([scripts/](scripts/))
+
+Node.js tooling for generating documentation screenshots automatically. Run from the `scripts/` directory:
+
+```bash
+cd scripts && npm install   # first time only
+node take-screenshots.js
+```
+
+**How it works:**
+1. Spins up a local HTTP server serving `UI/` on port 8765
+2. Launches a headless Chromium browser via Playwright
+3. Sets `mqttTopic` to `bulletgcss/telem/screenshot_invalid` via `addInitScript` so the broker connects (no "not connected" banner) but no real telemetry arrives
+4. Injects flight log data from `tools/` via `window.gcssInject()` to populate the UI
+5. Reconstructs the flight path by extracting `gla`/`glo` fields from log lines and populating `data.currentFlightWaypoints` directly (the `timerOneSecond` that normally builds the path doesn't fire during synchronous injection)
+6. Centers the map on the aircraft via the `.maplibregl-ctrl-center` button click
+7. Saves PNG files to `docs/screenshots/`
+
+**Screenshot types:**
+- **Single screenshot** (`file:` key): straightforward page capture at specified viewport/DPR
+- **Composition** (`composition:` key): captures multiple frames in sequence on the same page (e.g. opening menus step by step), optionally draws an orange rounded-rectangle highlight around a specified CSS selector on each frame using an SVG overlay, then stitches all frames side-by-side with a configurable gap using Sharp. Supports `outputWidth` to resize the final image proportionally.
+
+**Key files:**
+- [scripts/take-screenshots.js](scripts/take-screenshots.js): main script — screenshot definitions, `injectLogFile()`, `applyHighlight()`, `captureComposition()`
+- [scripts/package.json](scripts/package.json): dependencies (`playwright`, `serve-handler`, `sharp`)
+- [docs/screenshots/](docs/screenshots/): output directory (committed to repo, referenced by docs)
+- [tools/testflight*.txt](tools/): real flight log files used as mock data; format is `timestamp|key:val,key:val,...` one line per MQTT message
 
 ## Data Flow
 

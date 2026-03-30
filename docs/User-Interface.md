@@ -21,7 +21,7 @@ You can use [Bullet GCSS directly from Outros.net](https://bulletgcss.outros.net
 Screen is always divided into 4 main parts: The Status lights, the Information Panel, the Map and the EFIS PFD (Electronic Flight Information System Primary Flight Display). It's important that you learn how every of this parts works to enjoy all the Bullet GCSS capabilities.
 
 ### Status lights
-<img width="756" height="89" alt="image" src="https://github.com/user-attachments/assets/a2bdb7e0-6472-4100-ba8c-8c6b6f975b98" />
+![Status lights](screenshots/ui_statuslights.png)
 
 Status lights tells the overall health of the system and aircraft. Each icon has meaning:
 
@@ -98,7 +98,7 @@ The UI is not connected to MQTT, or the firmware has not confirmed it is subscri
 
 ### Information Panel
 
-![image](https://user-images.githubusercontent.com/17026744/104828080-48f57b80-5844-11eb-83ac-d61ee51a6231.png)
+![Information Panel](screenshots/ui_infopanel.png)
 
 Information panel gives you mostly TEXT information about aircraft status. There are some visual indications though.
 
@@ -213,7 +213,7 @@ The bottom-most element is a space for text messages. It tries to emulate the sa
 
 The map takes a big portion of the screen. On the map, you can see:
 
-![Map](https://user-images.githubusercontent.com/17026744/107228817-d8cdb600-69fb-11eb-8702-3daed511abba.png)
+![Map](screenshots/ui_map.png)
 
 #### Home point
 
@@ -251,7 +251,7 @@ Shows the aircraft location and heading on the map.
 
 ### EFIS PFD
 
-![image](https://user-images.githubusercontent.com/17026744/107280325-f8ce9b00-6a36-11eb-9440-b5391455d8b4.png)
+![EFIS PFD](screenshots/ui_efis.png)
 
 The Electronic Flight Information System Primary Flight Display shows the aircraft most important attitude information.
 

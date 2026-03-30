@@ -41,7 +41,7 @@ Then, the firmware sends this data to a MQTT Broker on the Internet. This Broker
 
 #### User Interface (UI)
 
-![image](https://user-images.githubusercontent.com/17026744/109589480-23b58780-7ae9-11eb-90e8-5faaf46a89d7.png)
+![image](screenshots/readme_userinterface01.png)
 
 The UI is a single HTML page, that can be hosted on any web server. This page has an EFIS (Electronic Flight Instrument System), a map and an information panel. Page works fine both on portait and landscape modes, and works fine with non-rectangular screens as well.
 

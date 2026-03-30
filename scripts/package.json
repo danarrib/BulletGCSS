@@ -1,0 +1,14 @@
+{
+  "name": "bulletgcss-scripts",
+  "version": "1.0.0",
+  "description": "Development scripts for Bullet GCSS (screenshot automation, etc.)",
+  "private": true,
+  "scripts": {
+    "screenshots": "node take-screenshots.js"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0",
+    "serve-handler": "^6.1.5",
+    "sharp": "^0.34.5"
+  }
+}
