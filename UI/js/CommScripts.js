@@ -300,6 +300,11 @@ function onConnect() {
     console.log(errmsg);
     // Subscribe to uplink (telemetry) topic
     mqtt.subscribe(topic, {qos: 0});
+    // Re-subscribe to any secondary monitored aircraft topics
+    for (var t in otherAircraft) {
+        mqtt.subscribe(t, { qos: 0 });
+        console.log('Secondary topic: ' + t);
+    }
     console.log('Uplink topic: ' + topic);
     console.log('Downlink topic: ' + commandTopic);
     mqttlogevent(errmsg + ' - ' + topic);
@@ -438,20 +443,154 @@ function onConnectionLost(response) {
 function onMessageArrived(message) {
     if(!isPlayingLogFile)
     {
-        var topic = message.destinationName;
+        var msgTopic = message.destinationName;
         var payload = message.payloadString;
 
-        // console.log(payload);
-        var line = new Date().getTime().toString() + '|' + payload;
-        mqttlog.push(line);
-        lastMessageDate = new Date();
-        parseTelemetryData(payload);  // may resolve a pending cid
-        checkCommandTimeouts();
-        if (onMessageCallback) onMessageCallback(line);
+        if (otherAircraft[msgTopic]) {
+            // Secondary aircraft — parse silently, do not log to session
+            parseSecondaryTelemetry(msgTopic, payload);
+        } else {
+            // Primary aircraft
+            var line = new Date().getTime().toString() + '|' + payload;
+            mqttlog.push(line);
+            lastMessageDate = new Date();
+            parseTelemetryData(payload);  // may resolve a pending cid
+            checkCommandTimeouts();
+            if (onMessageCallback) onMessageCallback(line);
+        }
     }
 };
 
 // MQTTconnect();
+
+// ─── Multi-aircraft monitoring ────────────────────────────────────────────────
+
+// Colour palette for secondary aircraft. Each entry provides a CSS hue-rotate
+// angle (applied to the green aircraft SVG) and a hex colour string used for
+// MapLibre GL JS line layers and the label border.
+var SECONDARY_PALETTE = [
+    { hueRotate: 180, color: '#F66' },   // pink/magenta
+    { hueRotate: 240, color: '#FA4' },   // orange
+    { hueRotate: 60,  color: '#4EE' },   // cyan
+    { hueRotate: 300, color: '#EE4' },   // yellow
+    { hueRotate: 120, color: '#84F' },   // purple
+    { hueRotate: 30,  color: '#AFA' },   // light green
+];
+var paletteNextIndex = 0;
+
+// keyed by MQTT topic string.
+// Shape: { topic, callsign, lat, lon, alt, gsp, vsp, course, lastSeen, colour, hueRotate, flightPath[] }
+export var otherAircraft = {};
+
+export function addMonitoredTopic(newTopic) {
+    var primary    = localStorage.getItem("mqttTopic") || "";
+    var primaryCmd = localStorage.getItem("mqttCommandTopic") || "";
+    if (!newTopic)                                  return "Topic cannot be empty.";
+    if (newTopic === primary || newTopic === primaryCmd)
+                                                    return "Topic conflicts with the primary aircraft topic.";
+    if (otherAircraft[newTopic])                    return "Topic is already monitored.";
+
+    var palette = SECONDARY_PALETTE[paletteNextIndex % SECONDARY_PALETTE.length];
+    paletteNextIndex++;
+
+    otherAircraft[newTopic] = {
+        topic:      newTopic,
+        callsign:   "",
+        lat:        0,   // integer degrees × 1e7
+        lon:        0,
+        alt:        0,   // integer cm
+        gsp:        0,   // integer cm/s
+        vsp:        0,   // integer cm/s
+        course:     0,   // integer degrees true
+        lastSeen:   0,   // Date.now() ms
+        colour:     palette.color,
+        hueRotate:  palette.hueRotate,
+        flightPath: [],  // [[lon_deg, lat_deg], ...]
+    };
+
+    saveMonitoredTopics();
+    if (mqttConnected && mqtt) mqtt.subscribe(newTopic, { qos: 0 });
+    return null; // no error
+}
+
+export function removeMonitoredTopic(topicToRemove) {
+    if (!otherAircraft[topicToRemove]) return;
+    delete otherAircraft[topicToRemove];
+    saveMonitoredTopics();
+    if (mqttConnected && mqtt) {
+        try { mqtt.unsubscribe(topicToRemove); } catch(e) {}
+    }
+}
+
+function saveMonitoredTopics() {
+    localStorage.setItem("gcssMonitoredTopics", JSON.stringify(Object.keys(otherAircraft)));
+}
+
+// Restores the secondary topic list from localStorage and subscribes.
+// Call once from DOMContentLoaded (after MQTTconnect is called).
+export function loadAndSubscribeMonitoredTopics() {
+    var stored = localStorage.getItem("gcssMonitoredTopics");
+    if (!stored) return;
+    try {
+        var topics = JSON.parse(stored);
+        for (var i = 0; i < topics.length; i++) {
+            if (!otherAircraft[topics[i]]) addMonitoredTopic(topics[i]);
+        }
+    } catch(e) { console.error("loadAndSubscribeMonitoredTopics:", e); }
+}
+
+function parseSecondaryTelemetry(incomingTopic, payload) {
+    var entry = otherAircraft[incomingTopic];
+    if (!entry) return;
+
+    var arrPayload = payload.split(",");
+    var rawGla = null, rawGlo = null;
+
+    for (var i = 0; i < arrPayload.length; i++) {
+        if (!arrPayload[i]) continue;
+        var parts = arrPayload[i].split(":");
+        if (parts.length < 2) continue;
+        var raw;
+
+        switch (parts[0]) {
+            case "cs":
+                if (/^[A-Za-z0-9_-]+$/.test(parts[1]) && parts[1].length <= 16)
+                    entry.callsign = parts[1];
+                break;
+            case "gla":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, -900000000, 900000000)) rawGla = raw;
+                break;
+            case "glo":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, -1800000000, 1800000000)) rawGlo = raw;
+                break;
+            case "alt":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, -1000000, 10000000)) entry.alt = raw;
+                break;
+            case "gsp":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, 0, 15000)) entry.gsp = raw;
+                break;
+            case "vsp":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, -60000, 60000)) entry.vsp = raw;
+                break;
+            case "ggc":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, 0, 359)) entry.course = raw;
+                break;
+        }
+    }
+
+    if (rawGla !== null && rawGlo !== null) {
+        entry.lat = rawGla;
+        entry.lon = rawGlo;
+        entry.lastSeen = Date.now();
+        entry.flightPath.push([rawGlo / 10000000.0, rawGla / 10000000.0]);
+    }
+}
 
 // Dev / screenshot injection — call from console or Playwright.
 // Accepts a single payload, a single log line (timestamp|payload),
@@ -533,9 +672,11 @@ export function resetDataObject()
         cmdCruise: 0,
         cmdBeeper: 0,
         cmdWp: 0,
+        cmdPosHold: 0,
         fmCruise: 0,   // 1 = Cruise/Course Hold flight mode active (any source)
         fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
         fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
+        fmPosHold: 0,  // 1 = Position Hold flight mode active (any source)
         fcVersion: "",       // FC firmware version string, e.g. "9.0.1" (empty = not yet received)
         extCmdsSupported: 0, // computed from fcVersion: 0 = none; >= 1 = extended MSP commands supported
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
@@ -933,6 +1074,14 @@ function parseStandardTelemetryMessage(payload)
             case "fmwp":
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1) data.fmWp = raw;
+                break;
+            case "cmdph":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.cmdPosHold = raw;
+                break;
+            case "fmph":
+                raw = parseInt(arrData[1]);
+                if(raw === 0 || raw === 1) data.fmPosHold = raw;
                 break;
             case "wpv":
                 raw = parseInt(arrData[1]);

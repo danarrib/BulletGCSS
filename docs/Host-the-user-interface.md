@@ -6,7 +6,7 @@ The Bullet GCSS User Interface (UI) needs to be hosted somewhere on the Internet
 
 **You don't have to**. It's already hosted by Outros.net: Just go to [https://bulletgcss.outros.net/](https://bulletgcss.outros.net/) and use it from there. It's free and safe.
 
-![Deploy BulletGCSS UI on FPV Sampa](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
+![Deploy BulletGCSS UI on Outros.net](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
 
 Every time the `master` branch is updated, GitHub publishes automatically on this address. Can't be easier, right?
 

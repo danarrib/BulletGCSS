@@ -1,4 +1,4 @@
-import { data, updatingWpAltitudes, setUpdatingWpAltitudes, DestinationCoordinates } from './CommScripts.js';
+import { data, otherAircraft, updatingWpAltitudes, setUpdatingWpAltitudes, DestinationCoordinates } from './CommScripts.js';
 
 // ─── Map initialisation ───────────────────────────────────────────────────────
 // pixelRatio: 1 renders at CSS pixel scale so the OS compositor handles
@@ -42,6 +42,159 @@ export let user_moved_map = false;
 export function setUserMovedMap(val) { user_moved_map = val; }
 
 window._gcssMap = map; // dev/screenshot access: _gcssMap.zoomTo(14), _gcssMap.setZoom(13), etc.
+
+// ─── Secondary aircraft map objects ───────────────────────────────────────────
+// Keyed by topic. Each value: { marker, markerEl, labelEl, courseSourceId, courseLayerId, pathSourceId, pathLayerId }
+var secondaryAircraftObjects = {};
+
+var onSecondaryAircraftClickCallback = null;
+export function setOnSecondaryAircraftClick(fn) { onSecondaryAircraftClickCallback = fn; }
+
+function sanitizeMapId(topic) {
+    return 'sec_' + topic.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function addSecondarySourcesAndLayers(entry, obj) {
+    if (!map.getSource(obj.courseSourceId)) {
+        map.addSource(obj.courseSourceId, { type: 'geojson', data: { type: 'Feature', geometry: null } });
+    }
+    if (!map.getLayer(obj.courseLayerId)) {
+        map.addLayer({ id: obj.courseLayerId, type: 'line', source: obj.courseSourceId,
+            paint: { 'line-color': entry.colour, 'line-width': (2 * window.devicePixelRatio) } });
+    }
+    if (!map.getSource(obj.pathSourceId)) {
+        map.addSource(obj.pathSourceId, { type: 'geojson',
+            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
+    }
+    if (!map.getLayer(obj.pathLayerId)) {
+        map.addLayer({ id: obj.pathLayerId, type: 'line', source: obj.pathSourceId,
+            paint: { 'line-color': entry.colour, 'line-width': (2 * window.devicePixelRatio) } });
+    }
+}
+
+function addSecondaryToMap(entry) {
+    var safeId = sanitizeMapId(entry.topic);
+    var obj = {
+        courseSourceId: safeId + '_cs',
+        courseLayerId:  safeId + '_cl',
+        pathSourceId:   safeId + '_ps',
+        pathLayerId:    safeId + '_pl',
+    };
+
+    var imgWH = 44 * window.devicePixelRatio;
+    var markerEl = document.createElement('div');
+    markerEl.style.cssText = 'position:relative;cursor:pointer;width:' + imgWH + 'px;height:' + imgWH + 'px;';
+
+    var img = document.createElement('img');
+    img.src = 'img/aircraft.png';
+    img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;' +
+        'filter:hue-rotate(' + entry.hueRotate + 'deg);';
+    markerEl.appendChild(img);
+
+    var labelEl = document.createElement('div');
+    labelEl.style.cssText = 'position:absolute;left:' + (imgWH + 4) + 'px;top:' + Math.round(imgWH * 0.28) + 'px;' +
+        'background:rgba(0,0,0,0.72);color:#fff;white-space:nowrap;pointer-events:none;' +
+        'font-size:' + (12 * window.devicePixelRatio) + 'px;' +
+        'padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;' +
+        'border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
+        'font-family:Ubuntu,sans-serif;' +
+        'border-left:' + (3 * window.devicePixelRatio) + 'px solid ' + entry.colour + ';';
+    markerEl.appendChild(labelEl);
+
+    var marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: 'map' })
+        .setLngLat([0, 0])
+        .addTo(map);
+
+    markerEl.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (onSecondaryAircraftClickCallback) onSecondaryAircraftClickCallback(entry.topic);
+    });
+
+    obj.marker   = marker;
+    obj.markerEl = markerEl;
+    obj.labelEl  = labelEl;
+    secondaryAircraftObjects[entry.topic] = obj;
+
+    if (map.isStyleLoaded()) addSecondarySourcesAndLayers(entry, obj);
+}
+
+function removeSecondaryFromMap(topic) {
+    var obj = secondaryAircraftObjects[topic];
+    if (!obj) return;
+    obj.marker.remove();
+    if (map.getLayer(obj.courseLayerId))   map.removeLayer(obj.courseLayerId);
+    if (map.getSource(obj.courseSourceId)) map.removeSource(obj.courseSourceId);
+    if (map.getLayer(obj.pathLayerId))     map.removeLayer(obj.pathLayerId);
+    if (map.getSource(obj.pathSourceId))   map.removeSource(obj.pathSourceId);
+    delete secondaryAircraftObjects[topic];
+}
+
+export function removeSecondaryAircraftFromMap(topic) {
+    removeSecondaryFromMap(topic);
+}
+
+export function updateSecondaryAircraftOnMap() {
+    var now = Date.now();
+
+    // Remove map objects for topics that were deleted
+    for (var t in secondaryAircraftObjects) {
+        if (!otherAircraft[t]) removeSecondaryFromMap(t);
+    }
+
+    for (var topic in otherAircraft) {
+        var entry = otherAircraft[topic];
+
+        // Add map objects for newly registered topics
+        if (!secondaryAircraftObjects[topic]) addSecondaryToMap(entry);
+
+        if (entry.lastSeen === 0) continue; // no data yet — don't move marker to 0,0
+
+        var obj    = secondaryAircraftObjects[topic];
+        if (!obj) continue;
+
+        var latDeg  = entry.lat / 10000000.0;
+        var lonDeg  = entry.lon / 10000000.0;
+        var stale   = (now - entry.lastSeen) > 10000;
+
+        obj.marker.setLngLat([lonDeg, latDeg]);
+        obj.marker.setRotation(entry.course);
+        obj.markerEl.style.opacity = stale ? '0.5' : '1';
+
+        // Label: CALLSIGN  ALT m  SPD km/h  ↑/↓/—
+        var altM    = (entry.alt / 100).toFixed(0);
+        var spdKmh  = (entry.gsp / 27.78).toFixed(1);
+        var climb   = entry.vsp > 20 ? '\u2191' : entry.vsp < -20 ? '\u2193' : '\u2014';
+        var csLabel = entry.callsign || entry.topic.split('/').pop();
+        obj.labelEl.textContent = csLabel + '  ' + altM + 'm  ' + spdKmh + '\u202fkm/h  ' + climb;
+
+        // Course line — same as primary: 1 minute of flight at current ground speed
+        var courseSrc = map.getSource(obj.courseSourceId);
+        if (courseSrc) {
+            if (entry.gsp > 0) {
+                var distM = (entry.gsp / 100) * 60; // metres in 60 s
+                var end = DestinationCoordinates(latDeg, lonDeg, entry.course, distM);
+                courseSrc.setData({ type: 'Feature', geometry: {
+                    type: 'LineString',
+                    coordinates: [[lonDeg, latDeg], [end.lng, end.lat]]
+                }});
+            } else {
+                courseSrc.setData({ type: 'Feature', geometry: null });
+            }
+            map.setPaintProperty(obj.courseLayerId, 'line-opacity', stale ? 0.5 : 1.0);
+        }
+
+        // Flight path
+        var pathSrc = map.getSource(obj.pathSourceId);
+        if (pathSrc && entry.flightPath.length >= 2) {
+            pathSrc.setData({ type: 'Feature', geometry: {
+                type: 'LineString', coordinates: entry.flightPath
+            }});
+            map.setPaintProperty(obj.pathLayerId, 'line-opacity', stale ? 0.5 : 1.0);
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
 
@@ -129,6 +282,12 @@ map.on('style.load', function() {
         source: 'mission-lines-source',
         paint: { 'line-color': '#69F', 'line-width': (3 * window.devicePixelRatio) }
     });
+
+    // Re-add secondary aircraft sources/layers (cleared when style reloads)
+    for (var secTopic in secondaryAircraftObjects) {
+        var secEntry = otherAircraft[secTopic];
+        if (secEntry) addSecondarySourcesAndLayers(secEntry, secondaryAircraftObjects[secTopic]);
+    }
 });
 
 // ─── Aircraft marker ──────────────────────────────────────────────────────────

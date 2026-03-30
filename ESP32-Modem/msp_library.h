@@ -65,6 +65,7 @@
 #define MSP_PERM_ID_ALTHOLD  3
 #define MSP_PERM_ID_RTH      10
 #define MSP_PERM_ID_BEEPER   13
+#define MSP_PERM_ID_POSHOLD  11
 #define MSP_PERM_ID_WP       28
 #define MSP_PERM_ID_CRUISE   53
 

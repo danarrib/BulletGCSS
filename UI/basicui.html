@@ -3,7 +3,7 @@
   <head>
     <!-- Required meta tags -->
 	<meta charset="utf-8" />
-    <title>FPV Sampa GSS</title>
+    <title>Bullet GCSS</title>
 	<meta name="description" content="A High Caliber Ground Control Station System designed for the 21st century lifestyle." />
 
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
@@ -162,6 +162,7 @@
 		<a href="javascript:void(0)" class="closebtn" id="closeSideMenu">&times;</a>
 		<a href="javascript:void(0)" id="senduavcommandlink">Send command...</a>
 		<a href="javascript:void(0)" id="navSessionsMenu">Sessions...</a>
+		<a href="javascript:void(0)" id="navMonitoredUAVs">Monitor other UAVs...</a>
 		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
 		<a href="javascript:void(0)" id="navEnableCompass" style="display:none;">Enable compass heading</a>
 		<a href="javascript:void(0)" id="navSettingsMenu">Settings...</a>
@@ -172,6 +173,21 @@
 		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help</a>
 		<a href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone" target="_blank" id="installhomelink">Install on home screen</a>
 		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</p>
+	</div>
+
+	<div id="monitoredUAVsMenu" class="sidebar">
+		<a href="javascript:void(0)" class="closebtn" id="closeMonitoredMenu">&times;</a>
+		<h3>Monitor other UAVs</h3>
+		<div id="monitoredList"></div>
+		<div style="margin:4vmin 5vmin 0;">
+			<input type="text" id="inputMonitorTopic" placeholder="bulletgcss/telem/callsign"
+				style="width:100%;box-sizing:border-box;padding:2vmin;font-size:4vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;margin-bottom:2vmin;" />
+			<p id="monitorTopicError" style="display:none;color:#f90;margin:0 0 2vmin;font-size:3.5vmin;"></p>
+			<input type="button" id="btAddMonitorTopic" value="Add topic" class="btRcCmd" style="width:100%;" />
+		</div>
+		<p style="color:#aaa;font-size:3.5vmin;margin:4vmin 5vmin;line-height:1.5;">
+			Secondary aircraft are displayed on the map in different colours. Tap a marker for details.
+		</p>
 	</div>
 
 	<div id="settingsMenu" class="sidebar">
@@ -208,6 +224,13 @@
 				<div class="rc-cmd-btns">
 					<input type="number" class="cmd-number-input" id="inputAltitude" min="-10000" max="100000" step="1" placeholder="m" />
 					<input type="button" class="btRcCmd" id="btSendAltitude" value="Send" />
+				</div>
+			</div>
+			<div class="rc-cmd-row">
+				<span class="rc-cmd-label">Pos Hold</span>
+				<div class="rc-cmd-btns">
+					<input type="button" class="btRcCmd" id="btPosHoldOn" value="ON" />
+					<input type="button" class="btRcCmd" id="btPosHoldOff" value="OFF" />
 				</div>
 			</div>
 			<div class="rc-cmd-row">
@@ -402,6 +425,19 @@
 
 				<p><input type="button" id="btSaveUISettings" value="Save" /></p>
 			</div>
+		</div>
+	</div>
+
+	<!-- Secondary aircraft popup -->
+	<div id="secAircraftPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
+	<div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;font-family:Ubuntu,sans-serif;min-width:60vw;max-width:85vw;border:1px solid #555;">
+		<div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
+		<div id="secPopupLastSeen" style="color:#aaa;font-size:3.5vmin;margin-bottom:1.5vmin;"></div>
+		<div id="secPopupOlc" style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
+		<div id="secPopupOlcCopied" style="display:none;color:#9F6;font-size:3vmin;margin-bottom:2vmin;">Copied!</div>
+		<div style="margin-top:3vmin;">
+			<input type="button" id="btSecPopupStop" value="Stop tracking" class="btRcCmd" style="width:100%;margin-bottom:2vmin;" />
+			<input type="button" id="btSecPopupClose" value="Close" class="btRcCmd" style="width:100%;" />
 		</div>
 	</div>
 

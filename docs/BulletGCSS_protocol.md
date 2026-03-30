@@ -85,7 +85,7 @@ Fields are divided into 10 groups (0–9). On each cycle, `msgCounter % 10` dete
 | 4 | `cud`, `cad`, `rsi` |
 | 5 | `gla`, `glo`, `gsc` |
 | 6 | `ghp`, `css`, `3df` |
-| 7 | `hwh`, `arm`, `dls`, `mro`, `cmdrth`, `cmdalt`, `cmdcrs`, `cmdbep`, `cmdwp`, `fmcrs`, `fmalt`, `fmwp` |
+| 7 | `hwh`, `arm`, `dls`, `mro`, `cmdrth`, `cmdalt`, `cmdcrs`, `cmdbep`, `cmdwp`, `cmdph`, `fmcrs`, `fmalt`, `fmwp`, `fmph` |
 | 8 | `wpc`, `cwn`, `wpv` |
 | 9 | `fs`, `trp`, `att` |
 
@@ -274,6 +274,7 @@ These fields report which RC channel overrides the firmware is currently holding
 | `cmdcrs` | Cruise override active | `data.cmdCruise` | 0 or 1 |
 | `cmdbep` | Beeper override active | `data.cmdBeeper` | 0 or 1 |
 | `cmdwp` | WP Mission override active | `data.cmdWp` | 0 or 1 |
+| `cmdph` | Position Hold override active | `data.cmdPosHold` | 0 or 1 |
 
 > These reflect what the firmware is doing, not whether INAV has activated the mode. A `1` here with `mro:0` means the override is being sent but INAV is ignoring it (MSP RC Override mode not active on FC).
 
@@ -286,6 +287,7 @@ These fields report whether each flight mode is actually active on the flight co
 | `fmcrs` | Cruise / Course Hold mode active | `data.fmCruise` | 0 or 1 |
 | `fmalt` | Altitude Hold mode active | `data.fmAltHold` | 0 or 1 |
 | `fmwp` | WP Mission mode active | `data.fmWp` | 0 or 1 |
+| `fmph` | Position Hold mode active | `data.fmPosHold` | 0 or 1 |
 
 > The UI uses these fields to gate the `setheading`, `setalt`, and `jumpwp` commands respectively — a command that has no effect when the relevant mode is inactive is not shown as available. `fmwp` additionally gates the map waypoint-click jump feature: clicking a waypoint marker while WP Mission is active prompts the user to jump to that waypoint.
 

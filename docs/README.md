@@ -58,7 +58,7 @@ The UI fetch all the information from the same MQTT Broker that modem uses to se
 
 ### Can I see it?
 
-![Deploy BulletGCSS UI on FPV Sampa](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
+![Deploy BulletGCSS UI on Outros.net](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
 
 There's a Bullet GCSS UI hosted by Outros.net, which you can use free of charge. It has a continuous integration with the `master` branch of this repository, so every time the `master` branch is updated, the UI will be automatically updated on this address.
 

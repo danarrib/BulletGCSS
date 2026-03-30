@@ -1,7 +1,7 @@
-import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory } from './CommScripts.js';
+import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory, otherAircraft, addMonitoredTopic, removeMonitoredTopic, loadAndSubscribeMonitoredTopics } from './CommScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
-import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle, setOnWaypointClick } from './MapScripts.js';
+import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle, setOnWaypointClick, updateSecondaryAircraftOnMap, removeSecondaryAircraftFromMap, setOnSecondaryAircraftClick } from './MapScripts.js';
 import { updateDataView, setUIUnits, toggleBlinkFast, toggleBlinkSlow, openGoogleMaps } from './InfoPanelScripts.js';
 
 // Setup viewport
@@ -101,6 +101,7 @@ var rcCommands = [
     { cmd: "cruise",  onId: "btCruiseOn",  offId: "btCruiseOff",  dataKey: "cmdCruise"  },
     { cmd: "beeper",  onId: "btBeeperOn",  offId: "btBeeperOff",  dataKey: "cmdBeeper"  },
     { cmd: "wp",      onId: "btWpOn",      offId: "btWpOff",      dataKey: "cmdWp",      onCondition: function() { return data.isWaypointMissionValid === 1; } },
+    { cmd: "poshold", onId: "btPosHoldOn", offId: "btPosHoldOff", dataKey: "cmdPosHold" },
 ];
 
 function updateCommandsPanel() {
@@ -150,6 +151,96 @@ function openSecurityMenu() {
 function closeSecurityMenu() {
     document.getElementById("securityMenu").style.width = "0";
 }
+
+// ─── Multi-aircraft monitoring panel ─────────────────────────────────────────
+
+function openMonitoredMenu() {
+    renderMonitoredList();
+    document.getElementById("monitoredUAVsMenu").style.width = "100%";
+    closeNav();
+}
+
+function closeMonitoredMenu() {
+    document.getElementById("monitoredUAVsMenu").style.width = "0";
+}
+
+function renderMonitoredList() {
+    var container = document.getElementById("monitoredList");
+    var topics = Object.keys(otherAircraft);
+    if (topics.length === 0) {
+        container.innerHTML = '<p style="color:#aaa;margin:2vmin 5vmin;font-size:3.5vmin;">No aircraft being monitored.</p>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < topics.length; i++) {
+        var entry = otherAircraft[topics[i]];
+        var label = entry.callsign ? entry.callsign + ' (' + entry.topic + ')' : entry.topic;
+        html += '<div style="display:flex;align-items:center;padding:2vmin 5vmin;border-bottom:1px solid #333;">' +
+            '<span style="display:inline-block;width:3vmin;height:3vmin;border-radius:50%;background:' + entry.colour + ';margin-right:2vmin;flex-shrink:0;"></span>' +
+            '<span style="flex:1;font-size:3.5vmin;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</span>' +
+            '<input type="button" class="btRcCmd" value="Remove" data-topic="' + entry.topic + '" style="margin-left:2vmin;flex-shrink:0;" /></div>';
+    }
+    container.innerHTML = html;
+    var btns = container.querySelectorAll('input[data-topic]');
+    for (var j = 0; j < btns.length; j++) {
+        btns[j].addEventListener('click', function() {
+            var t = this.getAttribute('data-topic');
+            removeMonitoredTopic(t);
+            removeSecondaryAircraftFromMap(t);
+            renderMonitoredList();
+        });
+    }
+}
+
+// ─── Secondary aircraft popup ─────────────────────────────────────────────────
+
+var currentPopupTopic = null;
+
+function showSecondaryAircraftPopup(topic) {
+    var entry = otherAircraft[topic];
+    if (!entry) return;
+    currentPopupTopic = topic;
+
+    var callsign = entry.callsign || topic.split('/').pop();
+    var csEl = document.getElementById("secPopupCallsign");
+    csEl.textContent = callsign;
+    csEl.style.borderColor = entry.colour;
+
+    var elapsed = entry.lastSeen > 0 ? Math.floor((Date.now() - entry.lastSeen) / 1000) : -1;
+    document.getElementById("secPopupLastSeen").textContent = 'Last seen: ' +
+        (elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago');
+
+    var olcEl = document.getElementById("secPopupOlc");
+    document.getElementById("secPopupOlcCopied").style.display = 'none';
+    if (entry.lastSeen > 0 && typeof OpenLocationCode !== 'undefined') {
+        var latDeg = entry.lat / 10000000.0;
+        var lonDeg = entry.lon / 10000000.0;
+        var code = OpenLocationCode.encode(latDeg, lonDeg);
+        olcEl.textContent = '\uD83D\uDCCD ' + code;
+        olcEl.style.display = '';
+        olcEl.onclick = function() {
+            navigator.clipboard.writeText(code).then(function() {
+                document.getElementById("secPopupOlcCopied").style.display = '';
+                setTimeout(function() {
+                    document.getElementById("secPopupOlcCopied").style.display = 'none';
+                }, 2000);
+            }).catch(function() { prompt("Copy this Plus Code:", code); });
+        };
+    } else {
+        olcEl.style.display = 'none';
+    }
+
+    document.getElementById("secAircraftPopup").style.display = 'block';
+    document.getElementById("secAircraftPopupOverlay").style.display = 'block';
+}
+
+function closeSecondaryPopup() {
+    document.getElementById("secAircraftPopup").style.display = 'none';
+    document.getElementById("secAircraftPopupOverlay").style.display = 'none';
+    currentPopupTopic = null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 function loadSecurityPanel() {
     var hasKey     = localStorage.getItem("commandPrivateKey") !== null;
@@ -691,6 +782,31 @@ document.getElementById("navSessionsMenu").addEventListener("click", openSession
 document.getElementById("closeSessionsMenu").addEventListener("click", closeSessionsMenu);
 document.getElementById("btRenameSession").addEventListener("click", renameCurrentSession);
 document.getElementById("btNewSession").addEventListener("click", newSession);
+document.getElementById("navMonitoredUAVs").addEventListener("click", openMonitoredMenu);
+document.getElementById("closeMonitoredMenu").addEventListener("click", closeMonitoredMenu);
+document.getElementById("btAddMonitorTopic").addEventListener("click", function() {
+    var topicInput = document.getElementById("inputMonitorTopic");
+    var errorEl    = document.getElementById("monitorTopicError");
+    var err = addMonitoredTopic(topicInput.value.trim());
+    if (err) {
+        errorEl.textContent = err;
+        errorEl.style.display = '';
+    } else {
+        errorEl.style.display = 'none';
+        topicInput.value = '';
+        renderMonitoredList();
+    }
+});
+document.getElementById("btSecPopupStop").addEventListener("click", function() {
+    if (currentPopupTopic) {
+        removeMonitoredTopic(currentPopupTopic);
+        removeSecondaryAircraftFromMap(currentPopupTopic);
+        renderMonitoredList();
+    }
+    closeSecondaryPopup();
+});
+document.getElementById("btSecPopupClose").addEventListener("click", closeSecondaryPopup);
+document.getElementById("secAircraftPopupOverlay").addEventListener("click", closeSecondaryPopup);
 
 // Modules are deferred — use DOMContentLoaded instead of window.onload
 // to guarantee the handler runs even if the page loaded before the module executed.
@@ -760,7 +876,10 @@ window.addEventListener("DOMContentLoaded", async function() {
         }
     });
 
+    setOnSecondaryAircraftClick(showSecondaryAircraftPopup);
+
     MQTTconnect();
+    loadAndSubscribeMonitoredTopics();
     renderEFIS(data);
     updateDataView(data);
     drawAircraftOnMap(data);
@@ -787,6 +906,7 @@ window.addEventListener("DOMContentLoaded", async function() {
         estimatePosition();
         drawAircraftOnMap(data);
         drawCourseLineOnMap(data);
+        updateSecondaryAircraftOnMap();
     }, pageSettings.mapFastRefreshInterval);
 
     var timerMapAndData = setInterval(function(){

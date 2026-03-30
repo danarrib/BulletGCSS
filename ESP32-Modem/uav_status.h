@@ -72,9 +72,11 @@ struct uav_status
     uint8_t cmdCruise;      // 1 = Cruise channel actively overridden
     uint8_t cmdBeeper;      // 1 = Beeper channel actively overridden
     uint8_t cmdWp;          // 1 = WP/Mission channel actively overridden
+    uint8_t cmdPosHold;     // 1 = Position Hold channel actively overridden
     uint8_t fmCruise;       // 1 = Cruise/Course Hold flight mode active (any source)
     uint8_t fmAltHold;      // 1 = Altitude Hold flight mode active (any source)
     uint8_t fmWp;           // 1 = WP/Mission flight mode active (any source)
+    uint8_t fmPosHold;      // 1 = Position Hold flight mode active (any source)
     uint8_t fcVersionMajor;
     uint8_t fcVersionMinor;
     uint8_t fcVersionPatch;

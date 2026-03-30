@@ -151,7 +151,6 @@ uint8_t boxIdArm        = 0;
 uint8_t boxIdFailsafe   = 0;
 uint8_t boxIdManual     = 0;
 uint8_t boxIdAngle      = 0;
-uint8_t boxIdPosHold    = 0;
 uint8_t boxIdHorizon    = 0;
 uint8_t boxIdMspOverride = 0;
 
@@ -168,11 +167,12 @@ bool mspOverrideFetched = false;
 // Each FlightMode bundles what were previously four separate per-mode variables:
 //   modeRange*, cmdAvailable*, cmdState*, and boxId*.
 // ARM is intentionally excluded — see boxIdArm comment above.
-FlightMode modeAltHold = {};
-FlightMode modeRth     = {};
-FlightMode modeBeeper  = {};
-FlightMode modeWp      = {};
-FlightMode modeCruise  = {};
+FlightMode modeAltHold  = {};
+FlightMode modeRth      = {};
+FlightMode modeBeeper   = {};
+FlightMode modeWp       = {};
+FlightMode modeCruise   = {};
+FlightMode modePosHold  = {};
 
 // Table of all commandable flight modes.
 // Drives mode-range parsing, override-channel setup, RC override sending,
@@ -189,6 +189,7 @@ static FlightModeEntry cmdModes[] = {
     { "cruise",  "NAV CRUISE",  MSP_PERM_ID_CRUISE,  &modeCruise  },
     { "beeper",  "BEEPER",      MSP_PERM_ID_BEEPER,  &modeBeeper  },
     { "wp",      "NAV WP",      MSP_PERM_ID_WP,      &modeWp      },
+    { "poshold", "NAV POSHOLD", MSP_PERM_ID_POSHOLD, &modePosHold },
 };
 static const int CMD_MODE_COUNT = sizeof(cmdModes) / sizeof(cmdModes[0]);
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,8 +203,9 @@ bool boxIdsFetched = 0;
 bool modeRangesFetched = false;
 bool fcVersionFetched = false;
 bool callsignFetched = 0;
-uint8_t waypointFetchCounter = 0;
-uint8_t waypointMessageCounter = 0;
+uint8_t  waypointMessageCounter = 0;
+uint32_t wpFetchNextTs          = 0;   // when to start the next full WP fetch
+int16_t  wpFetchIndex           = -1;  // -1 = idle; 0..waypointCount = fetch in progress
 
 uint32_t lastMspCommunicationTs = 0; // Used to check if MSP protocol is working fine
 
@@ -254,7 +256,6 @@ void msp_get_nav_status();
 void msp2_get_inav_analog();
 void msp_get_sensor_status();
 void msp2_get_misc2();
-void get_all_waypoints();
 void msp_get_wp(uint8_t wp_no);
 void msp_get_fc_version();
 void msp_get_boxnames();
@@ -823,18 +824,31 @@ void getTelemetryData()
       MSP_TIME("get_cellSignalStrength", get_cellSignalStrength());
       break;
   }
+  // Waypoint fetch state machine — one WP per cycle (~30 ms each) so the
+  // 160 ms cycle budget is never exceeded regardless of mission size.
+  // wpFetchNextTs=0 at init → first fetch begins immediately on boot.
+  if (wpFetchIndex < 0) {
+      if (millis() >= wpFetchNextTs)
+          wpFetchIndex = 0;  // kick off: always start with home point (WP 0)
+  } else {
+      MSP_TIME("msp_get_wp", msp_get_wp(wpFetchIndex));
+      if (++wpFetchIndex > uavstatus.waypointCount) {
+          wpFetchIndex  = -1;
+          wpFetchNextTs = millis() + 30000;
+      }
+  }
+
   uint32_t _cycleElapsed = millis() - _cycleStart;
   if (_cycleElapsed > TASK_MSP_READ_MS)
       SerialMon.printf("WARNING: cycle %d overrun (%lu ms)\n", rrCycle, _cycleElapsed);
   if (++rrCycle > 5) rrCycle = 0;
   //SerialMon.printf("[timing] total cycle ms: %lu\n", _cycleElapsed);
 
-  // Slow-poll: callsign and waypoints don't change often — refresh every 10 s.
+  // Slow-poll: callsign doesn't change often — refresh every 10 s.
   static uint32_t lastSlowPollTs = 0;
   if (millis() - lastSlowPollTs >= 10000) {
       lastSlowPollTs = millis();
-      MSP_TIME("msp_get_callsign",  msp_get_callsign());
-      MSP_TIME("get_all_waypoints", get_all_waypoints());
+      MSP_TIME("msp_get_callsign", msp_get_callsign());
   }
 
   // ── MSP recovery routine ──────────────────────────────────────────────────
@@ -970,7 +984,13 @@ void msp_get_wp_getinfo() {
     if (msp.request(MSP_WP_GETINFO, &inavdata, sizeof(inavdata)))
     {
       uavstatus.isWpMissionValid = inavdata.isWaypointListValid;
-      uavstatus.waypointCount = inavdata.waypointCount;
+
+      if (inavdata.waypointCount != uavstatus.waypointCount) {
+          uavstatus.waypointCount = inavdata.waypointCount;
+          // Mission changed — cancel any in-progress fetch and start a fresh one immediately.
+          wpFetchIndex  = -1;
+          wpFetchNextTs = 0;
+      }
 
       lastMspCommunicationTs = millis();
     }
@@ -1058,25 +1078,6 @@ void msp2_get_misc2() {
     }
 }
 
-void get_all_waypoints()
-{
-  // Run this routine only each 10 cycles
-  if(waypointFetchCounter < HOME_POINT_FETCH_INTERVAL)
-  {
-    waypointFetchCounter++;
-  }
-  else{
-    waypointFetchCounter = 0;
-
-    // Get home point
-    msp_get_wp(0);
-
-    // Get waypoints
-    for(uint8_t i = 1; i <= uavstatus.waypointCount; i++)
-      msp_get_wp(i);
-  }
-}
-
 void msp_get_wp(uint8_t wp_no) {
     msp_set_wp_t inavdata;
     inavdata.waypointNumber = wp_no;
@@ -1150,7 +1151,6 @@ void msp_get_boxnames() {
           else if (strcmp(chars_array, "FAILSAFE")        == 0) boxIdFailsafe    = boxIndex;
           else if (strcmp(chars_array, "MANUAL")          == 0) boxIdManual      = boxIndex;
           else if (strcmp(chars_array, "ANGLE")           == 0) boxIdAngle       = boxIndex;
-          else if (strcmp(chars_array, "NAV POSHOLD")     == 0) boxIdPosHold     = boxIndex;
           else if (strcmp(chars_array, "HORIZON")         == 0) boxIdHorizon     = boxIndex;
           else if (strcmp(chars_array, "MSP RC OVERRIDE") == 0) boxIdMspOverride = boxIndex;
         }
@@ -1358,7 +1358,7 @@ void clearAllCommandStates() {
         cmdModes[i].mode->active = false;
     xSemaphoreGive(cmdMutex);
     uavstatus.cmdRth = uavstatus.cmdAltHold = uavstatus.cmdCruise =
-        uavstatus.cmdBeeper = uavstatus.cmdWp = 0;
+        uavstatus.cmdBeeper = uavstatus.cmdWp = uavstatus.cmdPosHold = 0;
 }
 
 // Clear any active commands that share the same RC channel as a new incoming
@@ -1447,12 +1447,13 @@ void msp_send_rc_override() {
     xSemaphoreGive(cmdMutex);
 
     // Update telemetry command state fields from the snapshot (always, even when nothing active).
-    // cmdModes[] order: 0=rth, 1=althold, 2=cruise, 3=beeper, 4=wp
+    // cmdModes[] order: 0=rth, 1=althold, 2=cruise, 3=beeper, 4=wp, 5=poshold
     uavstatus.cmdRth     = activeSnapshot[0] ? 1 : 0;
     uavstatus.cmdAltHold = activeSnapshot[1] ? 1 : 0;
     uavstatus.cmdCruise  = activeSnapshot[2] ? 1 : 0;
     uavstatus.cmdBeeper  = activeSnapshot[3] ? 1 : 0;
     uavstatus.cmdWp      = activeSnapshot[4] ? 1 : 0;
+    uavstatus.cmdPosHold = activeSnapshot[5] ? 1 : 0;
 
     if (!anyActive) return;
 
@@ -1574,7 +1575,7 @@ void msp_get_activeboxes() {
       bool fmManual     = (boxes64 & (1LL << boxIdManual))        != 0;
       bool fmAngle      = (boxes64 & (1LL << boxIdAngle))          != 0;
       bool fmRth        = (boxes64 & (1LL << modeRth.boxId))      != 0;
-      bool fmPosHold    = (boxes64 & (1LL << boxIdPosHold))       != 0;
+      bool fmPosHold    = (boxes64 & (1LL << modePosHold.boxId))  != 0;
       bool fmCruise     = (boxes64 & (1LL << modeCruise.boxId))   != 0;
       bool fmAltHold    = (boxes64 & (1LL << modeAltHold.boxId))  != 0;
       bool fmWaypoint   = (boxes64 & (1LL << modeWp.boxId))       != 0;
@@ -1623,6 +1624,7 @@ void msp_get_activeboxes() {
       uavstatus.fmCruise  = fmCruise;
       uavstatus.fmAltHold = fmAltHold;
       uavstatus.fmWp      = fmWaypoint;
+      uavstatus.fmPosHold = fmPosHold;
 
       // Detect MSP RC Override going inactive — clear all command states so
       // stale commands don't fire when the pilot switches the mode back on.
@@ -1820,12 +1822,16 @@ void buildTelemetryMessage(char* message) {
     sprintf(message, "%scmdbep:%d,", message, publishedStatus.cmdBeeper);
   if(lastStatus.cmdWp != publishedStatus.cmdWp || msgGroup == 7)
     sprintf(message, "%scmdwp:%d,", message, publishedStatus.cmdWp);
+  if(lastStatus.cmdPosHold != publishedStatus.cmdPosHold || msgGroup == 7)
+    sprintf(message, "%scmdph:%d,", message, publishedStatus.cmdPosHold);
   if(lastStatus.fmCruise != publishedStatus.fmCruise || msgGroup == 7)
     sprintf(message, "%sfmcrs:%d,", message, publishedStatus.fmCruise);
   if(lastStatus.fmAltHold != publishedStatus.fmAltHold || msgGroup == 7)
     sprintf(message, "%sfmalt:%d,", message, publishedStatus.fmAltHold);
   if(lastStatus.fmWp != publishedStatus.fmWp || msgGroup == 7)
     sprintf(message, "%sfmwp:%d,", message, publishedStatus.fmWp);
+  if(lastStatus.fmPosHold != publishedStatus.fmPosHold || msgGroup == 7)
+    sprintf(message, "%sfmph:%d,", message, publishedStatus.fmPosHold);
 
   if(lastStatus.waypointCount != publishedStatus.waypointCount || msgGroup == 8)
     sprintf(message, "%swpc:%d,", message, publishedStatus.waypointCount); // waypointCount

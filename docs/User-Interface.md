@@ -6,7 +6,7 @@ It also works fine on PC too (Windows, Mac, Linux).
 
 It works fine both on portrait mode (vertical screen) and landscape mode (horizontal screen). Works fine on every screen resolution and pixel ratios, and also works fine with non-rectangular screens (like the newer iPhones screens that has the sensors array taking the top part of the screen).
 
-![Deploy BulletGCSS UI on FPV Sampa](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
+![Deploy BulletGCSS UI on Outros.net](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
 
 You can use [Bullet GCSS directly from Outros.net](https://bulletgcss.outros.net), or you can download it and [host on your own Web server](Host-the-user-interface.md).
 
