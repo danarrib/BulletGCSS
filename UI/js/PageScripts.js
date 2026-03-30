@@ -793,6 +793,7 @@ window.addEventListener("DOMContentLoaded", async function() {
         toggleBlinkFast();
 
         drawAircraftPathOnMap(data);
+        drawUserOnMap(data);
         updateDataView(data);
 
         if (document.getElementById("commandsMenu").style.width === "100%")
@@ -827,7 +828,6 @@ window.addEventListener("DOMContentLoaded", async function() {
     var timerLowPriorityTasks = setInterval(function(){
         drawMissionOnMap(data);
         drawHomeOnMap(data);
-        drawUserOnMap(data);
 
         if(user_moved_map == true)
             setUserMovedMap(false);
