@@ -466,15 +466,19 @@ function onMessageArrived(message) {
 // ─── Multi-aircraft monitoring ────────────────────────────────────────────────
 
 // Colour palette for secondary aircraft. Each entry provides a CSS hue-rotate
-// angle (applied to the green aircraft SVG) and a hex colour string used for
-// MapLibre GL JS line layers and the label border.
+// angle and a hex colour string used for MapLibre GL JS line layers and the
+// label border. The filter chain used in MapScripts.js is:
+//   brightness(0) invert(1) sepia(1) hue-rotate(Ndeg) saturate(3)
+// This converts any source icon to a reliably coloured output regardless of
+// the original icon colour. Sepia has a starting hue of ~38°, so the final
+// hue ≈ 38° + N. Values below are chosen to produce the target colours.
 var SECONDARY_PALETTE = [
-    { hueRotate: 180, color: '#F66' },   // pink/magenta
-    { hueRotate: 240, color: '#FA4' },   // orange
-    { hueRotate: 60,  color: '#4EE' },   // cyan
-    { hueRotate: 300, color: '#EE4' },   // yellow
-    { hueRotate: 120, color: '#84F' },   // purple
-    { hueRotate: 30,  color: '#AFA' },   // light green
+    { hueRotate: 322, color: '#F66' },   // red/pink   (0°  target: 0-38=-38 → 322)
+    { hueRotate: 352, color: '#FA4' },   // orange     (30° target: 30-38=-8 → 352)
+    { hueRotate: 142, color: '#4EE' },   // cyan       (180° target: 180-38=142)
+    { hueRotate: 22,  color: '#EE4' },   // yellow     (60° target: 60-38=22)
+    { hueRotate: 232, color: '#84F' },   // purple     (270° target: 270-38=232)
+    { hueRotate: 82,  color: '#AFA' },   // light green (120° target: 120-38=82)
 ];
 var paletteNextIndex = 0;
 
