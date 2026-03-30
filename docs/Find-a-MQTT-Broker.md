@@ -30,7 +30,7 @@ To change the MQTT parameters on the modem, edit the `Config.h` file before [fla
 
 To change the MQTT parameters on the UI, click on the _gear_ icon on the top of the screen, and choose the _Broker settings_ option.
 
-<img width="1493" height="800" alt="image" src="https://github.com/user-attachments/assets/f4f5ed58-035d-4d3a-a791-07ced5f55f1b" />
+![MQTT Broker settings walkthrough](screenshots/mqtt_settings.png)
 
 Settings will be saved on your device, so next time you open Bullet GCSS, it'll connect using the same settings.
 
