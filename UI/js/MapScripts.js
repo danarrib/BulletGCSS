@@ -107,6 +107,10 @@ function addSecondaryToMap(entry) {
         'border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
         'font-family:Ubuntu,sans-serif;' +
         'border-left:' + (3 * window.devicePixelRatio) + 'px solid ' + entry.colour + ';';
+    var labelL1 = document.createElement('div'); // callsign
+    var labelL2 = document.createElement('div'); // alt  vsp  speed
+    labelEl.appendChild(labelL1);
+    labelEl.appendChild(labelL2);
     secLabelContainer.appendChild(labelEl);
 
     // Marker is NOT added to the map yet — we add it on first valid GPS fix to
@@ -121,6 +125,8 @@ function addSecondaryToMap(entry) {
     obj.marker   = marker;
     obj.markerEl = markerEl;
     obj.labelEl  = labelEl;
+    obj.labelL1  = labelL1;
+    obj.labelL2  = labelL2;
     secondaryAircraftObjects[entry.topic] = obj;
 
     if (map.isStyleLoaded()) addSecondarySourcesAndLayers(entry, obj);
@@ -199,7 +205,8 @@ export function updateSecondaryAircraftOnMap() {
         var spdKmh  = (entry.gsp / 27.78).toFixed(1);
         var climb   = entry.vsp > 20 ? '\u2191' : entry.vsp < -20 ? '\u2193' : '\u2014';
         var csLabel = entry.callsign || entry.topic.split('/').pop();
-        obj.labelEl.textContent = csLabel + '  ' + altM + 'm  ' + spdKmh + '\u202fkm/h  ' + climb;
+        obj.labelL1.textContent = csLabel;
+        obj.labelL2.textContent = altM + 'm\u2002' + climb + '\u2002' + spdKmh + '\u202fkm/h';
 
         // Course line — 1 minute of flight at current ground speed (same as primary)
         var courseSrc = map.getSource(obj.courseSourceId);
