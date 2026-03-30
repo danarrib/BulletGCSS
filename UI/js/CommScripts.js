@@ -466,15 +466,17 @@ function onMessageArrived(message) {
 // ─── Multi-aircraft monitoring ────────────────────────────────────────────────
 
 // Colour palette for secondary aircraft. Each entry provides a CSS hue-rotate
-// angle (applied after invert(1)) and a hex colour string used for MapLibre
-// GL JS line layers and the label border.
+// angle and a hex colour string used for MapLibre GL JS line layers and the
+// label border. The filter chain in MapScripts.js normalises any source icon
+// to white via brightness(0)+invert(1), then sepia gives a starting hue of
+// ~38°. Final hue ≈ 38° + N, so N = target hue − 38°.
 var SECONDARY_PALETTE = [
-    { hueRotate: 180, color: '#F66' },   // pink/magenta
-    { hueRotate: 240, color: '#FA4' },   // orange
-    { hueRotate: 60,  color: '#4EE' },   // cyan
-    { hueRotate: 300, color: '#EE4' },   // yellow
-    { hueRotate: 120, color: '#84F' },   // purple
-    { hueRotate: 30,  color: '#AFA' },   // light green
+    { hueRotate: 322, color: '#F66' },   // red/pink    (target   0°: 0−38 → 322)
+    { hueRotate: 352, color: '#FA4' },   // orange      (target  30°: 30−38 → 352)
+    { hueRotate: 142, color: '#4EE' },   // cyan        (target 180°: 180−38 → 142)
+    { hueRotate: 22,  color: '#EE4' },   // yellow      (target  60°: 60−38 → 22)
+    { hueRotate: 232, color: '#84F' },   // purple      (target 270°: 270−38 → 232)
+    { hueRotate: 82,  color: '#AFA' },   // light green (target 120°: 120−38 → 82)
 ];
 var paletteNextIndex = 0;
 
