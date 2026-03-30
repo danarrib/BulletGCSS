@@ -196,12 +196,12 @@ function renderMonitoredList() {
 
 var currentPopupTopic = null;
 
-function showSecondaryAircraftPopup(topic) {
-    var entry = otherAircraft[topic];
+function refreshSecondaryPopup() {
+    if (!currentPopupTopic) return;
+    var entry = otherAircraft[currentPopupTopic];
     if (!entry) return;
-    currentPopupTopic = topic;
 
-    var callsign = entry.callsign || topic.split('/').pop();
+    var callsign = entry.callsign || currentPopupTopic.split('/').pop();
     var csEl = document.getElementById("secPopupCallsign");
     csEl.textContent = callsign;
     csEl.style.borderColor = entry.colour;
@@ -211,7 +211,6 @@ function showSecondaryAircraftPopup(topic) {
         (elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago');
 
     var olcEl = document.getElementById("secPopupOlc");
-    document.getElementById("secPopupOlcCopied").style.display = 'none';
     if (entry.lastSeen > 0 && typeof OpenLocationCode !== 'undefined') {
         var latDeg = entry.lat / 10000000.0;
         var lonDeg = entry.lon / 10000000.0;
@@ -229,7 +228,14 @@ function showSecondaryAircraftPopup(topic) {
     } else {
         olcEl.style.display = 'none';
     }
+}
 
+function showSecondaryAircraftPopup(topic) {
+    var entry = otherAircraft[topic];
+    if (!entry) return;
+    currentPopupTopic = topic;
+    document.getElementById("secPopupOlcCopied").style.display = 'none';
+    refreshSecondaryPopup();
     document.getElementById("secAircraftPopup").style.display = 'block';
     document.getElementById("secAircraftPopupOverlay").style.display = 'block';
 }
@@ -907,6 +913,7 @@ window.addEventListener("DOMContentLoaded", async function() {
         drawAircraftOnMap(data);
         drawCourseLineOnMap(data);
         updateSecondaryAircraftOnMap();
+        refreshSecondaryPopup();
     }, pageSettings.mapFastRefreshInterval);
 
     var timerMapAndData = setInterval(function(){
