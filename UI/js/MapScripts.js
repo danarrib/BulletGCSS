@@ -95,7 +95,7 @@ function addSecondaryToMap(entry) {
     var markerEl = document.createElement('img');
     markerEl.src = 'img/aircraft.png';
     markerEl.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;cursor:pointer;display:block;' +
-        'filter:invert(1) hue-rotate(' + entry.hueRotate + 'deg);';
+        'filter:invert(1) sepia(100%) hue-rotate(' + entry.hueRotate + 'deg);';
 
     // Label: lives in the screen-space overlay, positioned via map.project() each tick.
     // This prevents it from rotating with the aircraft icon.
