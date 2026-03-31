@@ -502,7 +502,8 @@ async function downloadMission() {
         return;
     }
 
-    var buffer = getMissionDownloadBuffer();
+    // WP 0 is the MSP home/RTH position, not a mission waypoint — skip it
+    var buffer = getMissionDownloadBuffer().filter(function(wp) { return wp.dlwp !== 0; });
     if (buffer.length === 0) {
         progressEl.style.display = 'none';
         alert('No waypoints received from aircraft.');

@@ -139,10 +139,11 @@ msp_set_wp_t currentWPMission[256];
 // ── Mission upload staging buffer ─────────────────────────────────────────────
 // Incoming setwp commands are buffered here; only forwarded to the FC once the
 // last WP (f:0xA5) is received and the full mission passes validation.
-#define NAV_MAX_WAYPOINTS_FIRMWARE 15
-static msp_set_wp_t stagedMission[NAV_MAX_WAYPOINTS_FIRMWARE];
-static uint8_t      stagedCount   = 0;   // highest wpno received so far
-static bool         stagingActive = false; // true after wpno:1 received
+// Heap-allocated on WP 1 so the size can match the FC-reported maxWaypoints.
+#define NAV_MAX_WAYPOINTS_FIRMWARE 15   // fallback when FC has not reported max yet
+static msp_set_wp_t *stagedMission = NULL;
+static uint8_t       stagedCount   = 0;   // highest wpno received so far
+static bool          stagingActive = false; // true after wpno:1 received
 
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
@@ -718,13 +719,10 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   } else if (strcmp(cmd, "getmission") == 0) {
       // Fetch the full published mission and send each WP as a dlwp: telemetry message,
       // then send ACK. If no mission is loaded, send NACK reason:nomission.
+      // Get the WP count under mutex before allocating
       uint8_t wpCount = 0;
-      msp_set_wp_t wpSnapshot[NAV_MAX_WAYPOINTS_FIRMWARE];
       xSemaphoreTake(dataMutex, portMAX_DELAY);
       wpCount = publishedStatus.waypointCount;
-      if (wpCount > NAV_MAX_WAYPOINTS_FIRMWARE) wpCount = NAV_MAX_WAYPOINTS_FIRMWARE;
-      if (wpCount > 0)
-          memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
       xSemaphoreGive(dataMutex);
 
       if (wpCount == 0) {
@@ -734,6 +732,22 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           sendMessage(nack);
           return;
       }
+
+      // Heap-allocate the snapshot to avoid blowing the loopTask stack
+      msp_set_wp_t *wpSnapshot = (msp_set_wp_t *)malloc(wpCount * sizeof(msp_set_wp_t));
+      if (!wpSnapshot) {
+          SerialMon.println("getmission: malloc failed, sending NACK");
+          char nack[64];
+          snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:oom,", cid);
+          sendMessage(nack);
+          return;
+      }
+
+      xSemaphoreTake(dataMutex, portMAX_DELAY);
+      // Clamp in case waypointCount changed between the two mutex acquisitions
+      if (publishedStatus.waypointCount < wpCount) wpCount = publishedStatus.waypointCount;
+      memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
+      xSemaphoreGive(dataMutex);
 
       SerialMon.printf("getmission: sending %d WP(s)\n", wpCount);
       for (uint8_t i = 0; i < wpCount; i++) {
@@ -749,6 +763,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           sendMessage(dlwpMsg);
           SerialMon.printf("getmission: sent dlwp %d\n", i + 1);
       }
+      free(wpSnapshot);
 
       char ackMsg[32];
       snprintf(ackMsg, sizeof(ackMsg), "cmd:ack,cid:%s,", cid);
@@ -763,6 +778,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
       if (strlen(wpnoStr) == 0 || strlen(wplaStr) == 0 || strlen(wploStr) == 0 || strlen(wpalStr) == 0) {
           SerialMon.println("setwp: missing required fields");
+          if (stagedMission) { free(stagedMission); stagedMission = NULL; }
+          stagedCount = 0; stagingActive = false;
           if (deferAck) {
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:badfields,", cid);
@@ -782,8 +799,9 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       uint8_t wpF   = (uint8_t)(strlen(wpfStr)  ? atoi(wpfStr)  : 0);
 
       uint8_t maxWp = (uavstatus.maxWaypoints > 0) ? uavstatus.maxWaypoints : NAV_MAX_WAYPOINTS_FIRMWARE;
-      if (wpno == 0 || wpno > maxWp || wpno > NAV_MAX_WAYPOINTS_FIRMWARE) {
+      if (wpno == 0 || wpno > maxWp) {
           SerialMon.printf("setwp: wpno %d out of range (max %d)\n", wpno, maxWp);
+          if (stagedMission) { free(stagedMission); stagedMission = NULL; }
           stagedCount = 0; stagingActive = false;
           if (deferAck) {
               char nack[64];
@@ -795,7 +813,19 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
       // wpno:1 always resets the staging buffer (start of a new upload attempt)
       if (wpno == 1) {
-          memset(stagedMission, 0, sizeof(stagedMission));
+          if (stagedMission) { free(stagedMission); stagedMission = NULL; }
+          stagedMission = (msp_set_wp_t *)malloc(maxWp * sizeof(msp_set_wp_t));
+          if (!stagedMission) {
+              SerialMon.println("setwp: malloc failed for staging buffer");
+              stagedCount = 0; stagingActive = false;
+              if (deferAck) {
+                  char nack[64];
+                  snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:oom,", cid);
+                  sendMessage(nack);
+              }
+              return;
+          }
+          memset(stagedMission, 0, maxWp * sizeof(msp_set_wp_t));
           stagedCount = 0;
           stagingActive = true;
           SerialMon.println("setwp: staging buffer reset for new upload");
@@ -841,6 +871,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:busy,", cid);
               sendMessage(nack);
+              if (stagedMission) { free(stagedMission); stagedMission = NULL; }
               stagedCount = 0; stagingActive = false;
               return;
           }
@@ -853,6 +884,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:gap,", cid);
               sendMessage(nack);
+              if (stagedMission) { free(stagedMission); stagedMission = NULL; }
               stagedCount = 0; stagingActive = false;
               return;
           }
@@ -871,6 +903,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       sendMessage(ackWp);
       SerialMon.println("setwp: upload complete, ACK sent");
 
+      free(stagedMission); stagedMission = NULL;
       stagedCount = 0;
       stagingActive = false;
 
