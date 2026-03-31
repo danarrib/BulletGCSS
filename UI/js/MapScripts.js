@@ -65,34 +65,12 @@ function sanitizeMapId(topic) {
     return 'sec_' + topic.replace(/[^a-zA-Z0-9]/g, '_');
 }
 
-function addSecondarySourcesAndLayers(entry, obj) {
-    if (!map.getSource(obj.courseSourceId)) {
-        map.addSource(obj.courseSourceId, { type: 'geojson', data: { type: 'Feature', geometry: null } });
-    }
-    if (!map.getLayer(obj.courseLayerId)) {
-        map.addLayer({ id: obj.courseLayerId, type: 'line', source: obj.courseSourceId,
-            paint: { 'line-color': entry.colour, 'line-width': (2 * window.devicePixelRatio) } });
-    }
-    if (!map.getSource(obj.pathSourceId)) {
-        map.addSource(obj.pathSourceId, { type: 'geojson',
-            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-    }
-    if (!map.getLayer(obj.pathLayerId)) {
-        map.addLayer({ id: obj.pathLayerId, type: 'line', source: obj.pathSourceId,
-            paint: { 'line-color': entry.colour, 'line-width': (2 * window.devicePixelRatio) } });
-    }
-}
-
 function addSecondaryToMap(entry) {
     var safeId = sanitizeMapId(entry.topic);
     var imgWH  = 36 * window.devicePixelRatio;
     var obj = {
-        courseSourceId: safeId + '_cs',
-        courseLayerId:  safeId + '_cl',
-        pathSourceId:   safeId + '_ps',
-        pathLayerId:    safeId + '_pl',
-        iconHalf:       imgWH / 2,
-        addedToMap:     false,
+        iconHalf:   imgWH / 2,
+        addedToMap: false,
     };
 
     // Marker element: aircraft image only — no label inside so it won't rotate with the icon.
@@ -141,10 +119,6 @@ function removeSecondaryFromMap(topic) {
     if (!obj) return;
     if (obj.addedToMap) obj.marker.remove();
     obj.labelEl.remove();
-    if (map.getLayer(obj.courseLayerId))   map.removeLayer(obj.courseLayerId);
-    if (map.getSource(obj.courseSourceId)) map.removeSource(obj.courseSourceId);
-    if (map.getLayer(obj.pathLayerId))     map.removeLayer(obj.pathLayerId);
-    if (map.getSource(obj.pathSourceId))   map.removeSource(obj.pathSourceId);
     delete secondaryAircraftObjects[topic];
 }
 
@@ -170,12 +144,6 @@ export function updateSecondaryAircraftOnMap() {
 
         var obj = secondaryAircraftObjects[topic];
         if (!obj) continue;
-
-        // Ensure sources/layers exist — addSecondaryToMap may have run before
-        // isStyleLoaded() returned true, so retry until the style is ready.
-        if (!map.getSource(obj.courseSourceId) && map.isStyleLoaded()) {
-            addSecondarySourcesAndLayers(entry, obj);
-        }
 
         // Dead-reckon position: project forward from last known fix using speed and course,
         // same approach as estimatePosition() for the primary aircraft.
@@ -218,30 +186,6 @@ export function updateSecondaryAircraftOnMap() {
         obj.labelL1.textContent = csLabel;
         obj.labelL2.textContent = altM + 'm\u2002' + climb + '\u2002' + spdKmh + '\u202fkm/h';
 
-        // Course line — 1 minute of flight at current ground speed (same as primary)
-        var courseSrc = map.getSource(obj.courseSourceId);
-        if (courseSrc) {
-            if (entry.gsp > 0) {
-                var courseDistM = (entry.gsp / 100) * 60;
-                var end = DestinationCoordinates(latDeg, lonDeg, entry.course, courseDistM);
-                courseSrc.setData({ type: 'Feature', geometry: {
-                    type: 'LineString',
-                    coordinates: [[lonDeg, latDeg], [end.lng, end.lat]]
-                }});
-            } else {
-                courseSrc.setData({ type: 'Feature', geometry: null });
-            }
-            map.setPaintProperty(obj.courseLayerId, 'line-opacity', stale ? 0.5 : 1.0);
-        }
-
-        // Flight path
-        var pathSrc = map.getSource(obj.pathSourceId);
-        if (pathSrc && entry.flightPath.length >= 2) {
-            pathSrc.setData({ type: 'Feature', geometry: {
-                type: 'LineString', coordinates: entry.flightPath
-            }});
-            map.setPaintProperty(obj.pathLayerId, 'line-opacity', stale ? 0.5 : 1.0);
-        }
     }
 }
 
@@ -334,11 +278,6 @@ map.on('style.load', function() {
         paint: { 'line-color': '#69F', 'line-width': (3 * window.devicePixelRatio) }
     });
 
-    // Re-add secondary aircraft sources/layers (cleared when style reloads)
-    for (var secTopic in secondaryAircraftObjects) {
-        var secEntry = otherAircraft[secTopic];
-        if (secEntry) addSecondarySourcesAndLayers(secEntry, secondaryAircraftObjects[secTopic]);
-    }
 });
 
 // ─── Aircraft marker ──────────────────────────────────────────────────────────
