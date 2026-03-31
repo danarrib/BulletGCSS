@@ -1,14 +1,15 @@
 // MissionPlannerScripts.js — Mission Planner for Bullet GCSS
-// Owns all planned-mission state and UI logic. Lazy-initialises a second
-// MapLibre GL JS map instance the first time the planner view is opened.
 
 import { data, mqttConnected, publishCommand, waitForCommandAck } from './CommScripts.js';
+import { hasUserLocation } from './MapScripts.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let plannerMap = null;
-let plannerMapReady = false;    // true after map 'load' event fires
-let plannerMapInitialized = false; // true after initPlannerMap() called
+let plannerMapReady = false;
+let plannerMapInitialized = false;
+let plannerUpdateInterval = null;
+let plannerUserMarker = null;
 
 // Array of mission waypoints.
 // Shape: { lat, lon, altM, action, speedMs, loiterSec }
@@ -18,8 +19,10 @@ let plannedMission = [];
 let wpMarkers = [];
 
 let routeSourceAdded = false;
-let modalWpIndex = -1;   // which WP the modal is editing (-1 = none)
+let modalWpIndex = -1;
 let uploadAborted = false;
+
+const STORAGE_KEY = 'gcss_saved_missions';
 
 // ── Action code mappings ──────────────────────────────────────────────────────
 
@@ -36,15 +39,26 @@ const ACTION_STRING_TO_CODE = Object.fromEntries(
     Object.entries(ACTION_CODE_TO_STRING).map(([k, v]) => [v, Number(k)])
 );
 
+const ACTION_COLORS = {
+    1: '#4AF',  // Waypoint — light blue
+    3: '#4FA',  // Loiter   — light green
+    4: '#A4F',  // RTH      — light purple
+    8: '#EE4',  // Land     — light yellow
+};
+
+function getActionColor(action) {
+    return ACTION_COLORS[action] || '#4AF';
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function haversineM(lat1, lon1, lat2, lon2) {
-    const R = 6371000;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    var R = 6371000;
+    var φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+    var Δφ = (lat2 - lat1) * Math.PI / 180;
+    var Δλ = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -84,9 +98,7 @@ function updateStats() {
         n + (n === 1 ? ' waypoint' : ' waypoints') + dist + limitStr;
 
     var uploadBtn = document.getElementById('mpBtUpload');
-    if (uploadBtn) {
-        uploadBtn.disabled = (n === 0 || !mqttConnected);
-    }
+    if (uploadBtn) uploadBtn.disabled = (n === 0 || !mqttConnected);
 }
 
 // ── Route line ────────────────────────────────────────────────────────────────
@@ -94,10 +106,7 @@ function updateStats() {
 function updateRouteLine() {
     if (!plannerMapReady) return;
     var coords = plannedMission.map(function(wp) { return [wp.lon, wp.lat]; });
-    var geojson = {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coords }
-    };
+    var geojson = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
     if (routeSourceAdded) {
         plannerMap.getSource('mp-route').setData(geojson);
     } else if (coords.length >= 2) {
@@ -106,7 +115,11 @@ function updateRouteLine() {
             id: 'mp-route-line',
             type: 'line',
             source: 'mp-route',
-            paint: { 'line-color': '#4AF', 'line-width': 2, 'line-dasharray': [2, 1] }
+            paint: {
+                'line-color': '#4AF',
+                'line-width': 3 * window.devicePixelRatio,
+                'line-dasharray': [2, 1],
+            },
         });
         routeSourceAdded = true;
     }
@@ -114,12 +127,14 @@ function updateRouteLine() {
 
 // ── WP markers ────────────────────────────────────────────────────────────────
 
-function createMarkerElement(index) {
+function createMarkerElement(index, action) {
     var el = document.createElement('div');
     el.className = 'wp-marker';
     el.textContent = String(index + 1);
     el.style.cssText = [
-        'width:8vmin', 'height:8vmin', 'background:#4AF', 'border-radius:50%',
+        'width:8vmin', 'height:8vmin',
+        'background:' + getActionColor(action),
+        'border-radius:50%',
         'color:#000', 'font-weight:bold', 'display:flex', 'align-items:center',
         'justify-content:center', 'cursor:pointer', 'font-size:3.5vmin',
         'border:2px solid #fff', 'box-shadow:0 2px 6px rgba(0,0,0,0.5)',
@@ -129,8 +144,8 @@ function createMarkerElement(index) {
 }
 
 function addWpMarker(index) {
-    var el = createMarkerElement(index);
     var wp = plannedMission[index];
+    var el = createMarkerElement(index, wp.action);
     var marker = new maplibregl.Marker({ element: el, draggable: true })
         .setLngLat([wp.lon, wp.lat])
         .addTo(plannerMap);
@@ -142,9 +157,7 @@ function addWpMarker(index) {
             plannedMission[i].lon = ll.lng;
             updateRouteLine();
         });
-        marker.on('dragend', function() {
-            updateStats();
-        });
+        marker.on('dragend', function() { updateStats(); });
         el.addEventListener('click', function(e) {
             e.stopPropagation();
             openWpModal(i);
@@ -166,10 +179,34 @@ function rebuildAllMarkers() {
     }
 }
 
-// After a WP is deleted, renumber all existing marker elements in place.
 function renumberMarkers() {
     for (var i = 0; i < wpMarkers.length; i++) {
         wpMarkers[i].getElement().textContent = String(i + 1);
+    }
+}
+
+// ── User location marker ──────────────────────────────────────────────────────
+
+function updatePlannerUserMarker() {
+    if (!plannerMapReady) return;
+    if (!hasUserLocation) return;
+    if (!data.userLatitude && !data.userLongitude) return;
+
+    if (!plannerUserMarker) {
+        var imgWH = 36 * window.devicePixelRatio;
+        var el = document.createElement('img');
+        el.src = 'img/user.png';
+        el.style.width  = imgWH + 'px';
+        el.style.height = imgWH + 'px';
+        plannerUserMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
+            .setLngLat([data.userLongitude, data.userLatitude])
+            .addTo(plannerMap);
+    } else {
+        plannerUserMarker.setLngLat([data.userLongitude, data.userLatitude]);
+    }
+
+    if (data.userHeading !== null && data.userHeading !== undefined) {
+        plannerUserMarker.setRotation(data.userHeading);
     }
 }
 
@@ -187,7 +224,7 @@ function openWpModal(index) {
 
     updateModalFieldVisibility();
 
-    // Position modal near the marker, centred on screen if map not ready
+    // Position modal near the marker, clamped to viewport
     var modal = document.getElementById('wpModal');
     modal.style.top = '50%';
     modal.style.left = '50%';
@@ -197,17 +234,16 @@ function openWpModal(index) {
         var px = plannerMap.project([wp.lon, wp.lat]);
         var vw = window.innerWidth;
         var vh = window.innerHeight;
-        var mw = Math.min(vw * 0.8, 400);
+        var mw = Math.min(vw * 0.82, 400);
         var left = Math.min(Math.max(px.x - mw / 2, 10), vw - mw - 10);
         var top = px.y + 30;
-        if (top + 300 > vh) top = px.y - 320;
+        if (top + 320 > vh) top = px.y - 330;
         if (top < 10) top = 10;
         modal.style.top = top + 'px';
         modal.style.left = left + 'px';
         modal.style.transform = 'none';
     }
 
-    document.getElementById('wpModalOverlay').style.display = 'block';
     document.getElementById('wpModal').style.display = 'block';
 }
 
@@ -224,16 +260,20 @@ function saveAndCloseWpModal() {
         closeWpModal();
         return;
     }
-    var wp = plannedMission[modalWpIndex];
+    var idx = modalWpIndex;
+    var wp = plannedMission[idx];
     wp.action    = parseInt(document.getElementById('wpModalAction').value) || 1;
     wp.altM      = parseFloat(document.getElementById('wpModalAlt').value) || 0;
     wp.speedMs   = parseFloat(document.getElementById('wpModalSpeed').value) || 0;
     wp.loiterSec = parseInt(document.getElementById('wpModalLoiter').value) || 10;
     closeWpModal();
+    // Update marker colour to reflect the (possibly changed) action
+    if (wpMarkers[idx]) {
+        wpMarkers[idx].getElement().style.background = getActionColor(wp.action);
+    }
 }
 
 function closeWpModal() {
-    document.getElementById('wpModalOverlay').style.display = 'none';
     document.getElementById('wpModal').style.display = 'none';
     modalWpIndex = -1;
 }
@@ -243,11 +283,22 @@ function deleteWpFromModal() {
         closeWpModal();
         return;
     }
+    if (!confirm('Delete waypoint ' + (modalWpIndex + 1) + '?')) return;
     plannedMission.splice(modalWpIndex, 1);
     closeWpModal();
     rebuildAllMarkers();
     updateRouteLine();
     updateStats();
+}
+
+// ── Toast notification ────────────────────────────────────────────────────────
+
+function showToast(msg) {
+    var toast = document.getElementById('mpToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(function() { toast.style.display = 'none'; }, 3000);
 }
 
 // ── Map initialisation ────────────────────────────────────────────────────────
@@ -270,11 +321,21 @@ function initPlannerMap() {
         plannerMapReady = true;
         rebuildAllMarkers();
         updateRouteLine();
+        updatePlannerUserMarker();
+
+        // Size navigation control buttons for touch usability
+        var btnSizePx = Math.round(30 * window.devicePixelRatio) + 'px';
+        var style = document.createElement('style');
+        style.textContent = '#mpMap .maplibregl-ctrl button { width:' + btnSizePx + ' !important; height:' + btnSizePx + ' !important; }';
+        document.head.appendChild(style);
     });
 
+    // Clicking the map closes any open modal, or adds a new waypoint
     plannerMap.on('click', function(e) {
-        // Ignore clicks if a modal is open
-        if (document.getElementById('wpModal').style.display !== 'none') return;
+        if (document.getElementById('wpModal').style.display !== 'none') {
+            saveAndCloseWpModal();
+            return;
+        }
 
         var maxWp = data.maxWaypoints > 0 ? data.maxWaypoints : 15;
         if (plannedMission.length >= maxWp) {
@@ -283,39 +344,20 @@ function initPlannerMap() {
         }
 
         var ll = e.lngLat;
-        plannedMission.push({
-            lat: ll.lat, lon: ll.lng, altM: 50,
-            action: 1, speedMs: 0, loiterSec: 10
-        });
+        plannedMission.push({ lat: ll.lat, lon: ll.lng, altM: 50, action: 1, speedMs: 0, loiterSec: 10 });
         var newIdx = plannedMission.length - 1;
-        if (plannerMapReady) addWpMarker(newIdx);
+        addWpMarker(newIdx);
         updateRouteLine();
         updateStats();
         openWpModal(newIdx);
     });
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
-
-function showToast(msg) {
-    var toast = document.getElementById('mpToast');
-    if (!toast) return;
-    toast.textContent = msg;
-    toast.style.display = 'block';
-    setTimeout(function() { toast.style.display = 'none'; }, 3000);
-}
-
 // ── Upload ────────────────────────────────────────────────────────────────────
 
 async function uploadMission() {
-    if (plannedMission.length === 0) {
-        alert('No waypoints planned.');
-        return;
-    }
-    if (!mqttConnected) {
-        alert('Not connected to MQTT broker.');
-        return;
-    }
+    if (plannedMission.length === 0) { alert('No waypoints planned.'); return; }
+    if (!mqttConnected) { alert('Not connected to MQTT broker.'); return; }
     if (data.fmWp === 1) {
         alert('Cannot upload: WP Mission mode is currently active on the aircraft.\nDeactivate it first.');
         return;
@@ -334,32 +376,23 @@ async function uploadMission() {
 
     for (var i = 0; i < plannedMission.length; i++) {
         if (uploadAborted) break;
-
         var wp = plannedMission[i];
         var wpno = i + 1;
         var isLast = (i === plannedMission.length - 1);
-
         progressText.textContent = 'Uploading mission\u2026 WP ' + wpno + ' / ' + total;
 
         var altCm = Math.round((wp.altM || 0) * 100);
         var speedCms = Math.round((wp.speedMs || 0) * 100);
         var p1 = 0, p2 = 0;
-        if (wp.action === 1) {        // WAYPOINT: p1 = speed cm/s
-            p1 = speedCms;
-        } else if (wp.action === 3) { // POSHOLD_TIME: p1 = loiter seconds, p2 = speed cm/s
-            p1 = wp.loiterSec || 10;
-            p2 = speedCms;
-        }
+        if (wp.action === 1) { p1 = speedCms; }
+        else if (wp.action === 3) { p1 = wp.loiterSec || 10; p2 = speedCms; }
 
         var extraFields = {
             wpno: wpno,
             la: Math.round((wp.lat || 0) * 1e7),
             lo: Math.round((wp.lon || 0) * 1e7),
-            al: altCm,
-            ac: wp.action || 1,
-            p1: p1,
-            p2: p2,
-            p3: 0,
+            al: altCm, ac: wp.action || 1,
+            p1: p1, p2: p2, p3: 0,
             f: isLast ? 165 : 0,
         };
 
@@ -369,13 +402,13 @@ async function uploadMission() {
             alert('Failed to send WP ' + wpno + ': could not publish command.');
             return;
         }
-
         try {
             await waitForCommandAck(cid, 15000);
         } catch (err) {
             if (!uploadAborted) {
                 progressEl.style.display = 'none';
-                alert('Upload failed at WP ' + wpno + ' / ' + total + '.\nReason: ' + err.message + '\nThe aircraft\'s mission was not modified.');
+                alert('Upload failed at WP ' + wpno + ' / ' + total + '.\nReason: ' + err.message +
+                      '\nThe aircraft\'s mission was not modified.');
             }
             return;
         }
@@ -389,10 +422,127 @@ async function uploadMission() {
     }
 }
 
-// ── Save / Load INAV JSON ─────────────────────────────────────────────────────
+// ── Local storage missions ────────────────────────────────────────────────────
 
-function saveMissionToFile() {
+function getSavedMissions() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveMissionToStorage(name) {
+    var missions = getSavedMissions();
+    var existing = missions.findIndex(function(m) { return m.name === name; });
+    var entry = {
+        name: name,
+        savedAt: new Date().toISOString().slice(0, 10),
+        waypoints: JSON.parse(JSON.stringify(plannedMission)),
+    };
+    if (existing >= 0) {
+        missions[existing] = entry;
+    } else {
+        missions.push(entry);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(missions));
+}
+
+function deleteMissionFromStorage(name) {
+    var missions = getSavedMissions().filter(function(m) { return m.name !== name; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(missions));
+}
+
+function loadMissionFromStorage(waypoints) {
+    if (plannedMission.length > 0 && !confirm('Replace current mission?')) return;
+    plannedMission = JSON.parse(JSON.stringify(waypoints));
+    rebuildAllMarkers();
+    updateRouteLine();
+    updateStats();
+    closeSavedMissionsPanel();
+    if (plannedMission.length > 0 && plannerMapReady) {
+        var lats = plannedMission.map(function(w) { return w.lat; });
+        var lons = plannedMission.map(function(w) { return w.lon; });
+        plannerMap.fitBounds(
+            [[Math.min.apply(null, lons), Math.min.apply(null, lats)],
+             [Math.max.apply(null, lons), Math.max.apply(null, lats)]],
+            { padding: 60 }
+        );
+    }
+}
+
+function saveMissionPrompt() {
     if (plannedMission.length === 0) { alert('No waypoints to save.'); return; }
+    var name = prompt('Mission name:');
+    if (!name || !name.trim()) return;
+    name = name.trim();
+    var missions = getSavedMissions();
+    if (missions.some(function(m) { return m.name === name; })) {
+        if (!confirm('A mission named "' + name + '" already exists. Overwrite?')) return;
+    }
+    saveMissionToStorage(name);
+    showToast('Mission "' + name + '" saved.');
+}
+
+function showSavedMissionsPanel() {
+    var missions = getSavedMissions();
+    var list = document.getElementById('mpSavedMissionsList');
+    var empty = document.getElementById('mpSavedMissionsEmpty');
+    list.innerHTML = '';
+
+    if (missions.length === 0) {
+        empty.style.display = 'block';
+    } else {
+        empty.style.display = 'none';
+        missions.forEach(function(m) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:2vmin;padding:2vmin 0;border-bottom:1px solid #333;';
+
+            var info = document.createElement('div');
+            info.style.cssText = 'flex:1;color:#fff;';
+            info.innerHTML = '<div style="font-size:4vmin;font-weight:bold;">' + escapeHtml(m.name) + '</div>' +
+                             '<div style="font-size:3vmin;color:#aaa;">' + m.savedAt + ' · ' +
+                             m.waypoints.length + ' WP</div>';
+
+            var loadBtn = document.createElement('input');
+            loadBtn.type = 'button'; loadBtn.value = 'Load'; loadBtn.className = 'btRcCmd';
+            loadBtn.addEventListener('click', (function(waypoints) {
+                return function() { loadMissionFromStorage(waypoints); };
+            })(m.waypoints));
+
+            var delBtn = document.createElement('input');
+            delBtn.type = 'button'; delBtn.value = 'Delete'; delBtn.className = 'btRcCmd';
+            delBtn.style.background = '#722';
+            delBtn.addEventListener('click', (function(name) {
+                return function() {
+                    if (!confirm('Delete saved mission "' + name + '"?')) return;
+                    deleteMissionFromStorage(name);
+                    showSavedMissionsPanel(); // refresh list
+                };
+            })(m.name));
+
+            row.appendChild(info);
+            row.appendChild(loadBtn);
+            row.appendChild(delBtn);
+            list.appendChild(row);
+        });
+    }
+
+    document.getElementById('mpSavedMissionsPanel').style.display = 'block';
+}
+
+function closeSavedMissionsPanel() {
+    document.getElementById('mpSavedMissionsPanel').style.display = 'none';
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Export / Import INAV JSON files ──────────────────────────────────────────
+
+function exportMissionToFile() {
+    if (plannedMission.length === 0) { alert('No waypoints to export.'); return; }
     var items = plannedMission.map(function(wp, i) {
         var isLast = (i === plannedMission.length - 1);
         var speedCms = Math.round((wp.speedMs || 0) * 100);
@@ -414,7 +564,7 @@ function saveMissionToFile() {
     a.click();
 }
 
-function loadMissionFromFile() {
+function importMissionFromFile() {
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -426,7 +576,7 @@ function loadMissionFromFile() {
                 var obj = JSON.parse(e.target.result);
                 if (!obj.items || !Array.isArray(obj.items) || obj.items.length === 0)
                     throw new Error('No waypoints found in file');
-                if (plannedMission.length > 0 && !confirm('Replace current mission with the loaded file?'))
+                if (plannedMission.length > 0 && !confirm('Replace current mission with the imported file?'))
                     return;
                 var loaded = [];
                 for (var j = 0; j < obj.items.length; j++) {
@@ -435,10 +585,8 @@ function loadMissionFromFile() {
                     var speedMs = 0, loiterSec = 10;
                     if (action === 1) speedMs = (item.p1 || 0) / 100;
                     else if (action === 3) { loiterSec = item.p1 || 10; speedMs = (item.p2 || 0) / 100; }
-                    loaded.push({
-                        lat: item.lat, lon: item.lon, altM: item.alt,
-                        action: action, speedMs: speedMs, loiterSec: loiterSec,
-                    });
+                    loaded.push({ lat: item.lat, lon: item.lon, altM: item.alt,
+                                  action: action, speedMs: speedMs, loiterSec: loiterSec });
                 }
                 plannedMission = loaded;
                 rebuildAllMarkers();
@@ -454,7 +602,7 @@ function loadMissionFromFile() {
                     );
                 }
             } catch (err) {
-                alert('Failed to load mission file: ' + err.message);
+                alert('Failed to import mission file: ' + err.message);
             }
         };
         reader.readAsText(input.files[0]);
@@ -478,41 +626,43 @@ function clearMission() {
 export function openMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'block';
     if (!plannerMapInitialized) {
-        // Map div must be visible before init so MapLibre can read its dimensions
-        requestAnimationFrame(function() {
-            initPlannerMap();
-        });
+        requestAnimationFrame(function() { initPlannerMap(); });
     } else if (plannerMapReady) {
         plannerMap.resize();
         rebuildAllMarkers();
         updateRouteLine();
+        updatePlannerUserMarker();
     }
     updateStats();
+    plannerUpdateInterval = setInterval(function() {
+        updatePlannerUserMarker();
+        updateStats();
+    }, 2000);
 }
 
 export function closeMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'none';
+    closeSavedMissionsPanel();
+    closeWpModal();
+    if (plannerUpdateInterval) { clearInterval(plannerUpdateInterval); plannerUpdateInterval = null; }
 }
 
 // ── Wire button handlers ──────────────────────────────────────────────────────
 
 export function initMissionPlannerButtons() {
     document.getElementById('mpBtClose').addEventListener('click', closeMissionPlanner);
-
-    document.getElementById('mpBtUpload').addEventListener('click', function() {
-        uploadMission();
-    });
-    document.getElementById('mpBtSave').addEventListener('click', saveMissionToFile);
-    document.getElementById('mpBtLoad').addEventListener('click', loadMissionFromFile);
+    document.getElementById('mpBtUpload').addEventListener('click', function() { uploadMission(); });
+    document.getElementById('mpBtSave').addEventListener('click', saveMissionPrompt);
+    document.getElementById('mpBtLoad').addEventListener('click', showSavedMissionsPanel);
+    document.getElementById('mpBtExport').addEventListener('click', exportMissionToFile);
+    document.getElementById('mpBtImport').addEventListener('click', importMissionFromFile);
     document.getElementById('mpBtClear').addEventListener('click', clearMission);
-
     document.getElementById('mpBtCancelUpload').addEventListener('click', function() {
         uploadAborted = true;
         document.getElementById('mpUploadProgress').style.display = 'none';
     });
-
+    document.getElementById('mpBtCloseSavedList').addEventListener('click', closeSavedMissionsPanel);
     document.getElementById('wpModalAction').addEventListener('change', updateModalFieldVisibility);
     document.getElementById('wpModalClose').addEventListener('click', saveAndCloseWpModal);
     document.getElementById('wpModalDelete').addEventListener('click', deleteWpFromModal);
-    document.getElementById('wpModalOverlay').addEventListener('click', saveAndCloseWpModal);
 }
