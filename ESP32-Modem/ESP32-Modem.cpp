@@ -719,9 +719,10 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       // Fetch the full published mission and send each WP as a dlwp: telemetry message,
       // then send ACK. If no mission is loaded, send NACK reason:nomission.
       uint8_t wpCount = 0;
-      msp_set_wp_t wpSnapshot[256];
+      msp_set_wp_t wpSnapshot[NAV_MAX_WAYPOINTS_FIRMWARE];
       xSemaphoreTake(dataMutex, portMAX_DELAY);
       wpCount = publishedStatus.waypointCount;
+      if (wpCount > NAV_MAX_WAYPOINTS_FIRMWARE) wpCount = NAV_MAX_WAYPOINTS_FIRMWARE;
       if (wpCount > 0)
           memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
       xSemaphoreGive(dataMutex);
