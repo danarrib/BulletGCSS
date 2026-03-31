@@ -432,24 +432,30 @@
 	<div id="missionPlannerView" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;background:#0a0a0a;font-family:Ubuntu,sans-serif;">
 		<!-- Stats bar -->
 		<div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
+			<img alt="Connection status" class="statusIcon" id="mpConnectionIcon" src="img/connection_broken.png" />
+			<img alt="Command channel status" class="statusIcon" id="mpCommandChannelIcon" src="img/command_error.png" />
 			<span style="flex:1;color:#fff;font-size:3.5vmin;" id="mpStats">0 waypoints</span>
-			<input type="button" id="mpBtClose" value="&#10005; Back" class="btRcCmd" style="flex:none;" />
 		</div>
 		<!-- Map container -->
-		<div id="mpMap" style="position:absolute;top:12vmin;left:0;right:0;bottom:16vmin;"></div>
+		<div id="mpMap" style="position:absolute;top:12vmin;left:0;right:0;bottom:28vmin;"></div>
 		<!-- Toast message -->
 		<div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
 		<!-- Action toolbar -->
-		<div style="position:absolute;bottom:0;left:0;right:0;height:16vmin;background:#1a1a1a;border-top:1px solid #333;display:flex;align-items:center;padding:0 2vmin;gap:2vmin;overflow-x:auto;z-index:101;">
-			<input type="button" id="mpBtUpload" value="Upload" class="btRcCmd" />
-			<input type="button" id="mpBtSave" value="Save" class="btRcCmd" />
-			<input type="button" id="mpBtLoad" value="Load" class="btRcCmd" />
-			<input type="button" id="mpBtExport" value="Export" class="btRcCmd" />
-			<input type="button" id="mpBtImport" value="Import" class="btRcCmd" />
-			<input type="button" id="mpBtClear" value="Clear" class="btRcCmd" />
+		<div style="position:absolute;bottom:0;left:0;right:0;height:28vmin;background:#1a1a1a;border-top:1px solid #333;display:flex;flex-direction:column;justify-content:space-evenly;padding:0 2vmin;z-index:101;">
+			<div style="display:flex;gap:2vmin;justify-content:center;">
+				<input type="button" id="mpBtSave" value="Save" class="btRcCmd" />
+				<input type="button" id="mpBtLoad" value="Load" class="btRcCmd" />
+				<input type="button" id="mpBtExport" value="Export" class="btRcCmd" />
+				<input type="button" id="mpBtImport" value="Import" class="btRcCmd" />
+			</div>
+			<div style="display:flex;gap:2vmin;justify-content:center;">
+				<input type="button" id="mpBtUpload" value="Upload" class="btRcCmd" />
+				<input type="button" id="mpBtClear" value="Clear" class="btRcCmd" />
+				<input type="button" id="mpBtClose" value="&#10005; Close" class="btRcCmd" />
+			</div>
 		</div>
 		<!-- Saved missions panel -->
-		<div id="mpSavedMissionsPanel" style="display:none;position:absolute;bottom:16vmin;left:0;right:0;max-height:60vmin;overflow-y:auto;background:#1a1a1a;border-top:1px solid #444;z-index:105;padding:3vmin 4vmin;">
+		<div id="mpSavedMissionsPanel" style="display:none;position:absolute;bottom:28vmin;left:0;right:0;max-height:60vmin;overflow-y:auto;background:#1a1a1a;border-top:1px solid #444;z-index:105;padding:3vmin 4vmin;">
 			<div style="display:flex;align-items:center;margin-bottom:2vmin;">
 				<span style="flex:1;color:#fff;font-size:4vmin;font-weight:bold;">Saved Missions</span>
 				<input type="button" id="mpBtCloseSavedList" value="&#10005;" class="btRcCmd" style="flex:none;" />

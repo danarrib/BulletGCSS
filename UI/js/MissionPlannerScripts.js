@@ -224,27 +224,12 @@ function openWpModal(index) {
 
     updateModalFieldVisibility();
 
-    // Position modal near the marker, clamped to viewport
     var modal = document.getElementById('wpModal');
     modal.style.top = '50%';
     modal.style.left = '50%';
     modal.style.transform = 'translate(-50%,-50%)';
 
-    if (plannerMapReady) {
-        var px = plannerMap.project([wp.lon, wp.lat]);
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
-        var mw = Math.min(vw * 0.82, 400);
-        var left = Math.min(Math.max(px.x - mw / 2, 10), vw - mw - 10);
-        var top = px.y + 30;
-        if (top + 320 > vh) top = px.y - 330;
-        if (top < 10) top = 10;
-        modal.style.top = top + 'px';
-        modal.style.left = left + 'px';
-        modal.style.transform = 'none';
-    }
-
-    document.getElementById('wpModal').style.display = 'block';
+    modal.style.display = 'block';
 }
 
 function updateModalFieldVisibility() {
@@ -623,8 +608,16 @@ function clearMission() {
 
 // ── Open / close planner view ─────────────────────────────────────────────────
 
+function syncStatusIcons() {
+    var connSrc = document.getElementById('connectionIcon');
+    var cmdSrc  = document.getElementById('commandChannelIcon');
+    if (connSrc) document.getElementById('mpConnectionIcon').src = connSrc.src;
+    if (cmdSrc)  document.getElementById('mpCommandChannelIcon').src = cmdSrc.src;
+}
+
 export function openMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'block';
+    syncStatusIcons();
     if (!plannerMapInitialized) {
         requestAnimationFrame(function() { initPlannerMap(); });
     } else if (plannerMapReady) {
@@ -637,6 +630,7 @@ export function openMissionPlanner() {
     plannerUpdateInterval = setInterval(function() {
         updatePlannerUserMarker();
         updateStats();
+        syncStatusIcons();
     }, 2000);
 }
 
