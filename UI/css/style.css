@@ -799,3 +799,13 @@ select
     height: calc(var(--compass-size, 44px) * 0.55);
 }
 
+
+
+.wp-info-label {
+    position: absolute;
+    top: 0;
+    background: rgba(0,0,0,0.72);
+    white-space: nowrap;
+    font-family: Ubuntu, sans-serif;
+    pointer-events: none;
+}

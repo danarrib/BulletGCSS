@@ -385,7 +385,7 @@ export function drawMissionOnMap(inputData) {
             else
                 pinSrc = 'img/map_pin_gray.png';
 
-            var elWidth  = 30 * window.devicePixelRatio;
+            var elWidth  = 26 * window.devicePixelRatio;
             var elHeight = 40 * window.devicePixelRatio;
             var elFontSize = 14 * window.devicePixelRatio;
 
@@ -398,7 +398,7 @@ export function drawMissionOnMap(inputData) {
 
             var numLabel = document.createElement('div');
             numLabel.textContent = wp.waypointNumber;
-            numLabel.style.cssText = 'position:absolute;top:' + (12 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
+            numLabel.style.cssText = 'position:absolute;top:' + (8 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
                 'color:#000;font-size:' + elFontSize + 'px;line-height:1.2;font-family:Ubuntu,sans-serif;font-weight:bold;pointer-events:none;';
 
             el.appendChild(pin);
@@ -409,9 +409,12 @@ export function drawMissionOnMap(inputData) {
                 var grAlt  = (inputData.homeAltitudeSL + wpAlt) - wp.elevation;
                 var altColor = grAlt > 5 ? '#fff' : '#F33'; // Red if within 5m of ground or below
                 var infoDiv = document.createElement('div');
-                infoDiv.style.cssText = 'position:absolute;left:' + (40 * window.devicePixelRatio) + 'px;top:0;background:rgba(0,0,0,0.72);' +
-                    'color:' + altColor + ';font-size:' + (13 * window.devicePixelRatio) + 'px;white-space:nowrap;padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
-                    'font-family:Ubuntu,sans-serif;pointer-events:none;';
+                infoDiv.className = 'wp-info-label';
+                infoDiv.style.left         = (40 * window.devicePixelRatio) + 'px';
+                infoDiv.style.color        = altColor;
+                infoDiv.style.fontSize     = (13 * window.devicePixelRatio) + 'px';
+                infoDiv.style.padding      = (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px';
+                infoDiv.style.borderRadius = (3 * window.devicePixelRatio) + 'px';
                 infoDiv.innerHTML = 'WP alt: ' + wpAlt.toFixed(0)        + ' m<br>' +
                                     'ABS alt: ' + grAlt.toFixed(0)        + ' m';
                 el.appendChild(infoDiv);
