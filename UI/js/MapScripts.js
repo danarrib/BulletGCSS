@@ -395,7 +395,7 @@ export function drawMissionOnMap(inputData) {
 
             var numLabel = document.createElement('div');
             numLabel.textContent = wp.waypointNumber;
-            numLabel.style.cssText = 'position:absolute;top:' + (8 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
+            numLabel.style.cssText = 'position:absolute;top:' + (5 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
                 'color:#000;font-size:' + elFontSize + 'px;line-height:1.2;font-family:Ubuntu,sans-serif;font-weight:bold;pointer-events:none;';
 
             el.appendChild(pin);

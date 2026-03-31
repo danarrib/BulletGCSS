@@ -808,6 +808,7 @@ select
     white-space: nowrap;
     font-family: Ubuntu, sans-serif;
     pointer-events: none;
+    line-height: 1.2;
 }
 
 .sec-aircraft-label {
