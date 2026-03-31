@@ -302,17 +302,30 @@ function saveAndCloseWpModal() {
     }
     var idx = modalWpIndex;
     var wp = plannedMission[idx];
-    wp.action    = parseInt(document.getElementById('wpModalAction').value) || 1;
+    var newAction = parseInt(document.getElementById('wpModalAction').value) || 1;
+
+    // RTH must be the last waypoint — if set on a non-last WP, offer to delete what follows
+    if (newAction === 4 && idx < plannedMission.length - 1) {
+        var tail = plannedMission.length - 1 - idx;
+        if (!confirm('RTH must be the last waypoint.\nDelete the ' + tail + ' waypoint(s) after this one?')) {
+            // Revert the select back to the original action so the modal stays consistent
+            document.getElementById('wpModalAction').value = String(wp.action || 1);
+            updateModalFieldVisibility();
+            return;
+        }
+        plannedMission.splice(idx + 1);
+    }
+
+    wp.action    = newAction;
     wp.altM      = parseFloat(document.getElementById('wpModalAlt').value) || 0;
     wp.speedMs   = parseFloat(document.getElementById('wpModalSpeed').value) || 0;
     wp.loiterSec = parseInt(document.getElementById('wpModalLoiter').value) || 10;
     closeWpModal();
     missionDirty = true;
     updateMissionName();
-    // Update marker colour to reflect the (possibly changed) action
-    if (wpMarkers[idx]) {
-        wpMarkers[idx].getElement().style.background = getActionColor(wp.action);
-    }
+    rebuildAllMarkers();
+    updateRouteLine();
+    updateStats();
 }
 
 function closeWpModal() {
@@ -384,6 +397,11 @@ function initPlannerMap() {
         var maxWp = data.maxWaypoints > 0 ? data.maxWaypoints : 15;
         if (plannedMission.length >= maxWp) {
             showToast('Waypoint limit reached (' + maxWp + ')');
+            return;
+        }
+
+        if (plannedMission.length > 0 && plannedMission[plannedMission.length - 1].action === 4) {
+            showToast('RTH must be the last waypoint — cannot add after it');
             return;
         }
 

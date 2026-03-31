@@ -279,18 +279,20 @@ The bottom-most ruler bar is the course indicator. It will show the direction th
 
 Tapping the hamburger/menu icon opens the sidebar. The first-level menu items are:
 
-- **Send command** — opens the Commands panel (see below). Also accessible via the floating **CMD** button that appears in the bottom-right corner of the screen.
-- **Sessions…** — opens the Sessions panel to manage recorded flight sessions.
+- **Send command to UAV** — opens the Commands panel (see below). Also accessible via the floating **CMD** button that appears in the bottom-right corner of the screen.
+- **Flight Sessions** — opens the Flight Sessions panel to manage recorded flight sessions.
+- **Monitor other UAVs** — opens the secondary aircraft monitoring panel (see below).
+- **Mission planner** — opens the full-screen mission planner (see below).
 - **Keep screen awake** — keeps the smartphone screen lit at all times (see below).
 - **Enable compass heading** — (iOS only) requests permission to use the device compass sensor so the user location marker rotates to match the direction you are facing. On Android and desktop the compass starts automatically; this button only appears on iOS 13+.
-- **Settings…** — opens the Settings submenu (see below).
+- **Settings** — opens the Settings submenu (see below).
 - **Refresh App** — reloads the page to pick up a new version.
 - **Help** — links to the documentation.
 - **Install App** — appears on compatible browsers; installs the PWA to the home screen.
 
 ### Settings Menu
 
-Tapping **Settings…** opens a settings submenu with the following sections:
+Tapping **Settings** opens a settings submenu with the following sections:
 
 #### Broker Settings
 
@@ -311,7 +313,7 @@ Also allows the user to choose the **Map Style**:
 - **Liberty (OpenFreeMap)** — default. A clean vector map with terrain contours, water, and land cover. Suitable for most flying conditions.
 - **Dark (CARTO)** — a dark-themed map that matches the UI and is easier to read in bright sunlight.
 
-#### Security…
+#### Security
 
 Opens the Security panel, where you manage the Ed25519 key pair used to authenticate commands sent to the aircraft.
 
@@ -327,17 +329,83 @@ Opens the Security panel, where you manage the Ed25519 key pair used to authenti
 
 > **Browser support:** Ed25519 requires Chrome 113+, Firefox 130+, or Safari 17+.
 
-#### Mission Planner
-
-Reserved for future use — will allow planning and uploading waypoint missions directly from the UI.
-
 #### INAV Settings
 
 Reserved for future use — will allow reading and writing INAV settings from the UI.
 
-### Sessions Panel
+### Monitor Other UAVs Panel
 
-Tapping **Sessions…** opens the Sessions panel, where you can manage recorded flight sessions. Every MQTT message received during a live flight is automatically saved to a local database (IndexedDB) in the browser. Sessions persist across page refreshes and browser restarts.
+Tapping **Monitor other UAVs** opens a panel where you can track additional aircraft on the same map alongside the primary aircraft. Secondary aircraft are read-only — no commands, no EFIS — just situational awareness.
+
+The panel shows the list of currently monitored topics, each with a colour swatch, callsign (once received), MQTT topic, and a **Remove** button. To add an aircraft, type its full telemetry topic (e.g. `bulletgcss/telem/GOLF2`) into the input field and tap **Add topic**. The input is pre-filled with the same topic prefix as the primary aircraft to make it easy to add aircraft on the same broker.
+
+Each secondary aircraft appears on the map as a coloured icon (different hue for each) with a small label showing callsign, altitude, climb/descent indicator, and speed in the units configured in UI Settings. Tapping a secondary aircraft marker opens a popup with its last-seen time and Plus Code location. The popup also has a **Stop tracking** button.
+
+Secondary aircraft that have not sent a message for more than 10 seconds are dimmed to 50% opacity. They are never removed automatically — only when the user explicitly removes the topic.
+
+The monitored topic list is saved to `localStorage` and restored automatically on page load and MQTT reconnect.
+
+---
+
+### Mission Planner
+
+Tapping **Mission planner** opens a full-screen view that completely replaces the monitoring UI. Tap **✕ Close** to return to monitoring at any time.
+
+#### Top bar
+
+The top bar shows:
+- **Connection icon** and **Command channel icon** — mirrors of the main UI status icons, so you can monitor aircraft connectivity without leaving the planner.
+- **Mission validity dot** — a small circle that is **green** when the flight controller reports the loaded mission as valid (`wpv:1`) or **red** otherwise. This reflects the mission currently on the FC, not the one being planned.
+- **Mission name** — the name of the currently loaded/saved mission, or *Untitled mission* if unsaved. An asterisk (`*`) is appended when there are unsaved changes.
+- **Waypoint count and total distance** — updates live as waypoints are added, moved, or deleted.
+
+#### Placing and editing waypoints
+
+Tap or click any empty point on the map to add a waypoint there. The waypoint parameter modal opens immediately.
+
+The modal shows:
+- **WP #** — waypoint number (read-only).
+- **Action** — dropdown: Waypoint (fly-through), Loiter (hold position for N seconds), RTH (return to home), Land.
+- **Altitude** — metres above the home/takeoff point.
+- **Terrain elevation** — shown automatically (when an elevation provider is configured) as *Terrain: XXX m | ~YYY m above terrain*, where YYY is the clearance above the ground at that point relative to the first waypoint's elevation. Updates live as you type the altitude.
+- **Speed** — m/s cruise speed to this waypoint (0 = use FC default). Shown for Waypoint and Loiter actions.
+- **Loiter time** — seconds to hold (shown for Loiter action only).
+
+Confirm with **OK** or tap outside the modal to save changes. Use **Delete** to remove the waypoint.
+
+> **RTH constraint:** RTH must be the last waypoint in a mission. If you set a waypoint to RTH and there are waypoints after it, the planner will ask to delete them. You cannot add new waypoints after an RTH.
+
+Tap an existing waypoint marker to reopen its modal. Drag a marker to move it — the route line updates in real time.
+
+#### Toolbar
+
+Two rows of buttons at the bottom of the screen:
+
+**Row 1 — mission file management:**
+- **Save** — saves the current mission to browser local storage with a name you provide. Overwrites an existing mission of the same name after confirmation.
+- **Load** — opens a list of saved missions; tap one to load it (replaces the current mission after confirmation).
+- **Export** — downloads the mission as an INAV-compatible JSON file (same format as INAV Configurator).
+- **Import** — loads a mission from an INAV JSON file on your device.
+
+**Row 2 — aircraft operations:**
+- **Upload** — sends the planned mission to the aircraft over the encrypted command channel. Each waypoint is sent individually and acknowledged by the firmware before the next is sent. The FC's mission is only updated once the entire mission passes validation. Disabled when not connected or when WP Mission mode is active on the FC.
+- **Download** — fetches the mission currently stored on the aircraft and loads it into the planner. Useful to review or modify a previously uploaded mission.
+- **Clear** — removes all waypoints (confirmation required).
+- **✕ Close** — returns to the normal monitoring view.
+
+#### Terrain elevation
+
+If a terrain elevation provider is configured in UI Settings, the planner automatically queries ground elevation for each waypoint:
+- **When placing a new waypoint** — elevation is fetched immediately and shown in the modal.
+- **When loading, importing, or downloading** — elevations for all waypoints are fetched in a single batch request.
+
+The first waypoint's elevation is used as the base (approximating the home/launch point). The *above terrain* figure in each modal is: `altitude above home − (terrain elevation at this WP − terrain elevation at WP 1)`.
+
+---
+
+### Flight Sessions Panel
+
+Tapping **Flight Sessions** opens the panel, where you can manage recorded flight sessions. Every MQTT message received during a live flight is automatically saved to a local database (IndexedDB) in the browser. Sessions persist across page refreshes and browser restarts.
 
 The panel shows:
 - **Current session** — the name of the active session. You can rename it and tap "Rename" to save, or tap "New Session" to close the current session and start a fresh one.
@@ -347,9 +415,9 @@ The panel shows:
 
 When a session replay ends (or is stopped manually), the UI automatically restores the last known state of the live session.
 
-### Send Command Panel
+### Send Command to UAV Panel
 
-Tapping **Send command** (or the **CMD** floating action button) opens the Commands panel, where you can send signed commands to the aircraft.
+Tapping **Send command to UAV** (or the **CMD** floating action button) opens the Commands panel, where you can send signed commands to the aircraft.
 
 Available commands:
 

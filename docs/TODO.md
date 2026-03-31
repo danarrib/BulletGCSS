@@ -75,7 +75,7 @@ Eventually migrate the UI to Bootstrap 5 for consistent, mobile-correct componen
 
 ## Future Features
 
-### F1. Multi-aircraft monitoring
+### F1. Multi-aircraft monitoring ✅ Completed
 
 Allow the UI to subscribe to additional MQTT telemetry topics and display those aircraft on the same map alongside the primary aircraft. Secondary aircraft are read-only — no commands, no EFIS, no detail panels — just situational awareness. The primary aircraft configuration and all existing functionality remain unchanged.
 
@@ -199,7 +199,7 @@ Tapping or clicking a secondary aircraft marker opens a small popup overlaid on 
 
 Tapping outside the popup closes it without action.
 
-### F2. Mission planner
+### F2. Mission planner ✅ Completed
 Allow the operator to plan a waypoint mission directly in the UI and upload it to the aircraft over the command channel.
 
 ---
@@ -455,3 +455,5 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 | Doc 2 | **README security notice** — Prominent ⚠ Security Notice section added explaining public broker risk (GPS location visible to anyone), linking to self-hosting guide, and noting commands are Ed25519-protected. |
 | F (map) | **MapLibre GL JS migration** — OpenLayers replaced with MapLibre GL JS vector map. Two user-selectable styles (OpenFreeMap Liberty default, CARTO Dark Matter). All elements scaled by `devicePixelRatio`. Compass and center-on-aircraft controls added. |
 | C4 | **Position Hold command** — ON/OFF toggle added to the Commands panel. `MSP_PERM_ID_POSHOLD` added to `cmdModes[]`; `cmdph`/`fmph` telemetry fields added to firmware, UI, and protocol docs. |
+| F1 | **Multi-aircraft monitoring** — Subscribe to additional MQTT topics and display secondary aircraft on the same map. Colour-coded icons (hue-rotated), callsign/altitude/speed/climb labels (respecting user unit settings), stale-data dimming, tap popup with Plus Code and Stop tracking. Topic list persisted to `localStorage` and restored on reconnect. Input pre-filled with primary topic prefix for easy entry. |
+| F2 | **Mission Planner** — Full-screen planner view with MapLibre GL map. Tap to place waypoints; drag to reposition; tap marker to edit action/altitude/speed/loiter time. RTH enforced as last waypoint. Terrain elevation fetched per-waypoint and shown in the modal (~above-terrain clearance based on WP1 as base). Mission name + unsaved-changes indicator. Save/Load to browser storage; Export/Import INAV JSON files. Upload sends mission waypoint-by-waypoint over the signed command channel; firmware buffers and validates the full mission before touching the FC (heap-allocated staging buffer, supports FC-reported max WP count). Download fetches the mission from the aircraft via `getmission` command and `dlwp:` messages. Mission validity dot mirrors `wpv` telemetry. |

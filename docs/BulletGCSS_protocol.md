@@ -149,6 +149,30 @@ The UI only sends commands if a private key is present in `localStorage`. See th
 | `setheading` | `heading` | Sets the Cruise/Course Hold heading target (degrees 0–359). Only effective when Cruise mode is active. Firmware converts to centidegrees and sends `MSP2_INAV_SET_CRUISE_HEADING` (0x2223). |
 | `setalt` | `alt` | Sets the altitude hold target (centimetres relative to home). Only effective when Altitude Hold is active. Firmware sends `MSP2_INAV_SET_ALT_TARGET` (0x2222). |
 | `jumpwp` | `wp` | Jumps to a waypoint during an active WP mission (0-based index). Only effective when WP Mission mode is active. Firmware sends `MSP2_INAV_SET_WP_INDEX` (0x2221). |
+| `setwp` | `wpno`, `la`, `lo`, `al`, `ac`, `p1`, `p2`, `p3`, `f` | Uploads one waypoint to the firmware staging buffer. The firmware accumulates all waypoints and only forwards them to the FC once the last waypoint (`f:165`) is received and the full mission passes validation. See Mission Upload below. |
+| `getmission` | — | Requests the firmware to publish the full mission currently stored on the aircraft. The firmware responds with one `dlwp:` message per waypoint followed by an ACK. See Mission Download below. |
+
+**Mission Upload (`setwp`):**
+
+Each waypoint is sent as a separate signed command. Extra fields (not included in the signed payload):
+
+| Field | Description | Notes |
+|---|---|---|
+| `wpno` | Waypoint number (1-based) | 1..maxWaypoints |
+| `la` | Latitude | Degrees × 10,000,000 |
+| `lo` | Longitude | Degrees × 10,000,000 |
+| `al` | Altitude | Centimetres relative to home |
+| `ac` | Action code | 1=Waypoint, 3=Loiter, 4=RTH, 8=Land |
+| `p1` | Parameter 1 | Speed cm/s (Waypoint); loiter seconds (Loiter) |
+| `p2` | Parameter 2 | Speed cm/s (Loiter); unused otherwise |
+| `p3` | Parameter 3 | Bitfield (bit 0 = AMSL alt; 0 = relative to home) |
+| `f` | Flag | `0` = normal; `165` (0xA5) = last waypoint |
+
+The firmware buffers all incoming waypoints in a heap-allocated staging array. When the last waypoint (`f:165`) is received, it validates the complete mission (contiguous WP numbers, no gaps, WP Mission mode not active) before forwarding to the FC via sequential `MSP_SET_WP` calls. ACK is deferred until after validation. NACK reason codes: `badfields`, `overflow`, `gap`, `busy`, `oom`.
+
+**Mission Download (`getmission`):**
+
+The ACK for this command is deferred. Before sending the ACK, the firmware publishes one `dlwp:` message per waypoint (see below), then sends the ACK. If no mission is loaded, a NACK with `reason:nomission` is sent instead.
 
 ---
 
@@ -180,6 +204,21 @@ wpno:1,la:123456789,lo:-456789012,al:5000,ac:1,p1:100,
 ```
 
 Optional fields (`p1`, `p2`, `p3`, `f`) are omitted when their value is 0.
+
+---
+
+### 7. Mission Download Message
+
+Published by the firmware on the **uplink topic** in response to a `getmission` command. One message is sent per waypoint (excluding waypoint 0, the home/RTH position). Identified by the `dlwp:` prefix.
+
+```
+dlwp:1,la:123456789,lo:-456789012,al:5000,ac:1,p1:100,p2:0,p3:0,f:0,
+dlwp:2,la:123456800,lo:-456789100,al:6000,ac:1,p1:0,p2:0,p3:0,f:165,
+```
+
+All fields are always present (unlike the periodic waypoint message where zero-valued optional fields are omitted). After all waypoints are published, the firmware sends a standard ACK for the `getmission` command.
+
+The UI accumulates `dlwp:` messages in a buffer (`missionDownloadBuffer`) cleared before sending the `getmission` command. On ACK, the buffer is read, converted to the planner's `plannedMission` format, and loaded into the Mission Planner.
 
 ---
 
@@ -360,6 +399,26 @@ Waypoint messages start with `wpno:` and are parsed separately from telemetry me
 > `al` ceiling of 60000 cm = 600 m is the typical INAV waypoint altitude limit.
 > `ac` values: 1=WAYPOINT, 2=POSHOLD_UNLIM, 3=POSHOLD_TIME, 4=RTH, 5=SET_POI, 6=JUMP, 7=SET_HEAD, 8=LAND.
 > `p1`/`p2`/`p3` are signed 16-bit integers as defined by the MSPv2 waypoint payload.
+
+---
+
+## Mission Download Message Field Reference
+
+Mission download messages start with `dlwp:` and are parsed separately from telemetry messages.
+
+| Key | Description | Unit / Scale | Notes |
+|---|---|---|---|
+| `dlwp` | Waypoint number (1-based) | Count | WP 0 (home) is never included |
+| `la` | Latitude | Degrees × 10,000,000 | Always present |
+| `lo` | Longitude | Degrees × 10,000,000 | Always present |
+| `al` | Altitude | Centimetres relative to home | Always present |
+| `ac` | Action code | Integer | 1=Waypoint, 3=Loiter, 4=RTH, 8=Land |
+| `p1` | Parameter 1 | Integer | Speed cm/s (Waypoint); loiter seconds (Loiter) |
+| `p2` | Parameter 2 | Integer | Speed cm/s (Loiter); unused otherwise |
+| `p3` | Parameter 3 | Bitfield | Bit 0 = AMSL altitude flag |
+| `f` | Flag | Integer | `0` = normal; `165` (0xA5) = last waypoint |
+
+> Unlike `wpno:` messages, all fields are always present in `dlwp:` messages regardless of their value.
 
 ---
 
