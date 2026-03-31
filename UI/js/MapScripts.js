@@ -109,7 +109,7 @@ function addSecondaryToMap(entry) {
         'font-size:' + (12 * window.devicePixelRatio) + 'px;' +
         'padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;' +
         'border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
-        'font-family:Ubuntu,sans-serif;' +
+        'font-family:Ubuntu,sans-serif;line-height:1.2;' +
         'border-left:' + (3 * window.devicePixelRatio) + 'px solid ' + entry.colour + ';';
     var labelL1 = document.createElement('div'); // callsign
     var labelL2 = document.createElement('div'); // alt  vsp  speed
@@ -170,6 +170,12 @@ export function updateSecondaryAircraftOnMap() {
 
         var obj = secondaryAircraftObjects[topic];
         if (!obj) continue;
+
+        // Ensure sources/layers exist — addSecondaryToMap may have run before
+        // isStyleLoaded() returned true, so retry until the style is ready.
+        if (!map.getSource(obj.courseSourceId) && map.isStyleLoaded()) {
+            addSecondarySourcesAndLayers(entry, obj);
+        }
 
         // Dead-reckon position: project forward from last known fix using speed and course,
         // same approach as estimatePosition() for the primary aircraft.
@@ -454,7 +460,7 @@ export function drawMissionOnMap(inputData) {
             var numLabel = document.createElement('div');
             numLabel.textContent = wp.waypointNumber;
             numLabel.style.cssText = 'position:absolute;top:' + (12 * window.devicePixelRatio) + 'px;left:0;width:' + elWidth + 'px;text-align:center;' +
-                'color:#000;font-size:' + elFontSize + 'px;font-family:Ubuntu,sans-serif;font-weight:bold;pointer-events:none;';
+                'color:#000;font-size:' + elFontSize + 'px;line-height:1.2;font-family:Ubuntu,sans-serif;font-weight:bold;pointer-events:none;';
 
             el.appendChild(pin);
             el.appendChild(numLabel);
