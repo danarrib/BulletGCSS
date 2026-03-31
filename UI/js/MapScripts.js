@@ -162,7 +162,7 @@ export function updateSecondaryAircraftOnMap() {
         if (!obj.addedToMap) {
             obj.marker.setLngLat([lonDeg, latDeg]).addTo(map);
             obj.addedToMap = true;
-            obj.labelEl.style.display = '';
+            obj.labelEl.style.display = 'block';
         } else {
             obj.marker.setLngLat([lonDeg, latDeg]);
         }
