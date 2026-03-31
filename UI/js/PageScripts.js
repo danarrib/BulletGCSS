@@ -1,4 +1,5 @@
 import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings, savemqttlog, replaymqttlog, stopreplaymqttlog, resetDataObject, pageSettings, estimateEfis, estimatePosition, updatingWpAltitudes, setOnMessageCallback, setOnReplayStop, replayFromSessionMessages, restoreFromSessionMessages, secondsToNiceTime, publishCommand, commandHistory, otherAircraft, addMonitoredTopic, removeMonitoredTopic, loadAndSubscribeMonitoredTopics } from './CommScripts.js';
+import { openMissionPlanner, initMissionPlannerButtons } from './MissionPlannerScripts.js';
 import { openDB, createSession, closeSession, getOpenSession, listSessions, getSessionMessages, countSessionMessages, appendMessage, deleteSession, renameSession } from './SessionScripts.js';
 import { efis, renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap, drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude, getUserLocation, startOrientationTracking, user_moved_map, setUserMovedMap, setMapStyle, setOnWaypointClick, updateSecondaryAircraftOnMap, removeSecondaryAircraftFromMap, setOnSecondaryAircraftClick } from './MapScripts.js';
@@ -496,8 +497,6 @@ function openNav() {
 }
 
 function openSettingsNav() {
-    // Not implemented yet
-    document.getElementById("missionplannerlink").style.display = "none";
     document.getElementById("inavsettingslink").style.display = "none";
     openSettingsMenu();
 }
@@ -883,6 +882,12 @@ window.addEventListener("DOMContentLoaded", async function() {
     });
 
     setOnSecondaryAircraftClick(showSecondaryAircraftPopup);
+
+    initMissionPlannerButtons();
+    document.getElementById("missionplannerlink").addEventListener("click", function() {
+        closeNav();
+        openMissionPlanner();
+    });
 
     MQTTconnect();
     loadAndSubscribeMonitoredTopics();

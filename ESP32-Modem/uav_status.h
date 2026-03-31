@@ -80,6 +80,7 @@ struct uav_status
     uint8_t fcVersionMajor;
     uint8_t fcVersionMinor;
     uint8_t fcVersionPatch;
+    uint8_t maxWaypoints;   // max WPs supported by the FC (from MSP_WP_GETINFO)
 
     // Low priority information
     uint32_t onTime; 

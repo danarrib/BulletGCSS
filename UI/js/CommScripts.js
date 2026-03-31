@@ -399,14 +399,37 @@ export async function publishCommand(cmdType, state = null, extraFields = null, 
     return cid;
 }
 
+// Callbacks registered by waitForCommandAck; keyed by cid.
+// Each entry is { resolve, reject }.
+const commandAckCallbacks = {};
+
+// Returns a Promise that resolves when the firmware ACKs the given cid,
+// or rejects on NACK or after timeoutMs milliseconds.
+export function waitForCommandAck(cid, timeoutMs = 15000) {
+    return new Promise((resolve, reject) => {
+        commandAckCallbacks[cid] = { resolve, reject };
+        setTimeout(() => {
+            if (commandAckCallbacks[cid]) {
+                delete commandAckCallbacks[cid];
+                reject(new Error('timeout'));
+            }
+        }, timeoutMs);
+    });
+}
+
 function resolveCommandAck(cid) {
-    if (!pendingCommands[cid]) return;
-    delete pendingCommands[cid];
-    for (var i = 0; i < commandHistory.length; i++) {
-        if (commandHistory[i].cid === cid) {
-            commandHistory[i].status = 'received';
-            break;
+    if (pendingCommands[cid]) {
+        delete pendingCommands[cid];
+        for (var i = 0; i < commandHistory.length; i++) {
+            if (commandHistory[i].cid === cid) {
+                commandHistory[i].status = 'received';
+                break;
+            }
         }
+    }
+    if (commandAckCallbacks[cid]) {
+        commandAckCallbacks[cid].resolve();
+        delete commandAckCallbacks[cid];
     }
     console.log('Command acknowledged: ' + cid);
 }
@@ -679,6 +702,7 @@ export function resetDataObject()
         fmAltHold: 0,  // 1 = Altitude Hold flight mode active (any source)
         fmWp: 0,       // 1 = WP/Mission flight mode active (any source)
         fmPosHold: 0,  // 1 = Position Hold flight mode active (any source)
+        maxWaypoints: 0, // max WPs supported by FC (from wpmax field); 0 = not yet received
         fcVersion: "",       // FC firmware version string, e.g. "9.0.1" (empty = not yet received)
         extCmdsSupported: 0, // computed from fcVersion: 0 = none; >= 1 = extended MSP commands supported
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
@@ -1173,6 +1197,11 @@ function parseStandardTelemetryMessage(payload)
                         (major === 9 && minor === 0 && patch > 1)) ? 1 : 0;
                 }
                 break;
+            case "wpmax":
+                raw = parseInt(arrData[1]);
+                if (inRange(raw, 1, 255))
+                    data.maxWaypoints = raw;
+                break;
             default:
                 break;
         }
@@ -1223,6 +1252,25 @@ function parseCommandMessage(payload) {
     }
 
     if (cmd === "ack" && cid) resolveCommandAck(cid);
+    if (cmd === "nack" && cid) {
+        var reason = '';
+        for (var j = 0; j < arrPayload.length; j++) {
+            var kv = arrPayload[j].split(":");
+            if (kv[0] === "reason") { reason = kv[1] || ''; break; }
+        }
+        if (commandAckCallbacks[cid]) {
+            commandAckCallbacks[cid].reject(new Error(reason || 'nack'));
+            delete commandAckCallbacks[cid];
+        }
+        for (var i = 0; i < commandHistory.length; i++) {
+            if (commandHistory[i].cid === cid) {
+                commandHistory[i].status = 'lost';
+                break;
+            }
+        }
+        if (pendingCommands[cid]) delete pendingCommands[cid];
+        console.log('Command NACK received: ' + cid + ' reason: ' + reason);
+    }
 }
 
 export function parseTelemetryData(payload) {

@@ -136,6 +136,14 @@ uav_status uavstatus;
 uav_status lastStatus;
 msp_set_wp_t currentWPMission[256];
 
+// ── Mission upload staging buffer ─────────────────────────────────────────────
+// Incoming setwp commands are buffered here; only forwarded to the FC once the
+// last WP (f:0xA5) is received and the full mission passes validation.
+#define NAV_MAX_WAYPOINTS_FIRMWARE 15
+static msp_set_wp_t stagedMission[NAV_MAX_WAYPOINTS_FIRMWARE];
+static uint8_t      stagedCount   = 0;   // highest wpno received so far
+static bool         stagingActive = false; // true after wpno:1 received
+
 uint32_t lastMessageTimer = 0;  // Used to control the Message sending task
 uint32_t lastLowPriorityMessageTimer = 0;  // Used to control the Low Priority Message sending task
 uint32_t msgCounter = 0; // Incremental number that is sent on all messages
@@ -568,6 +576,16 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   char headingStr[8] = ""; // degrees 0-359 for setheading
   char wpStr[4]      = ""; // waypoint index 0-255 for jumpwp
   char altStr[12]    = ""; // altitude in cm (signed) for setalt
+  // setwp fields
+  char wpnoStr[4]  = "";
+  char wplaStr[13] = "";
+  char wploStr[13] = "";
+  char wpalStr[12] = "";
+  char wpacStr[4]  = "";
+  char wpp1Str[8]  = "";
+  char wpp2Str[8]  = "";
+  char wpp3Str[8]  = "";
+  char wpfStr[4]   = "";
 
   char* token = strtok(buf, ",");
   while (token != NULL) {
@@ -584,9 +602,21 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       if (strcmp(key, "heading") == 0) strncpy(headingStr, value, sizeof(headingStr) - 1);
       if (strcmp(key, "wp")      == 0) strncpy(wpStr,      value, sizeof(wpStr)      - 1);
       if (strcmp(key, "alt")     == 0) strncpy(altStr,     value, sizeof(altStr)     - 1);
+      if (strcmp(key, "wpno")    == 0) strncpy(wpnoStr,    value, sizeof(wpnoStr)    - 1);
+      if (strcmp(key, "la")      == 0) strncpy(wplaStr,    value, sizeof(wplaStr)    - 1);
+      if (strcmp(key, "lo")      == 0) strncpy(wploStr,    value, sizeof(wploStr)    - 1);
+      if (strcmp(key, "al")      == 0) strncpy(wpalStr,    value, sizeof(wpalStr)    - 1);
+      if (strcmp(key, "ac")      == 0) strncpy(wpacStr,    value, sizeof(wpacStr)    - 1);
+      if (strcmp(key, "p1")      == 0) strncpy(wpp1Str,    value, sizeof(wpp1Str)    - 1);
+      if (strcmp(key, "p2")      == 0) strncpy(wpp2Str,    value, sizeof(wpp2Str)    - 1);
+      if (strcmp(key, "p3")      == 0) strncpy(wpp3Str,    value, sizeof(wpp3Str)    - 1);
+      if (strcmp(key, "f")       == 0) strncpy(wpfStr,     value, sizeof(wpfStr)     - 1);
     }
     token = strtok(NULL, ",");
   }
+
+  // Defer the default ACK for setwp last-waypoint — the handler sends ACK or NACK conditionally
+  bool deferAck = (strcmp(cmd, "setwp") == 0) && (atoi(wpfStr) == 165);
 
   // ── Step 3: Require all security fields to be present ────────────────────────
   if (strlen(cmd) == 0 || strlen(cid) == 0 || strlen(seqStr) == 0 || strlen(sig) != 88) {
@@ -626,11 +656,14 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   prefs.putUInt("lastSeq", lastSeq);
   prefs.end();
 
-  char ack[32];
-  snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
-  SerialMon.print("Command verified and accepted. Sending ack: ");
-  SerialMon.print(ack);
-  sendMessage(ack);
+  // setwp with f:165 (last WP) sends ACK or NACK conditionally in step 7
+  if (!deferAck) {
+    char ack[32];
+    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
+    SerialMon.print("Command verified and accepted. Sending ack: ");
+    SerialMon.print(ack);
+    sendMessage(ack);
+  }
 
   // ── Step 7: Execute the command ───────────────────────────────────────────────
   if (strcmp(cmd, "ping") == 0) {
@@ -681,6 +714,125 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       int32_t altCm = (int32_t)atoi(altStr);
       msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
       SerialMon.printf("setalt: sent %d cm\n", altCm);
+
+  } else if (strcmp(cmd, "setwp") == 0) {
+      // Upload a waypoint to the firmware staging buffer.
+      // Payload fields: wpno, la (lat×1e7), lo (lon×1e7), al (alt cm), ac (action), p1, p2, p3, f (flag)
+      // Non-last WPs (f:0) are staged and ACKed immediately.
+      // Last WP (f:165) triggers full validation + FC upload; ACK or NACK is sent after validation.
+
+      if (strlen(wpnoStr) == 0 || strlen(wplaStr) == 0 || strlen(wploStr) == 0 || strlen(wpalStr) == 0) {
+          SerialMon.println("setwp: missing required fields");
+          if (deferAck) {
+              char nack[64];
+              snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:badfields,", cid);
+              sendMessage(nack);
+          }
+          return;
+      }
+
+      uint8_t wpno = (uint8_t)atoi(wpnoStr);
+      int32_t wpLat = (int32_t)strtol(wplaStr, nullptr, 10);
+      int32_t wpLon = (int32_t)strtol(wploStr, nullptr, 10);
+      int32_t wpAlt = (int32_t)strtol(wpalStr, nullptr, 10);
+      uint8_t wpAc  = (uint8_t)(strlen(wpacStr) ? atoi(wpacStr) : 1);
+      int16_t wpP1  = (int16_t)(strlen(wpp1Str) ? atoi(wpp1Str) : 0);
+      int16_t wpP2  = (int16_t)(strlen(wpp2Str) ? atoi(wpp2Str) : 0);
+      int16_t wpP3  = (int16_t)(strlen(wpp3Str) ? atoi(wpp3Str) : 0);
+      uint8_t wpF   = (uint8_t)(strlen(wpfStr)  ? atoi(wpfStr)  : 0);
+
+      uint8_t maxWp = (uavstatus.maxWaypoints > 0) ? uavstatus.maxWaypoints : NAV_MAX_WAYPOINTS_FIRMWARE;
+      if (wpno == 0 || wpno > maxWp || wpno > NAV_MAX_WAYPOINTS_FIRMWARE) {
+          SerialMon.printf("setwp: wpno %d out of range (max %d)\n", wpno, maxWp);
+          stagedCount = 0; stagingActive = false;
+          if (deferAck) {
+              char nack[64];
+              snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:overflow,", cid);
+              sendMessage(nack);
+          }
+          return;
+      }
+
+      // wpno:1 always resets the staging buffer (start of a new upload attempt)
+      if (wpno == 1) {
+          memset(stagedMission, 0, sizeof(stagedMission));
+          stagedCount = 0;
+          stagingActive = true;
+          SerialMon.println("setwp: staging buffer reset for new upload");
+      }
+
+      if (!stagingActive) {
+          SerialMon.printf("setwp: received wpno:%d but staging not active — missing wpno:1\n", wpno);
+          if (deferAck) {
+              char nack[64];
+              snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:gap,", cid);
+              sendMessage(nack);
+          }
+          return;
+      }
+
+      // Store into staging buffer (wpno is 1-based)
+      stagedMission[wpno - 1].waypointNumber = wpno;
+      stagedMission[wpno - 1].action         = wpAc;
+      stagedMission[wpno - 1].lat            = wpLat;
+      stagedMission[wpno - 1].lon            = wpLon;
+      stagedMission[wpno - 1].alt            = wpAlt;
+      stagedMission[wpno - 1].p1             = wpP1;
+      stagedMission[wpno - 1].p2             = wpP2;
+      stagedMission[wpno - 1].p3             = wpP3;
+      stagedMission[wpno - 1].flag           = wpF;
+      if (wpno > stagedCount) stagedCount = wpno;
+
+      SerialMon.printf("setwp: staged WP %d (action:%d lat:%ld lon:%ld alt:%ld f:%d)\n",
+                       wpno, wpAc, (long)wpLat, (long)wpLon, (long)wpAlt, wpF);
+
+      if (wpF != 0xA5) {
+          // Non-last WP — ACK was already sent in step 6. Done.
+          return;
+      }
+
+      // ── Last WP received — validate before forwarding to FC ──────────────────
+      // Refuse if WP Mission mode is currently active on the FC
+      if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+          uint8_t fmWpSnap = publishedStatus.fmWp;
+          xSemaphoreGive(dataMutex);
+          if (fmWpSnap != 0) {
+              SerialMon.println("setwp: rejected — WP Mission mode is currently active");
+              char nack[64];
+              snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:busy,", cid);
+              sendMessage(nack);
+              stagedCount = 0; stagingActive = false;
+              return;
+          }
+      }
+
+      // Check all indices 1..stagedCount are filled (no gaps)
+      for (uint8_t i = 0; i < stagedCount; i++) {
+          if (stagedMission[i].waypointNumber != i + 1) {
+              SerialMon.printf("setwp: gap in staged mission at slot %d (expected wpno %d)\n", i, i + 1);
+              char nack[64];
+              snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:gap,", cid);
+              sendMessage(nack);
+              stagedCount = 0; stagingActive = false;
+              return;
+          }
+      }
+
+      // All checks passed — upload to FC via MSP_SET_WP
+      SerialMon.printf("setwp: uploading %d WP(s) to FC...\n", stagedCount);
+      for (uint8_t i = 0; i < stagedCount; i++) {
+          msp.send(MSP_SET_WP, &stagedMission[i], sizeof(msp_set_wp_t));
+          SerialMon.printf("  WP %d → FC\n", stagedMission[i].waypointNumber);
+      }
+
+      // Send success ACK (deferred from step 6)
+      char ackWp[32];
+      snprintf(ackWp, sizeof(ackWp), "cmd:ack,cid:%s,", cid);
+      sendMessage(ackWp);
+      SerialMon.println("setwp: upload complete, ACK sent");
+
+      stagedCount = 0;
+      stagingActive = false;
 
   } else {
       // Look up the command in the flight mode table.
@@ -984,6 +1136,7 @@ void msp_get_wp_getinfo() {
     if (msp.request(MSP_WP_GETINFO, &inavdata, sizeof(inavdata)))
     {
       uavstatus.isWpMissionValid = inavdata.isWaypointListValid;
+      uavstatus.maxWaypoints     = inavdata.maxWaypoints;
 
       if (inavdata.waypointCount != uavstatus.waypointCount) {
           uavstatus.waypointCount = inavdata.waypointCount;
@@ -1902,6 +2055,8 @@ void buildLowPriorityMessage(char* message) {
   sprintf(message, "%smfr:%d,", message, MESSAGE_SEND_INTERVAL); // mfr (message frequency)
 
   sprintf(message, "%sfcver:%d.%d.%d,", message, publishedStatus.fcVersionMajor, publishedStatus.fcVersionMinor, publishedStatus.fcVersionPatch); // FC firmware version
+
+  sprintf(message, "%swpmax:%d,", message, publishedStatus.maxWaypoints); // max WPs supported by FC
 
   char pkBase64[45];
   base64Encode32(commandPublicKey, pkBase64);

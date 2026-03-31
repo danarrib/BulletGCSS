@@ -4,10 +4,14 @@ import { data, otherAircraft, updatingWpAltitudes, setUpdatingWpAltitudes, Desti
 // pixelRatio: 1 renders at CSS pixel scale so the OS compositor handles
 // upscaling — matching OpenLayers behaviour on high-DPI / OS-scaled displays.
 
-var MAP_STYLES = {
+export var MAP_STYLES = {
     'dark':    'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     'liberty': 'https://tiles.openfreemap.org/styles/liberty',
 };
+
+export function getCurrentMapStyleKey() {
+    return localStorage.getItem('ui_map_style') || 'liberty';
+}
 
 function getInitialMapStyle() {
     return MAP_STYLES[localStorage.getItem('ui_map_style')] || MAP_STYLES['liberty'];
@@ -202,7 +206,7 @@ export function updateSecondaryAircraftOnMap() {
         obj.labelEl.style.opacity = stale ? '0.5' : '1';
 
         var altM    = (entry.alt / 100).toFixed(0);
-        var spdKmh  = (entry.gsp / 27.78).toFixed(1);
+        var spdKmh  = (entry.gsp / 27.78).toFixed(0);
         var climb   = entry.vsp > 20 ? '\u2191' : entry.vsp < -20 ? '\u2193' : '\u2014';
         var csLabel = entry.callsign || entry.topic.split('/').pop();
         obj.labelL1.textContent = csLabel;
