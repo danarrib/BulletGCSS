@@ -809,3 +809,14 @@ select
     font-family: Ubuntu, sans-serif;
     pointer-events: none;
 }
+
+.sec-aircraft-label {
+    position: absolute;
+    display: none;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    white-space: nowrap;
+    font-family: Ubuntu, sans-serif;
+    line-height: 1.2;
+}

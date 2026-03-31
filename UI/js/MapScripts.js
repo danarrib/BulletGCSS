@@ -82,13 +82,11 @@ function addSecondaryToMap(entry) {
     // Label: lives in the screen-space overlay, positioned via map.project() each tick.
     // This prevents it from rotating with the aircraft icon.
     var labelEl = document.createElement('div');
-    labelEl.style.cssText = 'position:absolute;display:none;transform:translateY(-50%);' +
-        'background:rgba(0,0,0,0.72);color:#fff;white-space:nowrap;' +
-        'font-size:' + (12 * window.devicePixelRatio) + 'px;' +
-        'padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;' +
-        'border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
-        'font-family:Ubuntu,sans-serif;line-height:1.2;' +
-        'border-left:' + (3 * window.devicePixelRatio) + 'px solid ' + entry.colour + ';';
+    labelEl.className = 'sec-aircraft-label';
+    labelEl.style.fontSize    = (12 * window.devicePixelRatio) + 'px';
+    labelEl.style.padding     = (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px';
+    labelEl.style.borderRadius = (3 * window.devicePixelRatio) + 'px';
+    labelEl.style.borderLeft  = (3 * window.devicePixelRatio) + 'px solid ' + entry.colour;
     var labelL1 = document.createElement('div'); // callsign
     var labelL2 = document.createElement('div'); // alt  vsp  speed
     labelEl.appendChild(labelL1);
@@ -111,7 +109,6 @@ function addSecondaryToMap(entry) {
     obj.labelL2  = labelL2;
     secondaryAircraftObjects[entry.topic] = obj;
 
-    if (map.isStyleLoaded()) addSecondarySourcesAndLayers(entry, obj);
 }
 
 function removeSecondaryFromMap(topic) {
