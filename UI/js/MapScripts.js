@@ -85,7 +85,7 @@ function addSecondarySourcesAndLayers(entry, obj) {
 
 function addSecondaryToMap(entry) {
     var safeId = sanitizeMapId(entry.topic);
-    var imgWH  = 44 * window.devicePixelRatio;
+    var imgWH  = 36 * window.devicePixelRatio;
     var obj = {
         courseSourceId: safeId + '_cs',
         courseLayerId:  safeId + '_cl',
@@ -272,7 +272,7 @@ var CenterOnAircraftControl = {
 };
 map.addControl(CenterOnAircraftControl, 'top-right');
 
-document.documentElement.style.setProperty('--compass-size', (44 * window.devicePixelRatio) + 'px');
+document.documentElement.style.setProperty('--compass-size', (36 * window.devicePixelRatio) + 'px');
 
 map.on('drag', function() {
     user_moved_map = true;
@@ -340,8 +340,8 @@ map.on('style.load', function() {
 var aircraftEl = document.createElement('img');
 
 aircraftEl.src = 'img/aircraft.png';
-aircraftEl.style.width  = (44 * window.devicePixelRatio) + 'px';
-aircraftEl.style.height = (44 * window.devicePixelRatio) + 'px';
+aircraftEl.style.width  = (36 * window.devicePixelRatio) + 'px';
+aircraftEl.style.height = (36 * window.devicePixelRatio) + 'px';
 
 var aircraftMarker = new maplibregl.Marker({ element: aircraftEl, rotationAlignment: 'map' })
     .setLngLat([-46.6652, -23.5467])
@@ -440,8 +440,8 @@ export function drawMissionOnMap(inputData) {
             else
                 pinSrc = 'img/map_pin_gray.png';
 
-            var elWidth  = 36 * window.devicePixelRatio;
-            var elHeight = 50 * window.devicePixelRatio;
+            var elWidth  = 30 * window.devicePixelRatio;
+            var elHeight = 40 * window.devicePixelRatio;
             var elFontSize = 14 * window.devicePixelRatio;
 
             var el = document.createElement('div');
@@ -466,7 +466,7 @@ export function drawMissionOnMap(inputData) {
                 var infoDiv = document.createElement('div');
                 infoDiv.style.cssText = 'position:absolute;left:' + (40 * window.devicePixelRatio) + 'px;top:0;background:rgba(0,0,0,0.72);' +
                     'color:' + altColor + ';font-size:' + (13 * window.devicePixelRatio) + 'px;white-space:nowrap;padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;border-radius:' + (3 * window.devicePixelRatio) + 'px;' +
-                    'font-family:Ubuntu,sans-serif;line-height:1.6;pointer-events:none;';
+                    'font-family:Ubuntu,sans-serif;pointer-events:none;';
                 infoDiv.innerHTML = 'WP alt: ' + wpAlt.toFixed(0)        + ' m<br>' +
                                     'ABS alt: ' + grAlt.toFixed(0)        + ' m';
                 el.appendChild(infoDiv);
@@ -534,14 +534,14 @@ export function drawHomeOnMap(inputData) {
     var el = document.createElement('div');
     el.style.cssText = 'display:flex;align-items:center;';
 
-    var imgWH = 44 * window.devicePixelRatio;
+    var imgWH = 36 * window.devicePixelRatio;
 
     var img = document.createElement('img');
     img.src = 'img/home.png';
     img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;';
 
     var label = document.createElement('div');
-    label.style.cssText = 'position:absolute;left:' + ((44 + 4) * window.devicePixelRatio) + 'px;background:rgba(0,0,0,0.72);color:#fff;' +
+    label.style.cssText = 'position:absolute;left:' + ((36 + 4) * window.devicePixelRatio) + 'px;background:rgba(0,0,0,0.72);color:#fff;' +
         'font-size:' + (13 * window.devicePixelRatio) + 'px;white-space:nowrap;padding:' + (3 * window.devicePixelRatio) + 'px ' + (6 * window.devicePixelRatio) + 'px;border-radius:' + (3 * window.devicePixelRatio) + 'px;font-family:Ubuntu,sans-serif;';
     label.textContent = 'Alt SL: ' + inputData.homeAltitudeSL.toFixed(0) + ' m';
 
