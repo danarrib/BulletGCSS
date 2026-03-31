@@ -176,12 +176,26 @@ export function updateSecondaryAircraftOnMap() {
         obj.labelEl.style.top     = Math.round(px.y) + 'px';
         obj.labelEl.style.opacity = stale ? '0.5' : '1';
 
-        var altM    = (entry.alt / 100).toFixed(0);
-        var spdKmh  = (entry.gsp / 27.78).toFixed(0);
+        var altRawM = entry.alt / 100;
+        var spdMs   = entry.gsp / 100;
+        var altUnit = localStorage.getItem("ui_altitude") || "m";
+        var spdUnit = localStorage.getItem("ui_speed") || "kmh";
+        var altVal, altSuffix, spdVal, spdSuffix;
+        if (altUnit === "ft") {
+            altVal = (altRawM * 3.28084).toFixed(0); altSuffix = "ft";
+        } else {
+            altVal = altRawM.toFixed(0); altSuffix = "m";
+        }
+        switch (spdUnit) {
+            case "mph": spdVal = (spdMs * 2.23694).toFixed(0); spdSuffix = "mph";   break;
+            case "ms":  spdVal = spdMs.toFixed(1);              spdSuffix = "m/s";  break;
+            case "kt":  spdVal = (spdMs * 1.94384).toFixed(0); spdSuffix = "kt";   break;
+            default:    spdVal = (spdMs * 3.6).toFixed(0);      spdSuffix = "km/h"; break;
+        }
         var climb   = entry.vsp > 20 ? '\u2191' : entry.vsp < -20 ? '\u2193' : '\u2014';
         var csLabel = entry.callsign || entry.topic.split('/').pop();
         obj.labelL1.textContent = csLabel;
-        obj.labelL2.textContent = altM + 'm\u2002' + climb + '\u2002' + spdKmh + '\u202fkm/h';
+        obj.labelL2.textContent = altVal + altSuffix + '\u2002' + climb + '\u2002' + spdVal + '\u202f' + spdSuffix;
 
     }
 }
@@ -729,4 +743,58 @@ export function getMissionWaypointsAltitude() {
         xmlhttp.open('GET', apiURL, true);
         xmlhttp.send();
     }
+}
+
+// Generic elevation query for arbitrary points (used by the mission planner).
+// points: [{lat, lon}, ...] — returned in the same order.
+// Resolves to [{lat, lon, elevation}, ...] or null if unavailable/unconfigured.
+export function queryElevations(points) {
+    var elevationProvider = localStorage.getItem('ui_elevation_provider');
+    if (!elevationProvider || points.length === 0) return Promise.resolve(null);
+    if (location.protocol !== 'https:' && elevationProvider !== 'OpenTopoDataDirect')
+        return Promise.resolve(null);
+
+    return new Promise(function(resolve) {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState !== XMLHttpRequest.DONE) return;
+            if (xmlhttp.status !== 200) { resolve(null); return; }
+            try {
+                var json = JSON.parse(xmlhttp.responseText);
+                var results = [];
+                if (elevationProvider === 'OpenElevation') {
+                    for (var i = 0; i < json.results.length; i++)
+                        results.push({ lat: json.results[i].latitude, lon: json.results[i].longitude,
+                                       elevation: json.results[i].elevation });
+                } else {
+                    if (json.status !== 'OK') { resolve(null); return; }
+                    for (var i = 0; i < json.results.length; i++)
+                        results.push({ lat: json.results[i].location.lat, lon: json.results[i].location.lng,
+                                       elevation: json.results[i].elevation });
+                }
+                resolve(results);
+            } catch (e) { resolve(null); }
+        };
+
+        if (elevationProvider === 'OpenElevation') {
+            var body = { locations: points.map(function(p) { return { latitude: p.lat, longitude: p.lon }; }) };
+            xmlhttp.open('POST', 'proxy.php', true);
+            xmlhttp.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+            xmlhttp.setRequestHeader('Accept', '*/*');
+            xmlhttp.setRequestHeader('X-Proxy-Url', 'https://api.open-elevation.com/api/v1/lookup');
+            xmlhttp.send(JSON.stringify(body));
+        } else {
+            var locs = points.map(function(p) { return p.lat + ',' + p.lon; }).join('|');
+            if (elevationProvider === 'OpenTopoDataDirect') {
+                xmlhttp.open('GET', 'https://fpvsampa.opentopodata.org/v1/mapzen?locations=' + locs, true);
+                xmlhttp.send();
+            } else {
+                xmlhttp.open('GET', 'proxy.php', true);
+                xmlhttp.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+                xmlhttp.setRequestHeader('Accept', '*/*');
+                xmlhttp.setRequestHeader('X-Proxy-Url', 'https://api.opentopodata.org/v1/mapzen?locations=' + locs);
+                xmlhttp.send();
+            }
+        }
+    });
 }

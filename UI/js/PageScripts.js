@@ -155,8 +155,15 @@ function closeSecurityMenu() {
 
 // ─── Multi-aircraft monitoring panel ─────────────────────────────────────────
 
+function getMonitorTopicPrefix() {
+    var primaryTopic = localStorage.getItem("mqttTopic") || "";
+    var lastSlash = primaryTopic.lastIndexOf("/");
+    return lastSlash >= 0 ? primaryTopic.substring(0, lastSlash + 1) : "";
+}
+
 function openMonitoredMenu() {
     renderMonitoredList();
+    document.getElementById("inputMonitorTopic").value = getMonitorTopicPrefix();
     document.getElementById("monitoredUAVsMenu").style.width = "100%";
     closeNav();
 }
@@ -798,7 +805,7 @@ document.getElementById("btAddMonitorTopic").addEventListener("click", function(
         errorEl.style.display = '';
     } else {
         errorEl.style.display = 'none';
-        topicInput.value = '';
+        topicInput.value = getMonitorTopicPrefix();
         renderMonitoredList();
     }
 });

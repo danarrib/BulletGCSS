@@ -615,8 +615,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
     token = strtok(NULL, ",");
   }
 
-  // Defer the default ACK for setwp last-waypoint — the handler sends ACK or NACK conditionally
-  bool deferAck = (strcmp(cmd, "setwp") == 0) && (atoi(wpfStr) == 165);
+  // Defer the default ACK for setwp last-waypoint and getmission — handlers send ACK or NACK conditionally
+  bool deferAck = ((strcmp(cmd, "setwp") == 0) && (atoi(wpfStr) == 165)) || (strcmp(cmd, "getmission") == 0);
 
   // ── Step 3: Require all security fields to be present ────────────────────────
   if (strlen(cmd) == 0 || strlen(cid) == 0 || strlen(seqStr) == 0 || strlen(sig) != 88) {
@@ -714,6 +714,45 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       int32_t altCm = (int32_t)atoi(altStr);
       msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
       SerialMon.printf("setalt: sent %d cm\n", altCm);
+
+  } else if (strcmp(cmd, "getmission") == 0) {
+      // Fetch the full published mission and send each WP as a dlwp: telemetry message,
+      // then send ACK. If no mission is loaded, send NACK reason:nomission.
+      uint8_t wpCount = 0;
+      msp_set_wp_t wpSnapshot[256];
+      xSemaphoreTake(dataMutex, portMAX_DELAY);
+      wpCount = publishedStatus.waypointCount;
+      if (wpCount > 0)
+          memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
+      xSemaphoreGive(dataMutex);
+
+      if (wpCount == 0) {
+          SerialMon.println("getmission: no mission loaded, sending NACK");
+          char nack[64];
+          snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:nomission,", cid);
+          sendMessage(nack);
+          return;
+      }
+
+      SerialMon.printf("getmission: sending %d WP(s)\n", wpCount);
+      for (uint8_t i = 0; i < wpCount; i++) {
+          msp_set_wp_t *wp = &wpSnapshot[i];
+          char dlwpMsg[128];
+          snprintf(dlwpMsg, sizeof(dlwpMsg),
+                   "dlwp:%d,la:%ld,lo:%ld,al:%d,ac:%d,p1:%d,p2:%d,p3:%d,f:%d,",
+                   (int)wp->waypointNumber,
+                   (long)wp->lat, (long)wp->lon,
+                   (int)wp->alt, (int)wp->action,
+                   (int)wp->p1, (int)wp->p2, (int)wp->p3,
+                   (int)wp->flag);
+          sendMessage(dlwpMsg);
+          SerialMon.printf("getmission: sent dlwp %d\n", i + 1);
+      }
+
+      char ackMsg[32];
+      snprintf(ackMsg, sizeof(ackMsg), "cmd:ack,cid:%s,", cid);
+      sendMessage(ackMsg);
+      SerialMon.println("getmission: ACK sent");
 
   } else if (strcmp(cmd, "setwp") == 0) {
       // Upload a waypoint to the firmware staging buffer.

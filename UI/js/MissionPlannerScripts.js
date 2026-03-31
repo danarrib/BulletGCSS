@@ -1,7 +1,7 @@
 // MissionPlannerScripts.js — Mission Planner for Bullet GCSS
 
-import { data, mqttConnected, publishCommand, waitForCommandAck } from './CommScripts.js';
-import { hasUserLocation } from './MapScripts.js';
+import { data, mqttConnected, publishCommand, waitForCommandAck, clearMissionDownloadBuffer, getMissionDownloadBuffer } from './CommScripts.js';
+import { hasUserLocation, queryElevations } from './MapScripts.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,8 @@ let wpMarkers = [];
 let routeSourceAdded = false;
 let modalWpIndex = -1;
 let uploadAborted = false;
+let currentMissionName = null;
+let missionDirty = false;
 
 const STORAGE_KEY = 'gcss_saved_missions';
 
@@ -101,6 +103,12 @@ function updateStats() {
     if (uploadBtn) uploadBtn.disabled = (n === 0 || !mqttConnected);
 }
 
+function updateMissionName() {
+    var name = currentMissionName || 'Untitled mission';
+    if (missionDirty) name += ' *';
+    document.getElementById('mpMissionName').textContent = name;
+}
+
 // ── Route line ────────────────────────────────────────────────────────────────
 
 function updateRouteLine() {
@@ -157,7 +165,7 @@ function addWpMarker(index) {
             plannedMission[i].lon = ll.lng;
             updateRouteLine();
         });
-        marker.on('dragend', function() { updateStats(); });
+        marker.on('dragend', function() { missionDirty = true; updateStats(); updateMissionName(); });
         el.addEventListener('click', function(e) {
             e.stopPropagation();
             openWpModal(i);
@@ -210,6 +218,52 @@ function updatePlannerUserMarker() {
     }
 }
 
+// ── Terrain elevation ─────────────────────────────────────────────────────────
+
+// Returns the ground elevation of the first WP (used as the home/base elevation).
+function getPlannerBaseElevation() {
+    if (plannedMission.length > 0 && plannedMission[0].groundElevM !== undefined)
+        return plannedMission[0].groundElevM;
+    return null;
+}
+
+// Update the elevation info row in the open modal without re-opening it.
+function refreshModalElevation() {
+    var elevRow = document.getElementById('wpModalElevRow');
+    if (!elevRow) return;
+    if (modalWpIndex < 0 || modalWpIndex >= plannedMission.length) {
+        elevRow.style.display = 'none';
+        return;
+    }
+    var wp = plannedMission[modalWpIndex];
+    if (wp.groundElevM === undefined || wp.groundElevM === null) {
+        elevRow.style.display = 'none';
+        return;
+    }
+    var currentAltM = parseFloat(document.getElementById('wpModalAlt').value);
+    if (isNaN(currentAltM)) currentAltM = wp.altM || 0;
+    var base = getPlannerBaseElevation();
+    var text = 'Terrain: ' + wp.groundElevM.toFixed(0) + '\u202fm';
+    if (base !== null) {
+        var aboveGround = currentAltM - (wp.groundElevM - base);
+        text += '\u2002|\u2002~' + aboveGround.toFixed(0) + '\u202fm above terrain';
+    }
+    document.getElementById('wpModalElevText').textContent = text;
+    elevRow.style.display = '';
+}
+
+// Fetch elevations for all planned waypoints in one batch request.
+async function fetchAllPlannerElevations() {
+    if (plannedMission.length === 0) return;
+    var points = plannedMission.map(function(wp) { return { lat: wp.lat, lon: wp.lon }; });
+    var results = await queryElevations(points);
+    if (!results) return;
+    for (var i = 0; i < results.length && i < plannedMission.length; i++)
+        plannedMission[i].groundElevM = results[i].elevation;
+    if (modalWpIndex >= 0 && modalWpIndex < plannedMission.length)
+        refreshModalElevation();
+}
+
 // ── WP parameter modal ────────────────────────────────────────────────────────
 
 function openWpModal(index) {
@@ -223,6 +277,7 @@ function openWpModal(index) {
     document.getElementById('wpModalLoiter').value = String(wp.loiterSec !== undefined ? wp.loiterSec : 10);
 
     updateModalFieldVisibility();
+    refreshModalElevation();
 
     var modal = document.getElementById('wpModal');
     modal.style.top = '50%';
@@ -252,6 +307,8 @@ function saveAndCloseWpModal() {
     wp.speedMs   = parseFloat(document.getElementById('wpModalSpeed').value) || 0;
     wp.loiterSec = parseInt(document.getElementById('wpModalLoiter').value) || 10;
     closeWpModal();
+    missionDirty = true;
+    updateMissionName();
     // Update marker colour to reflect the (possibly changed) action
     if (wpMarkers[idx]) {
         wpMarkers[idx].getElement().style.background = getActionColor(wp.action);
@@ -271,9 +328,11 @@ function deleteWpFromModal() {
     if (!confirm('Delete waypoint ' + (modalWpIndex + 1) + '?')) return;
     plannedMission.splice(modalWpIndex, 1);
     closeWpModal();
+    missionDirty = true;
     rebuildAllMarkers();
     updateRouteLine();
     updateStats();
+    updateMissionName();
 }
 
 // ── Toast notification ────────────────────────────────────────────────────────
@@ -331,10 +390,21 @@ function initPlannerMap() {
         var ll = e.lngLat;
         plannedMission.push({ lat: ll.lat, lon: ll.lng, altM: 50, action: 1, speedMs: 0, loiterSec: 10 });
         var newIdx = plannedMission.length - 1;
+        missionDirty = true;
         addWpMarker(newIdx);
         updateRouteLine();
         updateStats();
+        updateMissionName();
         openWpModal(newIdx);
+        // Fetch terrain elevation for the new WP asynchronously
+        (function(idx, lat, lon) {
+            queryElevations([{lat: lat, lon: lon}]).then(function(results) {
+                if (results && results.length > 0 && idx < plannedMission.length) {
+                    plannedMission[idx].groundElevM = results[0].elevation;
+                    if (modalWpIndex === idx) refreshModalElevation();
+                }
+            });
+        })(newIdx, ll.lat, ll.lng);
     });
 }
 
@@ -407,6 +477,69 @@ async function uploadMission() {
     }
 }
 
+// ── Download ──────────────────────────────────────────────────────────────────
+
+async function downloadMission() {
+    if (!mqttConnected) { alert('Not connected to MQTT broker.'); return; }
+
+    var progressEl   = document.getElementById('mpUploadProgress');
+    var progressText = document.getElementById('mpUploadProgressText');
+    progressEl.style.display = 'block';
+    progressText.textContent = 'Downloading mission\u2026';
+
+    clearMissionDownloadBuffer();
+    var cid = await publishCommand('getmission', null, {}, 'Download mission');
+    if (!cid) {
+        progressEl.style.display = 'none';
+        alert('Failed to send getmission command.');
+        return;
+    }
+    try {
+        await waitForCommandAck(cid, 30000);
+    } catch (err) {
+        progressEl.style.display = 'none';
+        alert('Download failed.\nReason: ' + err.message);
+        return;
+    }
+
+    var buffer = getMissionDownloadBuffer();
+    if (buffer.length === 0) {
+        progressEl.style.display = 'none';
+        alert('No waypoints received from aircraft.');
+        return;
+    }
+
+    // Convert dlwp buffer entries to plannedMission format
+    var newMission = buffer.map(function(wp) {
+        var entry = {
+            lat:    wp.la / 1e7,
+            lon:    wp.lo / 1e7,
+            altM:   wp.al / 100,
+            action: wp.ac,
+            p1:     wp.p1,
+            p2:     wp.p2,
+            p3:     wp.p3,
+        };
+        // Reconstruct speed/loiter from p1/p2 depending on action
+        if (wp.ac === 1) {
+            entry.speedMs = wp.p1 / 100;
+        } else if (wp.ac === 3) {
+            entry.loiterSec = wp.p1;
+            entry.speedMs   = wp.p2 / 100;
+        }
+        return entry;
+    });
+
+    loadMissionFromStorage(null, newMission);
+    missionDirty = true;
+    updateMissionName();
+
+    progressEl.style.display = 'none';
+    progressText.textContent = 'Mission downloaded: ' + newMission.length + ' waypoints';
+    progressEl.style.display = 'block';
+    setTimeout(function() { progressEl.style.display = 'none'; }, 3000);
+}
+
 // ── Local storage missions ────────────────────────────────────────────────────
 
 function getSavedMissions() {
@@ -438,12 +571,15 @@ function deleteMissionFromStorage(name) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(missions));
 }
 
-function loadMissionFromStorage(waypoints) {
+function loadMissionFromStorage(name, waypoints) {
     if (plannedMission.length > 0 && !confirm('Replace current mission?')) return;
     plannedMission = JSON.parse(JSON.stringify(waypoints));
+    currentMissionName = name;
+    missionDirty = false;
     rebuildAllMarkers();
     updateRouteLine();
     updateStats();
+    updateMissionName();
     closeSavedMissionsPanel();
     if (plannedMission.length > 0 && plannerMapReady) {
         var lats = plannedMission.map(function(w) { return w.lat; });
@@ -454,6 +590,7 @@ function loadMissionFromStorage(waypoints) {
             { padding: 60 }
         );
     }
+    fetchAllPlannerElevations();
 }
 
 function saveMissionPrompt() {
@@ -466,6 +603,9 @@ function saveMissionPrompt() {
         if (!confirm('A mission named "' + name + '" already exists. Overwrite?')) return;
     }
     saveMissionToStorage(name);
+    currentMissionName = name;
+    missionDirty = false;
+    updateMissionName();
     showToast('Mission "' + name + '" saved.');
 }
 
@@ -491,9 +631,9 @@ function showSavedMissionsPanel() {
 
             var loadBtn = document.createElement('input');
             loadBtn.type = 'button'; loadBtn.value = 'Load'; loadBtn.className = 'btRcCmd';
-            loadBtn.addEventListener('click', (function(waypoints) {
-                return function() { loadMissionFromStorage(waypoints); };
-            })(m.waypoints));
+            loadBtn.addEventListener('click', (function(mName, waypoints) {
+                return function() { loadMissionFromStorage(mName, waypoints); };
+            })(m.name, m.waypoints));
 
             var delBtn = document.createElement('input');
             delBtn.type = 'button'; delBtn.value = 'Delete'; delBtn.className = 'btRcCmd';
@@ -574,9 +714,12 @@ function importMissionFromFile() {
                                   action: action, speedMs: speedMs, loiterSec: loiterSec });
                 }
                 plannedMission = loaded;
+                currentMissionName = null;
+                missionDirty = true;
                 rebuildAllMarkers();
                 updateRouteLine();
                 updateStats();
+                updateMissionName();
                 if (plannedMission.length > 0 && plannerMapReady) {
                     var lats = plannedMission.map(function(w) { return w.lat; });
                     var lons = plannedMission.map(function(w) { return w.lon; });
@@ -586,6 +729,7 @@ function importMissionFromFile() {
                         { padding: 60 }
                     );
                 }
+                fetchAllPlannerElevations();
             } catch (err) {
                 alert('Failed to import mission file: ' + err.message);
             }
@@ -601,9 +745,12 @@ function clearMission() {
     if (plannedMission.length === 0) return;
     if (!confirm('Clear all waypoints?')) return;
     plannedMission = [];
+    currentMissionName = null;
+    missionDirty = false;
     clearAllMarkers();
     updateRouteLine();
     updateStats();
+    updateMissionName();
 }
 
 // ── Open / close planner view ─────────────────────────────────────────────────
@@ -613,6 +760,12 @@ function syncStatusIcons() {
     var cmdSrc  = document.getElementById('commandChannelIcon');
     if (connSrc) document.getElementById('mpConnectionIcon').src = connSrc.src;
     if (cmdSrc)  document.getElementById('mpCommandChannelIcon').src = cmdSrc.src;
+    var dot = document.getElementById('mpWpValidDot');
+    if (dot) {
+        var valid = data.isWaypointMissionValid;
+        dot.style.background = valid === 1 ? '#4c4' : '#c44';
+        dot.title = valid === 1 ? 'Mission valid (FC reports OK)' : 'Mission not valid or not loaded on FC';
+    }
 }
 
 export function openMissionPlanner() {
@@ -627,6 +780,7 @@ export function openMissionPlanner() {
         updatePlannerUserMarker();
     }
     updateStats();
+    updateMissionName();
     plannerUpdateInterval = setInterval(function() {
         updatePlannerUserMarker();
         updateStats();
@@ -646,6 +800,7 @@ export function closeMissionPlanner() {
 export function initMissionPlannerButtons() {
     document.getElementById('mpBtClose').addEventListener('click', closeMissionPlanner);
     document.getElementById('mpBtUpload').addEventListener('click', function() { uploadMission(); });
+    document.getElementById('mpBtDownload').addEventListener('click', function() { downloadMission(); });
     document.getElementById('mpBtSave').addEventListener('click', saveMissionPrompt);
     document.getElementById('mpBtLoad').addEventListener('click', showSavedMissionsPanel);
     document.getElementById('mpBtExport').addEventListener('click', exportMissionToFile);
@@ -657,6 +812,7 @@ export function initMissionPlannerButtons() {
     });
     document.getElementById('mpBtCloseSavedList').addEventListener('click', closeSavedMissionsPanel);
     document.getElementById('wpModalAction').addEventListener('change', updateModalFieldVisibility);
+    document.getElementById('wpModalAlt').addEventListener('input', refreshModalElevation);
     document.getElementById('wpModalClose').addEventListener('click', saveAndCloseWpModal);
     document.getElementById('wpModalDelete').addEventListener('click', deleteWpFromModal);
 }

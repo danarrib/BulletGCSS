@@ -160,13 +160,13 @@
 
 	<div id="sideMenu" class="sidebar">
 		<a href="javascript:void(0)" class="closebtn" id="closeSideMenu">&times;</a>
-		<a href="javascript:void(0)" id="senduavcommandlink">Send command...</a>
-		<a href="javascript:void(0)" id="navSessionsMenu">Sessions...</a>
-		<a href="javascript:void(0)" id="navMonitoredUAVs">Monitor other UAVs...</a>
+		<a href="javascript:void(0)" id="senduavcommandlink">Send command to UAV</a>
+		<a href="javascript:void(0)" id="navSessionsMenu">Flight Sessions</a>
+		<a href="javascript:void(0)" id="navMonitoredUAVs">Monitor other UAVs</a>
 		<a href="javascript:void(0)" id="missionplannerlink">Mission planner</a>
 		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
 		<a href="javascript:void(0)" id="navEnableCompass" style="display:none;">Enable compass heading</a>
-		<a href="javascript:void(0)" id="navSettingsMenu">Settings...</a>
+		<a href="javascript:void(0)" id="navSettingsMenu">Settings</a>
 		<a href="javascript:void(0)" id="navRefreshApp" class="notification">
 			Refresh App
 			<span class="badge" id="refreshMenuBadge" style="top:0.2em;">&nbsp;</span>
@@ -193,10 +193,10 @@
 
 	<div id="settingsMenu" class="sidebar">
 		<a href="javascript:void(0)" class="closebtn" id="closeSettingsMenu">&times;</a>
-		<a href="javascript:void(0)" id="navBrokerSettings">Broker settings...</a>
-		<a href="javascript:void(0)" id="uisettingslink">UI settings...</a>
-		<a href="javascript:void(0)" id="navSecurityMenu">Security...</a>
-		<a href="#" id="inavsettingslink">INAV settings...</a>
+		<a href="javascript:void(0)" id="navBrokerSettings">Broker settings</a>
+		<a href="javascript:void(0)" id="uisettingslink">UI settings</a>
+		<a href="javascript:void(0)" id="navSecurityMenu">Security</a>
+		<a href="#" id="inavsettingslink">INAV settings</a>
 	</div>
 
 	<div id="commandsMenu" class="sidebar">
@@ -434,7 +434,11 @@
 		<div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
 			<img alt="Connection status" class="statusIcon" id="mpConnectionIcon" src="img/connection_broken.png" />
 			<img alt="Command channel status" class="statusIcon" id="mpCommandChannelIcon" src="img/command_error.png" />
-			<span style="flex:1;color:#fff;font-size:3.5vmin;" id="mpStats">0 waypoints</span>
+			<span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
+			<div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
+				<span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
+				<span style="color:#fff;font-size:3.5vmin;" id="mpStats">0 waypoints</span>
+			</div>
 		</div>
 		<!-- Map container -->
 		<div id="mpMap" style="position:absolute;top:12vmin;left:0;right:0;bottom:28vmin;"></div>
@@ -450,6 +454,7 @@
 			</div>
 			<div style="display:flex;gap:2vmin;justify-content:center;">
 				<input type="button" id="mpBtUpload" value="Upload" class="btRcCmd" />
+				<input type="button" id="mpBtDownload" value="Download" class="btRcCmd" />
 				<input type="button" id="mpBtClear" value="Clear" class="btRcCmd" />
 				<input type="button" id="mpBtClose" value="&#10005; Close" class="btRcCmd" />
 			</div>
@@ -487,6 +492,9 @@
 		<p style="margin:0 0 2vmin;">
 			Altitude (m above home)<br/>
 			<input type="number" id="wpModalAlt" min="0" max="2000" step="1" value="50" style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+		</p>
+		<p id="wpModalElevRow" style="margin:0 0 2vmin;display:none;">
+			<span id="wpModalElevText" style="color:#aaa;font-size:3.5vmin;"></span>
 		</p>
 		<p style="margin:0 0 2vmin;" id="wpModalSpeedRow">
 			Speed (m/s, 0 = FC default)<br/>

@@ -399,6 +399,33 @@ export async function publishCommand(cmdType, state = null, extraFields = null, 
     return cid;
 }
 
+// ── Mission download buffer ───────────────────────────────────────────────────
+var missionDownloadBuffer = [];
+export function clearMissionDownloadBuffer() { missionDownloadBuffer = []; }
+export function getMissionDownloadBuffer()   { return missionDownloadBuffer; }
+
+function parseMissionDownloadMessage(payload) {
+    var parts = payload.split(',');
+    var dlwp = null, la = null, lo = null, al = null, ac = 1, p1 = 0, p2 = 0, p3 = 0, f = 0;
+    for (var i = 0; i < parts.length; i++) {
+        var kv = parts[i].split(':');
+        if (kv.length < 2) continue;
+        switch (kv[0]) {
+            case 'dlwp': dlwp = parseInt(kv[1]); break;
+            case 'la':   la   = parseInt(kv[1]); break;
+            case 'lo':   lo   = parseInt(kv[1]); break;
+            case 'al':   al   = parseInt(kv[1]); break;
+            case 'ac':   ac   = parseInt(kv[1]); break;
+            case 'p1':   p1   = parseInt(kv[1]); break;
+            case 'p2':   p2   = parseInt(kv[1]); break;
+            case 'p3':   p3   = parseInt(kv[1]); break;
+            case 'f':    f    = parseInt(kv[1]); break;
+        }
+    }
+    if (dlwp === null || la === null || lo === null || al === null) return;
+    missionDownloadBuffer.push({ dlwp, la, lo, al, ac, p1, p2, p3, f });
+}
+
 // Callbacks registered by waitForCommandAck; keyed by cid.
 // Each entry is { resolve, reject }.
 const commandAckCallbacks = {};
@@ -1277,7 +1304,9 @@ export function parseTelemetryData(payload) {
     var arrPayload = payload.split(",");
 
     if(arrPayload.length > 0) {
-        if(payload.startsWith("wpno:"))
+        if(payload.startsWith("dlwp:"))
+            parseMissionDownloadMessage(payload);
+        else if(payload.startsWith("wpno:"))
             parseWaypointMessage(payload);
         else if(payload.startsWith("cmd:"))
             parseCommandMessage(payload);
