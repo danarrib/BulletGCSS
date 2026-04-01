@@ -349,7 +349,7 @@ The monitored topic list is saved to `localStorage` and restored automatically o
 
 ### Mission Planner
 
-![Mission Planner overview](screenshots/ui_missionplanner_overview.png)
+<img src="screenshots/ui_missionplanner_overview.png" width="400>
 
 Tapping **Mission planner** opens a full-screen view that completely replaces the monitoring UI. Tap **Close** to return to monitoring at any time.
 
@@ -363,7 +363,7 @@ The top bar shows:
 
 #### Placing and editing waypoints
 
-![Waypoint parameter modal](screenshots/ui_missionplanner_modal.png)
+<img src="screenshots/ui_missionplanner_modal.png" width="400">
 
 Tap or click any empty point on the map to add a waypoint there. The waypoint parameter modal opens immediately.
 
