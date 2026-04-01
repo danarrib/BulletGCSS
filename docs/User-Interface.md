@@ -349,7 +349,7 @@ The monitored topic list is saved to `localStorage` and restored automatically o
 
 ### Mission Planner
 
-<img src="screenshots/ui_missionplanner_overview.png" width="400>
+<img src="screenshots/ui_missionplanner_overview.png" width="400">
 
 Tapping **Mission planner** opens a full-screen view that completely replaces the monitoring UI. Tap **Close** to return to monitoring at any time.
 
