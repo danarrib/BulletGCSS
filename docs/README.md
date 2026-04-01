@@ -1,4 +1,4 @@
-![Banner](https://user-images.githubusercontent.com/17026744/109589244-ca4d5880-7ae8-11eb-9c2f-4cdb2da3160a.png)
+![Banner](screenshots/github-social-media.png)
 
 **Bullet GCSS is a high caliber ground control station system designed for the 21st century lifestyle.**
 

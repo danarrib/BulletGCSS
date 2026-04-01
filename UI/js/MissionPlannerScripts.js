@@ -370,21 +370,14 @@ function initPlannerMap() {
         center: [data.gpsLongitude || 0, data.gpsLatitude || 0],
         zoom: 14,
         pixelRatio: 1,
+        attributionControl: false,
     });
-
-    plannerMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     plannerMap.on('load', function() {
         plannerMapReady = true;
         rebuildAllMarkers();
         updateRouteLine();
         updatePlannerUserMarker();
-
-        // Size navigation control buttons for touch usability
-        var btnSizePx = Math.round(30 * window.devicePixelRatio) + 'px';
-        var style = document.createElement('style');
-        style.textContent = '#mpMap .maplibregl-ctrl button { width:' + btnSizePx + ' !important; height:' + btnSizePx + ' !important; }';
-        document.head.appendChild(style);
     });
 
     // Clicking the map closes any open modal, or adds a new waypoint
@@ -434,6 +427,14 @@ async function uploadMission() {
     if (data.fmWp === 1) {
         alert('Cannot upload: WP Mission mode is currently active on the aircraft.\nDeactivate it first.');
         return;
+    }
+    if (data.mspRcOverride === 1) {
+        alert('Cannot upload: MSP RC Override mode is currently active on the aircraft.\nDeactivate it first.');
+        return;
+    }
+    if (data.uavIsArmed === 1) {
+        if (!confirm('The aircraft is currently armed.\nUploading a mission mid-flight is dangerous.\n\nAre you sure you want to continue?'))
+            return;
     }
     var maxWp = data.maxWaypoints > 0 ? data.maxWaypoints : 15;
     if (plannedMission.length > maxWp) {
@@ -499,6 +500,18 @@ async function uploadMission() {
 
 async function downloadMission() {
     if (!mqttConnected) { alert('Not connected to MQTT broker.'); return; }
+    if (data.fmWp === 1) {
+        alert('Cannot download: WP Mission mode is currently active on the aircraft.\nDeactivate it first.');
+        return;
+    }
+    if (data.mspRcOverride === 1) {
+        alert('Cannot download: MSP RC Override mode is currently active on the aircraft.\nDeactivate it first.');
+        return;
+    }
+    if (data.uavIsArmed === 1) {
+        if (!confirm('The aircraft is currently armed.\nDownloading a mission mid-flight may be dangerous.\n\nAre you sure you want to continue?'))
+            return;
+    }
 
     var progressEl   = document.getElementById('mpUploadProgress');
     var progressText = document.getElementById('mpUploadProgressText');

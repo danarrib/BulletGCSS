@@ -349,7 +349,9 @@ The monitored topic list is saved to `localStorage` and restored automatically o
 
 ### Mission Planner
 
-Tapping **Mission planner** opens a full-screen view that completely replaces the monitoring UI. Tap **✕ Close** to return to monitoring at any time.
+![Mission Planner overview](screenshots/ui_missionplanner_overview.png)
+
+Tapping **Mission planner** opens a full-screen view that completely replaces the monitoring UI. Tap **Close** to return to monitoring at any time.
 
 #### Top bar
 
@@ -360,6 +362,8 @@ The top bar shows:
 - **Waypoint count and total distance** — updates live as waypoints are added, moved, or deleted.
 
 #### Placing and editing waypoints
+
+![Waypoint parameter modal](screenshots/ui_missionplanner_modal.png)
 
 Tap or click any empty point on the map to add a waypoint there. The waypoint parameter modal opens immediately.
 
@@ -379,6 +383,8 @@ Tap an existing waypoint marker to reopen its modal. Drag a marker to move it �
 
 #### Toolbar
 
+![Mission planner workflow](screenshots/mp_workflow.png)
+
 Two rows of buttons at the bottom of the screen:
 
 **Row 1 — mission file management:**
@@ -391,7 +397,7 @@ Two rows of buttons at the bottom of the screen:
 - **Upload** — sends the planned mission to the aircraft over the encrypted command channel. Each waypoint is sent individually and acknowledged by the firmware before the next is sent. The FC's mission is only updated once the entire mission passes validation. Disabled when not connected or when WP Mission mode is active on the FC.
 - **Download** — fetches the mission currently stored on the aircraft and loads it into the planner. Useful to review or modify a previously uploaded mission.
 - **Clear** — removes all waypoints (confirmation required).
-- **✕ Close** — returns to the normal monitoring view.
+- **Close** — returns to the normal monitoring view.
 
 #### Terrain elevation
 

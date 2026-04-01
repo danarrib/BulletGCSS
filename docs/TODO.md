@@ -340,7 +340,9 @@ Import/export uses the INAV Configurator's JSON format for interoperability with
 
 1. Pre-flight checks:
    - Command channel must be available (`downlinkOk`).
-   - `data.fmWp !== 1` — refuse to upload if WP Mission mode is currently active; show error.
+   - `data.fmWp !== 1` — refuse if WP Mission mode is currently active; show error.
+   - `data.mspRcOverride !== 1` — refuse if MSP RC Override mode is currently active; show error.
+   - `data.uavIsArmed === 0` — warn with confirmation dialog if the aircraft is armed mid-flight.
    - `plannedMission.length <= data.maxWaypoints` — refuse if over limit.
    - Mission must have at least 1 waypoint.
 2. Show upload progress UI: "Uploading mission… WP 1 / N".
@@ -356,7 +358,7 @@ The UI does not need to wait for `wpc`/`wpv` telemetry to confirm the FC accepte
 
 #### F2d — Firmware: staging buffer and `cmd:setwp` handler
 
-**Staging buffer:** `msp_set_wp_t stagedMission[NAV_MAX_WAYPOINTS_FIRMWARE]` — a file-scope array (separate from `currentWPMission[]` which holds the FC's currently loaded mission). `NAV_MAX_WAYPOINTS_FIRMWARE` can be defined as 15 (matching INAV's default); `uavstatus.maxWaypoints` holds the runtime value from `MSP_WP_GETINFO`.
+**Staging buffer:** `msp_set_wp_t *stagedMission` — a heap-allocated pointer (separate from `currentWPMission[]` which holds the FC's currently loaded mission). Allocated on receipt of WP 1 to `uavstatus.maxWaypoints` entries; freed on all exit paths (success, busy, gap, overflow, badfields, oom). Supports FC-reported max WP count (up to 254 on INAV), not limited to the 15-WP MSP default.
 
 **`cmd:setwp` handler in `mqttCommandCallback()`:**
 1. Parse `wpno`, `la`, `lo`, `al`, `ac`, `p1`, `p2`, `p3`, `f`.
@@ -367,7 +369,7 @@ The UI does not need to wait for `wpc`/`wpv` telemetry to confirm the FC accepte
 6. If `f:165` is set (last WP received): run full validation:
    - All indices 1..wpno must be filled (no gaps in the staged buffer).
    - Exactly one WP has `f:165` and it is the highest-numbered one.
-   - `uavstatus.fmWp == 0` (WP Mission mode must not be active).
+   - `uavstatus.fmWp == 0` (WP Mission mode must not be active on the FC).
    - If any check fails: clear the staging buffer, send failure ACK with a short reason code.
    - If all checks pass: iterate `stagedMission[0..wpno-1]` and call `msp.command(MSP_SET_WP, ...)` for each. Send success ACK.
 7. On a new `wpno:1` arriving, always reset the staging buffer (start of a new upload attempt).
@@ -456,4 +458,4 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 | F (map) | **MapLibre GL JS migration** — OpenLayers replaced with MapLibre GL JS vector map. Two user-selectable styles (OpenFreeMap Liberty default, CARTO Dark Matter). All elements scaled by `devicePixelRatio`. Compass and center-on-aircraft controls added. |
 | C4 | **Position Hold command** — ON/OFF toggle added to the Commands panel. `MSP_PERM_ID_POSHOLD` added to `cmdModes[]`; `cmdph`/`fmph` telemetry fields added to firmware, UI, and protocol docs. |
 | F1 | **Multi-aircraft monitoring** — Subscribe to additional MQTT topics and display secondary aircraft on the same map. Colour-coded icons (hue-rotated), callsign/altitude/speed/climb labels (respecting user unit settings), stale-data dimming, tap popup with Plus Code and Stop tracking. Topic list persisted to `localStorage` and restored on reconnect. Input pre-filled with primary topic prefix for easy entry. |
-| F2 | **Mission Planner** — Full-screen planner view with MapLibre GL map. Tap to place waypoints; drag to reposition; tap marker to edit action/altitude/speed/loiter time. RTH enforced as last waypoint. Terrain elevation fetched per-waypoint and shown in the modal (~above-terrain clearance based on WP1 as base). Mission name + unsaved-changes indicator. Save/Load to browser storage; Export/Import INAV JSON files. Upload sends mission waypoint-by-waypoint over the signed command channel; firmware buffers and validates the full mission before touching the FC (heap-allocated staging buffer, supports FC-reported max WP count). Download fetches the mission from the aircraft via `getmission` command and `dlwp:` messages. Mission validity dot mirrors `wpv` telemetry. |
+| F2 | **Mission Planner** — Full-screen planner view with MapLibre GL map. Tap to place waypoints; drag to reposition; tap marker to edit action/altitude/speed/loiter time. RTH enforced as last waypoint. Terrain elevation fetched per-waypoint and shown in the modal (~above-terrain clearance based on WP1 as base). Mission name + unsaved-changes indicator. Save/Load to browser storage; Export/Import INAV JSON files. Upload and Download blocked if WP Mission mode or MSP RC Override mode is active; armed-mid-flight triggers a confirmation dialog. Upload sends mission waypoint-by-waypoint over the signed command channel; firmware buffers and validates the full mission before touching the FC (heap-allocated staging buffer, supports FC-reported max WP count up to 254). Download fetches the mission from the aircraft via `getmission` command and `dlwp:` messages. Mission validity dot mirrors `wpv` telemetry. Planner map has no zoom controls or attribution overlay. |
