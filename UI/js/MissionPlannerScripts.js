@@ -25,6 +25,23 @@ let currentMissionName = null;
 let missionDirty = false;
 
 const STORAGE_KEY = 'gcss_saved_missions';
+const AUTOSAVE_KEY = 'gcss_autosave_mission';
+
+let autoSaveTimer = null;
+
+function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(function() {
+        if (plannedMission.length > 0) {
+            localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+                name: currentMissionName,
+                waypoints: JSON.parse(JSON.stringify(plannedMission)),
+            }));
+        } else {
+            localStorage.removeItem(AUTOSAVE_KEY);
+        }
+    }, 500);
+}
 
 // ── Action code mappings ──────────────────────────────────────────────────────
 
@@ -101,6 +118,8 @@ function updateStats() {
 
     var uploadBtn = document.getElementById('mpBtUpload');
     if (uploadBtn) uploadBtn.disabled = (n === 0 || !mqttConnected);
+
+    scheduleAutoSave();
 }
 
 function updateMissionName() {
@@ -779,6 +798,7 @@ function clearMission() {
     plannedMission = [];
     currentMissionName = null;
     missionDirty = false;
+    localStorage.removeItem(AUTOSAVE_KEY);
     clearAllMarkers();
     updateRouteLine();
     updateStats();
@@ -803,6 +823,22 @@ function syncStatusIcons() {
 export function openMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'block';
     syncStatusIcons();
+
+    // Restore auto-saved mission on first open if planner is empty
+    if (plannedMission.length === 0) {
+        try {
+            var saved = localStorage.getItem(AUTOSAVE_KEY);
+            if (saved) {
+                var obj = JSON.parse(saved);
+                if (obj && Array.isArray(obj.waypoints) && obj.waypoints.length > 0) {
+                    plannedMission = obj.waypoints;
+                    currentMissionName = obj.name || null;
+                    missionDirty = true;
+                }
+            }
+        } catch (e) {}
+    }
+
     if (!plannerMapInitialized) {
         requestAnimationFrame(function() { initPlannerMap(); });
     } else if (plannerMapReady) {

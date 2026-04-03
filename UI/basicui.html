@@ -164,15 +164,13 @@
 		<a href="javascript:void(0)" id="navSessionsMenu">Flight Sessions</a>
 		<a href="javascript:void(0)" id="navMonitoredUAVs">Monitor other UAVs</a>
 		<a href="javascript:void(0)" id="missionplannerlink">Mission planner</a>
-		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
 		<a href="javascript:void(0)" id="navEnableCompass" style="display:none;">Enable compass heading</a>
 		<a href="javascript:void(0)" id="navSettingsMenu">Settings</a>
 		<a href="javascript:void(0)" id="navRefreshApp" class="notification">
 			Refresh App
 			<span class="badge" id="refreshMenuBadge" style="top:0.2em;">&nbsp;</span>
 		</a>
-		<a href="https://github.com/danarrib/BulletGCSS/wiki" target="_blank">Help</a>
-		<a href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone" target="_blank" id="installhomelink">Install on home screen</a>
+		<a href="https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md" target="_blank">Help</a>
 		<p class="menufooter">Version: (VERSION) - (UNIQUEID)</p>
 	</div>
 
@@ -197,6 +195,8 @@
 		<a href="javascript:void(0)" id="uisettingslink">UI settings</a>
 		<a href="javascript:void(0)" id="navSecurityMenu">Security</a>
 		<a href="#" id="inavsettingslink">INAV settings</a>
+		<a href="javascript:void(0)" id="navKeepAwake">Keep screen awake</a>
+		<a href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone" target="_blank" id="installhomelink">Install on home screen</a>
 	</div>
 
 	<div id="commandsMenu" class="sidebar">
@@ -445,18 +445,18 @@
 		<!-- Toast message -->
 		<div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
 		<!-- Action toolbar -->
-		<div style="position:absolute;bottom:0;left:0;right:0;height:28vmin;background:#1a1a1a;border-top:1px solid #333;display:flex;flex-direction:column;justify-content:space-evenly;padding:0 2vmin;z-index:101;">
-			<div style="display:flex;gap:2vmin;justify-content:center;">
-				<input type="button" id="mpBtSave" value="Save" class="btRcCmd" />
-				<input type="button" id="mpBtLoad" value="Load" class="btRcCmd" />
-				<input type="button" id="mpBtExport" value="Export" class="btRcCmd" />
-				<input type="button" id="mpBtImport" value="Import" class="btRcCmd" />
+		<div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;height:28vmin;background:#1a1a1a;border-top:1px solid #333;display:flex;flex-direction:column;justify-content:space-evenly;padding:0 2vmin;z-index:101;">
+			<div class="mp-toolbar-row" style="display:flex;gap:2vmin;justify-content:center;">
+				<input type="button" id="mpBtSave" value="Save" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtLoad" value="Load" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtExport" value="Export" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtImport" value="Import" class="btRcCmd mp-toolbar-btn" />
 			</div>
-			<div style="display:flex;gap:2vmin;justify-content:center;">
-				<input type="button" id="mpBtUpload" value="Upload" class="btRcCmd" />
-				<input type="button" id="mpBtDownload" value="Download" class="btRcCmd" />
-				<input type="button" id="mpBtClear" value="Clear" class="btRcCmd" />
-				<input type="button" id="mpBtClose" value="Close" class="btRcCmd" />
+			<div class="mp-toolbar-row" style="display:flex;gap:2vmin;justify-content:center;">
+				<input type="button" id="mpBtUpload" value="Upload" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtDownload" value="Download" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtClear" value="Clear" class="btRcCmd mp-toolbar-btn" />
+				<input type="button" id="mpBtClose" value="Close" class="btRcCmd mp-toolbar-btn" />
 			</div>
 		</div>
 		<!-- Saved missions panel -->
@@ -536,6 +536,12 @@
 	}
 	</script>
 	<script type="module" src="js/PageScripts.js?uid=(UNIQUEID)"></script>
+
+	<!-- Session deletion overlay -->
+	<div id="deletingSessionOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;flex-direction:column;">
+		<div class="deletion-spinner"></div>
+		<p style="color:#fff;font-size:5vmin;margin-top:4vmin;">Please wait…</p>
+	</div>
 
 </body>
 </html>

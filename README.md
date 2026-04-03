@@ -19,7 +19,7 @@ The main differences between Bullet GCSS and other traditional ground station sy
 ## How it works?
 There are two fundamental parts on Bullet GCSS: The **Modem** and the **User Interface (UI)**.
 
-Modem talks to the Flight Controller on the aircraft to get the telemetry data, and sends this data to a MQTT Broker on the Internet. The channel is **bidirectional** — the UI can also send signed commands to the aircraft to toggle flight modes: Return to Home, Altitude Hold, Cruise, Waypoint Mission, and Beeper. All commands are authenticated with Ed25519 signatures so that nobody else can send commands to your aircraft, even on a public broker.
+Modem talks to the Flight Controller on the aircraft to get the telemetry data, and sends this data to a MQTT Broker on the Internet. The channel is **bidirectional** — the UI can also send signed commands to the aircraft to toggle flight modes: Return to Home, Altitude Hold, Cruise, Waypoint Mission, Position Hold, and Beeper. All commands are authenticated with Ed25519 signatures so that nobody else can send commands to your aircraft, even on a public broker.
 
 > **Requires INAV 9 or newer** on the flight controller.
 
@@ -54,4 +54,5 @@ For most hobby flights this is an acceptable trade-off, but you should be aware 
 - [Terrain elevation feature](docs/Terrain-elevation.md)
 - [Communication Protocol Reference](docs/BulletGCSS_protocol.md)
 - [Monitoring multiple aircraft simultaneously](docs/Multi-aircraft-monitoring.md)
+- [Mission Planner](docs/User-Interface.md#mission-planner)
 - [Troubleshooting](docs/Troubleshooting.md)

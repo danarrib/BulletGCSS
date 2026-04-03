@@ -31,7 +31,7 @@ var noSleep = new NoSleep();
 
 function keepScreenAwake()
 {
-    closeNav();
+    closeSettingsMenu();
     noSleep.enable();
 }
 
@@ -426,8 +426,14 @@ async function deleteSessionAndRefresh(id) {
         return;
     }
     if (!confirm("Delete this session? This cannot be undone.")) return;
-    await deleteSession(id);
-    await renderSessionsList();
+    var overlay = document.getElementById('deletingSessionOverlay');
+    overlay.style.display = 'flex';
+    try {
+        await deleteSession(id);
+        await renderSessionsList();
+    } finally {
+        overlay.style.display = 'none';
+    }
 }
 
 async function renderSessionsList() {

@@ -38,7 +38,7 @@
     ],
     "scope": "/",
     "start_url": "/basicui.html",
-    "display": "fullscreen",
+    "display": "standalone",
     "orientation": "any",
     "categories": ["navigation"],
     "background_color": "black"

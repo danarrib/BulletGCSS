@@ -68,7 +68,18 @@ A new MSP command that writes `posControl.desiredState.pos.z` and calls `updateC
 
 ## UI Improvements
 
-### U1. Migrate UI to Bootstrap 5 ⏳ Deferred
+### U1. Fix main menu in landscape orientation
+
+In landscape mode the sidebar menu has more items than fit on screen, making the bottom items inaccessible or requiring scrolling that isn't obvious.
+
+**What needs to be done:**
+- Make the sidebar menu scrollable in landscape (overflow-y: auto with a max-height based on viewport height).
+- Alternatively, collapse lower-priority items (e.g. session management, about) into a secondary level or reduce item padding in landscape.
+- Test on common phone sizes rotated to landscape (e.g. 667×375, 736×414 CSS px).
+
+---
+
+### U2. Migrate UI to Bootstrap 5 ⏳ Deferred
 Eventually migrate the UI to Bootstrap 5 for consistent, mobile-correct components. Priority: replace the sidebar menus with Bootstrap's **Offcanvas** component (directly fixes the touch handling issues). Bootstrap 5.3 dark mode (`data-bs-theme="dark"`) reduces the conflict with the existing dark theme. Integration approach: adopt Bootstrap JS + utility classes first, keep existing custom CSS for layout and theme, audit conflicts incrementally.
 
 ---
@@ -459,3 +470,8 @@ Support an ESP32-Cam module connected to the UAV, allowing the operator to trigg
 | C4 | **Position Hold command** — ON/OFF toggle added to the Commands panel. `MSP_PERM_ID_POSHOLD` added to `cmdModes[]`; `cmdph`/`fmph` telemetry fields added to firmware, UI, and protocol docs. |
 | F1 | **Multi-aircraft monitoring** — Subscribe to additional MQTT topics and display secondary aircraft on the same map. Colour-coded icons (hue-rotated), callsign/altitude/speed/climb labels (respecting user unit settings), stale-data dimming, tap popup with Plus Code and Stop tracking. Topic list persisted to `localStorage` and restored on reconnect. Input pre-filled with primary topic prefix for easy entry. |
 | F2 | **Mission Planner** — Full-screen planner view with MapLibre GL map. Tap to place waypoints; drag to reposition; tap marker to edit action/altitude/speed/loiter time. RTH enforced as last waypoint. Terrain elevation fetched per-waypoint and shown in the modal (~above-terrain clearance based on WP1 as base). Mission name + unsaved-changes indicator. Save/Load to browser storage; Export/Import INAV JSON files. Upload and Download blocked if WP Mission mode or MSP RC Override mode is active; armed-mid-flight triggers a confirmation dialog. Upload sends mission waypoint-by-waypoint over the signed command channel; firmware buffers and validates the full mission before touching the FC (heap-allocated staging buffer, supports FC-reported max WP count up to 254). Download fetches the mission from the aircraft via `getmission` command and `dlwp:` messages. Mission validity dot mirrors `wpv` telemetry. Planner map has no zoom controls or attribution overlay. |
+| U2 (new) | **Mission Planner toolbar — landscape** — In landscape orientation the toolbar collapses from two rows to a single row; all buttons share equal width via `flex:1`. |
+| U3 (new) | **Mission persistence across sessions** — Current planned mission (including unsaved/untitled missions) is auto-saved to `localStorage` (`gcss_autosave_mission`) on every change (debounced 500 ms) and restored silently on next planner open. Cleared when the user explicitly clears the mission. |
+| U4 (new) | **Flight session deletion spinner** — A full-screen "Please wait…" overlay with a CSS spinner is shown while `deleteSession()` runs in IndexedDB. Dismissed automatically on completion. |
+| U5 (new) | **Menu cleanup** — "Keep screen awake" and "Install on home screen" moved from the main sidebar menu into the Settings submenu. |
+| U7 (new) | **Help link** — Sidebar Help link updated to point to `https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md`. |
