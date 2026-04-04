@@ -16,6 +16,10 @@ body {
     -ms-user-select: none;
     user-select: none;
     touch-action: none;
+
+    /* Prevent iOS Safari from auto-scaling text on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 .color-normal {
