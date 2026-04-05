@@ -13,7 +13,7 @@ function UpdateViewPortSize(resize=true) {
         windowOuterWidth = window.outerWidth;
         var width = windowOuterWidth * window.devicePixelRatio;
         var viewport = document.querySelector("meta[name=viewport]");
-        viewport.setAttribute('content', 'width=' + width + ', initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+        viewport.setAttribute('content', 'width=' + width + ', viewport-fit=cover');
 
         if(resize)
             window.dispatchEvent(new Event('resize'));
@@ -23,11 +23,7 @@ function UpdateViewPortSize(resize=true) {
 UpdateViewPortSize();
 
 window.addEventListener("orientationchange", function() {
-    // iOS updates outerWidth after the event fires — wait for it
-    setTimeout(function() {
-        windowOuterWidth = 0; // force recalculation
-        UpdateViewPortSize();
-    }, 300);
+    UpdateViewPortSize();
 }, false);
 
 // Setup NoSleep
