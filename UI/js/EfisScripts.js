@@ -23,7 +23,10 @@ export var efis = {
     hudView: document.getElementById("hudview"),
     efisCanvas: document.getElementById("cvsEFIS"),
     DefaultFont: 'Ubuntu',
+    PixelRatio: window.devicePixelRatio || 1,
 };
+
+window._efis = efis; // For debugging purposes only. Remove in production.
 
 function P(x, y) { return {x: x, y: y}; }		
 
@@ -333,7 +336,7 @@ function drawEfisHomeArrow()
     efis.efisContext.lineTo(x1, y1);
     efis.efisContext.fill();
     /*
-    efis.efisContext.lineWidth = window.devicePixelRatio;
+    efis.efisContext.lineWidth = efis.PixelRatio;
     efis.efisContext.strokeStyle = 'black';
     efis.efisContext.stroke();
     */
@@ -412,10 +415,10 @@ function drawEfisArtifitialHorizonStepLines() {
                     efis.efisContext.moveTo(AHIStepLineNeg[0].x, AHIStepLineNeg[0].y);
                     efis.efisContext.lineTo(AHIStepLineNeg[1].x, AHIStepLineNeg[1].y);
                 }
-                efis.efisContext.lineWidth = (0.7 * window.devicePixelRatio);
+                efis.efisContext.lineWidth = (0.7 * efis.PixelRatio);
             }
             else{
-                efis.efisContext.lineWidth = (1 * window.devicePixelRatio);
+                efis.efisContext.lineWidth = (1 * efis.PixelRatio);
             }
             efis.efisContext.strokeStyle = 'white';
             efis.efisContext.stroke();
@@ -469,7 +472,7 @@ function drawEfisArtifitialHorizonStepLines() {
 }
 
 function drawEfisCrosshair() {
-    var elementLineWidth = 3 * window.devicePixelRatio;
+    var elementLineWidth = 3 * efis.PixelRatio;
     var blockStart = 5;
     var blockEnd = 7;
     var elementFont = efis.fontSize + 'px ' + efis.DefaultFont;
@@ -517,7 +520,7 @@ function drawEfisVerticalSpeed() {
     if(0==1) {
         efis.efisContext.beginPath();
         efis.efisContext.strokeStyle = 'white';
-        efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+        efis.efisContext.lineWidth = 1 * efis.PixelRatio;
         efis.efisContext.moveTo(elementX, elementCenterY);
         efis.efisContext.lineTo(elementX + elementWidth, elementCenterY);
         efis.efisContext.stroke();
@@ -551,7 +554,7 @@ function drawEfisVerticalSpeed() {
         textY = textY + (elementSmallFontSize / 3);
         efis.efisContext.fillStyle = 'white';
         efis.efisContext.strokeStyle = 'white';
-        efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+        efis.efisContext.lineWidth = 1 * efis.PixelRatio;
         efis.efisContext.font = elementSmallFontSize + 'px ' + efis.DefaultFont;
         efis.efisContext.textAlign = "right";
         efis.efisContext.fillText(i, textX, textY);
@@ -580,7 +583,7 @@ function drawEfisVerticalSpeed() {
     // Draw the line for the Vertical Speed value
     efis.efisContext.beginPath();
     efis.efisContext.strokeStyle = 'yellow';
-    efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
+    efis.efisContext.lineWidth = 2 * efis.PixelRatio;
     var pointerFactor = 0.8;
     
     var vsLineY = elementCenterY - ((data.estimations.verticalSpeed / efis.VerticalSpeedUnitFactor) * VSPixels);
@@ -623,7 +626,7 @@ function drawEfisGroundSpeed() {
 
 
     // Draw Speed Scroller
-    efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+    efis.efisContext.lineWidth = 1 * efis.PixelRatio;
     var startSpeed = parseInt(groundSpeedDisplay - ((efis.SpeedFOV / 2) + efis.SpeedSteps));
     if(startSpeed < 0) startSpeed = 0;
     var endSpeed = parseInt(groundSpeedDisplay + ((efis.SpeedFOV / 2) + efis.SpeedSteps));
@@ -762,13 +765,13 @@ function drawEfisBankAngle() {
         efis.efisContext.strokeStyle = 'white';
         if(i == 0)
         {
-            efis.efisContext.lineWidth = 3 * window.devicePixelRatio;
+            efis.efisContext.lineWidth = 3 * efis.PixelRatio;
             efis.efisContext.strokeStyle = 'yellow';
         }
         else if(i == 60 || i == 30)
-            efis.efisContext.lineWidth = 2 * window.devicePixelRatio;
+            efis.efisContext.lineWidth = 2 * efis.PixelRatio;
         else
-            efis.efisContext.lineWidth = 1 * window.devicePixelRatio;
+            efis.efisContext.lineWidth = 1 * efis.PixelRatio;
 
         drawShorterLine(efis.efisContext, P(x1, y1), P(x2, y2), (efis.efisHeight / 2) - (efis.blockHeight * 2), 0);
 
@@ -856,7 +859,7 @@ export function renderEFIS(data) {
     // ctx.scale(dpr, dpr) keeps all drawing coordinates in CSS pixels so
     // nothing else in this function needs to change.
     efis.efisContext = efis.efisCanvas.getContext("2d");
-    var dpr = window.devicePixelRatio || 1;
+    var dpr = efis.PixelRatio || 1;
     efis.efisWidth = efis.hudView.offsetWidth;
     efis.efisHeight = efis.hudView.offsetHeight;
     efis.efisCanvas.width  = efis.efisWidth  * dpr;
