@@ -2,13 +2,15 @@
 
 ## Overview
 
-The UI is a single-page application (SPA) built as a PWA. There is no build step — all files are plain HTML, CSS, and JavaScript served directly. The entry point is `basicui.html`, which loads the JavaScript as a single ES module entry point (`PageScripts.js`), which in turn imports all other modules.
+The UI is a single-page application (SPA) built as a PWA. There is no build step — all files are plain HTML, CSS, and JavaScript served directly. The entry point is `basicui.html`, which loads the JavaScript as a single ES module entry point (`bsPageScripts.js`), which in turn imports all other modules.
+
+`basicui.html` is built on **Bootstrap 5.3.8** (loaded from CDN) with a fixed-top navbar, a slide-in offcanvas sidebar, and Bootstrap modals for settings panels. `bsPageScripts.js` replaces the older `PageScripts.js` (which backed the now-retired `oldui.html`).
 
 The application has three visual areas rendered simultaneously:
 
-- **Data panel** — tabular telemetry values (GPS, battery, navigation, flight times)
-- **Map** — MapLibre GL JS vector map with aircraft icon, flight path, home point, mission waypoints
-- **EFIS (HUD)** — canvas-drawn artificial horizon, heading tape, speed/altitude/vertical speed gauges
+- **Data panel** (`#panel-info`) — tabular telemetry values (GPS, battery, navigation, flight times)
+- **Map** (`#panel-map`) — MapLibre GL JS vector map with aircraft icon, flight path, home point, mission waypoints
+- **EFIS (HUD)** (`#panel-efis` / `#hudview`) — canvas-drawn artificial horizon, heading tape, speed/altitude/vertical speed gauges
 
 All three areas are driven by a central `data` object that is populated by parsed MQTT telemetry messages.
 
@@ -18,7 +20,7 @@ All three areas are driven by a central `data` object that is populated by parse
 
 ```
 basicui.html
-└── PageScripts.js          ← ES module entry point (type="module")
+└── bsPageScripts.js        ← ES module entry point (type="module")
     ├── CommScripts.js      ← Level 0: data, MQTT, shared utilities, session hooks
     ├── SessionScripts.js   ← Level 0: IndexedDB flight session persistence
     ├── EfisScripts.js      ← Level 1: imports CommScripts
@@ -26,13 +28,16 @@ basicui.html
     ├── MapScripts.js       ← Level 2: imports CommScripts + EfisScripts
     │   ├── CommScripts.js
     │   └── EfisScripts.js
-    └── InfoPanelScripts.js ← Level 2: imports CommScripts + EfisScripts + MapScripts
+    ├── InfoPanelScripts.js ← Level 2: imports CommScripts + EfisScripts + MapScripts
+    │   ├── CommScripts.js
+    │   ├── EfisScripts.js
+    │   └── MapScripts.js
+    └── MissionPlannerScripts.js ← Level 2: imports CommScripts + MapScripts
         ├── CommScripts.js
-        ├── EfisScripts.js
         └── MapScripts.js
 ```
 
-The graph is a strict directed acyclic graph (DAG). No module imports from a module at the same or higher level. `PageScripts.js` is the only module that imports everything — it is the application's wiring layer.
+The graph is a strict directed acyclic graph (DAG). No module imports from a module at the same or higher level. `bsPageScripts.js` is the only module that imports everything — it is the application's wiring layer.
 
 ---
 
@@ -205,22 +210,22 @@ The IndexedDB layer. Has no imports from other app modules.
 
 ---
 
-### `PageScripts.js` — Application Entry Point (Top Level)
+### `bsPageScripts.js` — Application Entry Point (Top Level)
 
-**Imports:** All five modules above.
+**Imports:** All modules above.
 
 This is the only `<script type="module">` tag in `basicui.html`. It is the wiring layer — it does not contain rendering logic, only orchestration.
 
 **Responsibilities:**
-- Viewport size management (`UpdateViewPortSize`)
 - NoSleep integration (prevent screen sleep on mobile)
-- Sidebar and settings panel open/close logic (including Sessions and Security panels)
+- Bootstrap offcanvas/modal panel open/close logic (Sessions, Monitor, Settings, Commands, Security, Broker, UI Settings)
 - Flight session lifecycle: initialise IndexedDB on load, restore open session state, record live messages, handle replay stop
 - MQTT broker settings UI (save, reset)
 - UI settings UI (unit preferences save)
-- Version check against `uiversion.json`
-- Security panel: Ed25519 key pair generation (`crypto.subtle`), key status display (5 states), `localStorage` migration for pre-base64 keys
-- Event listener registration for all interactive elements (replaces inline `onclick`)
+- Security panel: Ed25519 key pair generation (`crypto.subtle`), key status display (5 states)
+- Commands panel: `rcCommands[]` state table, command history rendering
+- Monitor panel: secondary aircraft topic list management
+- Event listener registration for all interactive elements
 - All application timers
 
 **Session lifecycle (on DOMContentLoaded):**
@@ -323,11 +328,13 @@ The deploy pipeline replaces the `(UNIQUEID)` placeholder in `basicui.html` with
 <script type="importmap">
 {
   "imports": {
-    "./js/CommScripts.js":      "./js/CommScripts.js?uid=(UNIQUEID)",
-    "./js/EfisScripts.js":      "./js/EfisScripts.js?uid=(UNIQUEID)",
-    "./js/MapScripts.js":       "./js/MapScripts.js?uid=(UNIQUEID)",
-    "./js/InfoPanelScripts.js": "./js/InfoPanelScripts.js?uid=(UNIQUEID)",
-    "./js/SessionScripts.js":   "./js/SessionScripts.js?uid=(UNIQUEID)"
+    "./js/bsPageScripts.js":         "./js/bsPageScripts.js?uid=(UNIQUEID)",
+    "./js/CommScripts.js":           "./js/CommScripts.js?uid=(UNIQUEID)",
+    "./js/EfisScripts.js":           "./js/EfisScripts.js?uid=(UNIQUEID)",
+    "./js/MapScripts.js":            "./js/MapScripts.js?uid=(UNIQUEID)",
+    "./js/InfoPanelScripts.js":      "./js/InfoPanelScripts.js?uid=(UNIQUEID)",
+    "./js/SessionScripts.js":        "./js/SessionScripts.js?uid=(UNIQUEID)",
+    "./js/MissionPlannerScripts.js": "./js/MissionPlannerScripts.js?uid=(UNIQUEID)"
   }
 }
 </script>
@@ -375,24 +382,30 @@ Key fields:
 
 ## HTML Structure
 
-`basicui.html` is a single page with several overlapping `<div>` panels controlled by inline styles:
+`basicui.html` is a Bootstrap 5 single-page app. Layout is CSS flexbox (portrait: column, landscape: row).
 
 ```
 body
-├── #container              ← Full screen, flex layout
-│   ├── #dataview           ← Telemetry table
-│   ├── #mapview            ← MapLibre GL JS map container
-│   └── #hudview            ← EFIS canvas (#cvsEFIS)
-├── #sideMenu               ← Slide-in navigation sidebar (z-index 1)
-├── #logMenu                ← Log save/replay panel (z-index 2)
-├── #sessionsMenu           ← Flight sessions panel (z-index 2)
-├── #commandsMenu           ← Send command / command history panel (z-index 2)
-├── #securityMenu           ← Ed25519 key pair management panel (z-index 2)
-├── #brokerSettings         ← MQTT broker configuration panel (z-index 2)
-└── #uiSettings             ← Unit preferences panel (z-index 2)
+├── nav.navbar (fixed-top)          ← Gear button + status icon bar
+├── #main (position:fixed)          ← Below navbar, fills remaining screen
+│   ├── #left-col                   ← Left half in landscape (display:contents in portrait)
+│   │   ├── #panel-info             ← Telemetry table
+│   │   └── #panel-efis / #hudview  ← EFIS canvas (#cvsEFIS)
+│   └── #panel-map / #map           ← MapLibre GL JS map
+├── #sideMenu (offcanvas-start)     ← Main navigation sidebar
+├── #bsOffcanvasSettings (offcanvas-start) ← Settings navigation
+├── #bsOffcanvasSessions (offcanvas-start) ← Flight sessions panel
+├── #bsOffcanvasMonitor (offcanvas-start)  ← Monitor other UAVs panel
+├── #bsModalBroker (modal)          ← MQTT broker configuration
+├── #bsModalUI (modal)              ← Unit preferences
+├── #bsModalSecurity (modal)        ← Ed25519 key management
+├── #bsModalCommands (modal)        ← RC commands + command history
+├── #missionPlanner (position:fixed)← Full-screen mission planner overlay
+└── #fabCommands                    ← Floating action button (CMD)
 ```
 
-The secondary panels all slide in over the primary sideMenu using z-index 2.
+Portrait layout: `#panel-info` (order 1) → `#panel-map` (order 2) → `#panel-efis` (order 3), equal thirds.
+Landscape layout: left column (`#left-col`, 50%) holds Info + EFIS stacked; right side is Map.
 
 ---
 
@@ -400,9 +413,12 @@ The secondary panels all slide in over the primary sideMenu using z-index 2.
 
 | Library | Source | Purpose |
 |---------|--------|---------|
-| MapLibre GL JS | CDN (`<link>`/`<script>` in `basicui.html`) | WebGL vector map rendering |
+| Bootstrap 5.3.8 | CDN (CSS + JS in `basicui.html`) | Layout, components (modals, offcanvases, navbar) |
+| Bootstrap Icons 1.11.3 | CDN (CSS in `basicui.html`) | Icon font for sidebar nav and buttons |
+| Ubuntu font | Google Fonts CDN | UI typography |
+| MapLibre GL JS 4 | CDN (`<link>`/`<script>` in `basicui.html`) | WebGL vector map rendering |
 | Paho MQTT JS | `UI/js/` (bundled) | MQTT over WebSocket |
 | NoSleep.js | `UI/js/NoSleep.min.js` (bundled) | Prevent screen sleep on mobile |
 | Open Location Code | `UI/js/olc.min.js` (bundled) | Convert GPS to Plus Codes |
 
-All libraries are loaded as traditional `<script src>` tags (not ES modules) before `PageScripts.js`, making their globals (`maplibregl`, `Paho`, `NoSleep`, `OpenLocationCode`) available to all modules via the global scope.
+All libraries except Bootstrap (which uses its own module pattern) are loaded as traditional `<script src>` tags before `bsPageScripts.js`, making their globals (`maplibregl`, `Paho`, `NoSleep`, `OpenLocationCode`) available to all modules via the global scope.

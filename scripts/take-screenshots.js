@@ -86,17 +86,17 @@ const screenshots = [
   {
     ...MAIN_UI,
     file:         'ui_statuslights.png',
-    clipSelector: '.statusIconBar',
+    clipSelector: '#statusIconBar',
   },
   {
     ...MAIN_UI,
     file:         'ui_infopanel.png',
-    clipSelector: '#dataview',
+    clipSelector: '#panel-info',
   },
   {
     ...MAIN_UI,
     file:         'ui_map.png',
-    clipSelector: '#mapview',
+    clipSelector: '#panel-map',
   },
   {
     ...MAIN_UI,
@@ -127,12 +127,12 @@ const screenshots = [
           await page.click('#gearIcon');
           await page.waitForTimeout(500);
         },
-        highlight: '#navSettingsMenu',
+        highlight: '#navSettings',
       },
       {
         label:     'step3-settings',
         actions:   async (page) => {
-          await page.click('#navSettingsMenu');
+          await page.click('#navSettings');
           await page.waitForTimeout(500);
         },
         highlight: '#navBrokerSettings',
@@ -211,12 +211,12 @@ const screenshots = [
           await page.click('#gearIcon');
           await page.waitForTimeout(500);
         },
-        highlight: '#missionplannerlink',
+        highlight: '#navMissionPlanner',
       },
       {
         label:   'step2-planner-empty',
         actions: async (page) => {
-          await page.click('#missionplannerlink');
+          await page.click('#navMissionPlanner');
           await page.waitForSelector('#mpMap canvas', { timeout: 10000 });
           await page.waitForTimeout(2000);
         },
@@ -427,7 +427,7 @@ async function generateSocialMedia(browser, def) {
 async function openAndLoadMission(page, mission) {
   await page.click('#gearIcon');
   await page.waitForTimeout(500);
-  await page.click('#missionplannerlink');
+  await page.click('#navMissionPlanner');
   await page.waitForSelector('#mpMap canvas', { timeout: 10000 });
   await page.waitForTimeout(2000);
   await page.evaluate((m) => {

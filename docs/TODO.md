@@ -99,7 +99,7 @@ Full migration of `basicui.html` to a new Bootstrap 5–based page (`bsui.html`)
 | BS9 | **Flight Sessions panel** — Sessions list, replay controls, import/export migrated into a Bootstrap **offcanvas** (slides in from right or bottom). Existing session JS functions reused. | ✅ Done |
 | BS10 | **Monitor other UAVs panel** — Monitored topics list and Add topic input migrated into a Bootstrap **offcanvas**. Existing JS reused. | ✅ Done |
 | BS11 | **Mission Planner** — Full-screen mission planner overlay and `MissionPlannerScripts.js` wired into the new page. Planner HTML copied from `basicui.html`; menu link triggers `openMissionPlanner()`. | ✅ Done |
-| BS12 | **PWA cutover** — Update `manifest.json` `start_url` to `bsui.html`. Update service worker cache. Update GitHub Actions deploy if needed. Retire `basicui.html`. | ⬜ Todo |
+| BS12 | **PWA cutover** — Renamed `bsui.html` → `basicui.html` (old file preserved as `oldui.html`). All Apple/PWA meta tags, splash screens, and manifest link migrated. `manifest.json` `start_url` was already `/basicui.html`. | ✅ Done |
 
 ---
 

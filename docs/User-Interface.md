@@ -277,7 +277,7 @@ The bottom-most ruler bar is the course indicator. It will show the direction th
 
 ### Sidebar Menu
 
-Tapping the hamburger/menu icon opens the sidebar. The first-level menu items are:
+Tapping the **gear icon** (top-left of the screen) opens the sidebar. The first-level menu items are:
 
 - **Send command to UAV** — opens the Commands panel (see below). Also accessible via the floating **CMD** button that appears in the bottom-right corner of the screen.
 - **Flight Sessions** — opens the Flight Sessions panel to manage recorded flight sessions.
@@ -356,7 +356,6 @@ Tapping **Mission planner** opens a full-screen view that completely replaces th
 #### Top bar
 
 The top bar shows:
-- **Connection icon** and **Command channel icon** — mirrors of the main UI status icons, so you can monitor aircraft connectivity without leaving the planner.
 - **Mission validity dot** — a small circle that is **green** when the flight controller reports the loaded mission as valid (`wpv:1`) or **red** otherwise. This reflects the mission currently on the FC, not the one being planned.
 - **Mission name** — the name of the currently loaded/saved mission, or *Untitled mission* if unsaved. An asterisk (`*`) is appended when there are unsaved changes.
 - **Waypoint count and total distance** — updates live as waypoints are added, moved, or deleted.
@@ -385,15 +384,12 @@ Tap an existing waypoint marker to reopen its modal. Drag a marker to move it �
 
 ![Mission planner workflow](screenshots/mp_workflow.png)
 
-Two rows of buttons at the bottom of the screen:
+Eight buttons are arranged at the bottom of the screen. In portrait mode they appear as two rows of four; in landscape mode they collapse into a single row.
 
-**Row 1 — mission file management:**
 - **Save** — saves the current mission to browser local storage with a name you provide. Overwrites an existing mission of the same name after confirmation.
 - **Load** — opens a list of saved missions; tap one to load it (replaces the current mission after confirmation).
 - **Export** — downloads the mission as an INAV-compatible JSON file (same format as INAV Configurator).
 - **Import** — loads a mission from an INAV JSON file on your device.
-
-**Row 2 — aircraft operations:**
 - **Upload** — sends the planned mission to the aircraft over the encrypted command channel. Each waypoint is sent individually and acknowledged by the firmware before the next is sent. The FC's mission is only updated once the entire mission passes validation. Disabled when not connected or when WP Mission mode is active on the FC.
 - **Download** — fetches the mission currently stored on the aircraft and loads it into the planner. Useful to review or modify a previously uploaded mission.
 - **Clear** — removes all waypoints (confirmation required).
