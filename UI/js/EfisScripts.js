@@ -859,7 +859,7 @@ export function renderEFIS(data) {
     // ctx.scale(dpr, dpr) keeps all drawing coordinates in CSS pixels so
     // nothing else in this function needs to change.
     efis.efisContext = efis.efisCanvas.getContext("2d");
-    var dpr = efis.PixelRatio || 1;
+    var dpr = window.devicePixelRatio || 1; // Here it must be window.devicePixelRatio, not efis.PixelRatio, because we want to get the real DPR of the screen, not the one we are emulating for the canvas.
     efis.efisWidth = efis.hudView.offsetWidth;
     efis.efisHeight = efis.hudView.offsetHeight;
     efis.efisCanvas.width  = efis.efisWidth  * dpr;
