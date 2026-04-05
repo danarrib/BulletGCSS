@@ -283,15 +283,15 @@ export function updateDataView(data)
 {
     var PlusCodeCoordinates = OpenLocationCode.encode(data.gpsLatitude, data.gpsLongitude);
     
-    var armedClass = "color-normal";
+    var armedClass = "color-normal tblDataViewCellValue";
     if(data.uavIsArmed == 1)
-        armedClass = "color-ok";
+        armedClass = "color-ok tblDataViewCellValue";
 
-    var gps3DClass = "color-danger";
+    var gps3DClass = "color-danger tblDataViewCellValue";
     if(data.gps3DFix != 0)
-        gps3DClass = "color-ok";
+        gps3DClass = "color-ok tblDataViewCellValue";
 
-    var wpMissionClass = "color-normal";
+    var wpMissionClass = "color-normal tblDataViewCellValue";
     var wpMissionText = "Not loaded";
     if(data.waypointCount > 0)
     {
@@ -307,9 +307,9 @@ export function updateDataView(data)
             }
         }
         if(data.isWaypointMissionValid == 1)
-            wpMissionClass = "color-ok";
+            wpMissionClass = "color-ok tblDataViewCellValue";
         else
-            wpMissionClass = "color-danger";
+            wpMissionClass = "color-danger tblDataViewCellValue";
     }
 
     var activeFlightMode = data.flightMode;
@@ -324,7 +324,7 @@ export function updateDataView(data)
     if(hasUserLocation) 
     {
         data.azimuth = bearing(data.userLatitude, data.userLongitude, data.gpsLatitude, data.gpsLongitude).toFixed(0);
-        document.getElementById("aziElevPlaceHolder").className = "color-ok";
+        document.getElementById("aziElevPlaceHolder").className = "color-ok tblDataViewCellValue";
         if(data.userAltitudeSL !== null)
         {
             document.getElementById("aziElevPlaceHolder").innerHTML = data.azimuth + 'º / ' + data.elevation + 'º';
@@ -452,19 +452,19 @@ export function updateDataView(data)
 
     document.getElementById("rssiPlaceHolder").innerHTML = data.rssiPercent + " %";
     if(data.rssiPercent <= 20)
-        document.getElementById("rssiPlaceHolder").className = "color-danger";
+        document.getElementById("rssiPlaceHolder").className = "color-danger tblDataViewCellValue";
     else if(data.rssiPercent <= 60)
-        document.getElementById("rssiPlaceHolder").className = "color-warning";
+        document.getElementById("rssiPlaceHolder").className = "color-warning tblDataViewCellValue";
     else
-        document.getElementById("rssiPlaceHolder").className = "color-ok";
+        document.getElementById("rssiPlaceHolder").className = "color-ok tblDataViewCellValue";
 
     document.getElementById("batteryVoltagePlaceHolder").innerHTML = data.batteryVoltage + "V - " + data.battCellVoltage + "V";
     if(data.fuelPercent <= 20)
-        document.getElementById("batteryVoltagePlaceHolder").className = "color-danger";
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-danger tblDataViewCellValue";
     else if(data.fuelPercent <= 60)
-        document.getElementById("batteryVoltagePlaceHolder").className = "color-warning";
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-warning tblDataViewCellValue";
     else
-        document.getElementById("batteryVoltagePlaceHolder").className = "color-ok";
+        document.getElementById("batteryVoltagePlaceHolder").className = "color-ok tblDataViewCellValue";
 
     if(blinkSlowSwitch || data.uavIsArmed)
     {
