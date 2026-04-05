@@ -23,7 +23,7 @@ export var efis = {
     hudView: document.getElementById("hudview"),
     efisCanvas: document.getElementById("cvsEFIS"),
     DefaultFont: 'Ubuntu',
-    PixelRatio: window.devicePixelRatio || 1,
+    PixelRatio: 1,
 };
 
 window._efis = efis; // For debugging purposes only. Remove in production.
