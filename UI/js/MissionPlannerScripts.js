@@ -388,7 +388,6 @@ function initPlannerMap() {
         style: getPlannerMapStyle(),
         center: [data.gpsLongitude || 0, data.gpsLatitude || 0],
         zoom: 14,
-        pixelRatio: 1,
         attributionControl: false,
     });
 
