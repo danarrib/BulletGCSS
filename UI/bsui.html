@@ -838,9 +838,9 @@
     <button id="fabCommands" title="Send command">CMD</button>
 
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
-    <div id="missionPlannerView" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:1031;background:#0a0a0a;">
+    <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,56px);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
         <!-- Stats bar -->
-        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:1032;gap:3vmin;">
+        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
             <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
                 <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
@@ -852,7 +852,7 @@
         <!-- Toast message -->
         <div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
         <!-- Action toolbar -->
-        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #333;z-index:1032;">
+        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #333;z-index:101;">
             <input type="button" id="mpBtSave"     value="Save"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtLoad"     value="Load"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtExport"   value="Export"   class="btRcCmd mp-toolbar-btn" />
