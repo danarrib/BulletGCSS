@@ -120,6 +120,17 @@
             height: 100%;
         }
 
+        .sec-aircraft-label {
+            position: absolute;
+            display: none;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.72);
+            color: #fff;
+            white-space: nowrap;
+            font-family: 'Ubuntu', sans-serif;
+            line-height: 1.2;
+        }
+
         /* ── EFIS panel ──────────────────────────────────────────────────── */
         #panel-efis { background: #000; }
 
@@ -816,7 +827,7 @@
                         <td class="tblDataViewCellValue" id="flightTimePlaceHolder"></td>
                     </tr>
                     <tr>
-                        <td colspan="4" id="statusPlaceHolder" align="center">&nbsp;</td>
+                        <td colspan="4" class="tblDataViewCellValue" id="statusPlaceHolder" align="center">&nbsp;</td>
                     </tr>
                 </table>
             </div>
