@@ -8,6 +8,7 @@
 	<meta name="HandheldFriendly" content="true" />
 
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
 
@@ -313,17 +314,18 @@
 
     <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
     <nav class="navbar navbar-dark bg-black fixed-top px-3 border-bottom border-secondary">
-        <button class="navbar-toggler border-0 p-1 me-2"
+        <button class="navbar-toggler border-0 p-1"
+                style="font-size:1.4em; color:#fff;"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#sideMenu"
                 aria-controls="sideMenu"
                 aria-label="Open menu">
-            <span class="navbar-toggler-icon"></span>
+            &#9881;
         </button>
 
         <!-- Status icons — src updated by InfoPanelScripts.js via element IDs -->
-        <div class="d-flex gap-2 align-items-center me-auto">
+        <div class="d-flex gap-2 align-items-center me-auto ms-3">
             <img alt="Connection status"      class="statusIcon" id="connectionIcon"     src="img/connection_broken.png" />
             <img alt="Command channel status" class="statusIcon" id="commandChannelIcon" src="img/command_error.png" />
             <img alt="Cellular signal"        class="statusIcon" id="cellIcon"           src="img/cell_broken.png" />
@@ -351,20 +353,20 @@
         <div class="offcanvas-body p-0">
             <nav class="nav flex-column">
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navSendCommand">Send command to UAV</a>
+                   href="#" id="navSendCommand"><i class="bi bi-joystick me-3"></i>Send command to UAV</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navFlightSessions">Flight Sessions</a>
+                   href="#" id="navFlightSessions"><i class="bi bi-clock-history me-3"></i>Flight Sessions</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navMonitorUAVs">Monitor other UAVs</a>
+                   href="#" id="navMonitorUAVs"><i class="bi bi-eye me-3"></i>Monitor other UAVs</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navMissionPlanner">Mission Planner</a>
+                   href="#" id="navMissionPlanner"><i class="bi bi-map me-3"></i>Mission Planner</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navSettings">Settings</a>
+                   href="#" id="navSettings"><i class="bi bi-gear me-3"></i>Settings</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navRefreshApp">Refresh App</a>
+                   href="#" id="navRefreshApp"><i class="bi bi-arrow-clockwise me-3"></i>Refresh App</a>
                 <a class="nav-link text-white py-3 px-4"
                    href="https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md"
-                   target="_blank">Help</a>
+                   target="_blank"><i class="bi bi-question-circle me-3"></i>Help</a>
             </nav>
         </div>
 
@@ -387,18 +389,18 @@
         <div class="offcanvas-body p-0">
             <nav class="nav flex-column">
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navBrokerSettings">Broker settings</a>
+                   href="#" id="navBrokerSettings"><i class="bi bi-router me-3"></i>Broker settings</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="uisettingslink">UI settings</a>
+                   href="#" id="uisettingslink"><i class="bi bi-sliders me-3"></i>UI settings</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navSecurityMenu">Security</a>
+                   href="#" id="navSecurityMenu"><i class="bi bi-shield-lock me-3"></i>Security</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navKeepAwake">Keep screen awake</a>
+                   href="#" id="navKeepAwake"><i class="bi bi-sun me-3"></i>Keep screen awake</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navEnableCompass" style="display:none;">Enable compass</a>
+                   href="#" id="navEnableCompass" style="display:none;"><i class="bi bi-compass me-3"></i>Enable compass</a>
                 <a class="nav-link text-white py-3 px-4"
                    href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone"
-                   target="_blank" id="installhomelink">Install on home screen</a>
+                   target="_blank" id="installhomelink"><i class="bi bi-phone me-3"></i>Install on home screen</a>
             </nav>
         </div>
 
@@ -836,11 +838,9 @@
     <button id="fabCommands" title="Send command">CMD</button>
 
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
-    <div id="missionPlannerView" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;background:#0a0a0a;">
+    <div id="missionPlannerView" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:1031;background:#0a0a0a;">
         <!-- Stats bar -->
-        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
-            <img alt="Connection status"      class="statusIcon" id="mpConnectionIcon"     src="img/connection_broken.png" />
-            <img alt="Command channel status" class="statusIcon" id="mpCommandChannelIcon"  src="img/command_error.png" />
+        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:1032;gap:3vmin;">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
             <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
                 <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
