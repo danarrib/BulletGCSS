@@ -69,8 +69,8 @@ const PLANNER_MISSION = {
 // Shared setup for the main UI screenshots
 const MAIN_UI = {
   url:      `${BASE_URL}/basicui.html`,
-  width:    1920,
-  height:   1080,
+  width:    960,
+  height:   540,
   dpr:      2,
   logFile:  'testflight3.txt',
   logLines: 478,
@@ -106,9 +106,9 @@ const screenshots = [
   {
     composition: 'mqtt_settings.png',
     url:         `${BASE_URL}/basicui.html`,
-    width:       1080,
-    height:      1920,
-    dpr:         2,
+    width:       467,
+    height:      830,
+    dpr:         1,
     gap:         40,
     outputWidth: 1920,
     logFile:     'testflight3.txt',
@@ -153,8 +153,8 @@ const screenshots = [
 
   {
     url:        `${BASE_URL}/basicui.html`,
-    width:      1080,
-    height:     1920,
+    width:      540,
+    height:     960,
     dpr:        2,
     logFile:    'testflight3.txt',
     logLines:   478,
@@ -168,8 +168,8 @@ const screenshots = [
 
   {
     url:        `${BASE_URL}/basicui.html`,
-    width:      1080,
-    height:     1920,
+    width:      540,
+    height:     960,
     dpr:        2,
     logFile:    'testflight3.txt',
     logLines:   478,
@@ -195,8 +195,8 @@ const screenshots = [
   {
     composition: 'mp_workflow.png',
     url:         `${BASE_URL}/basicui.html`,
-    width:       1080,
-    height:      1920,
+    width:       540,
+    height:      960,
     dpr:         2,
     gap:         40,
     outputWidth: 1920,
@@ -342,7 +342,7 @@ async function generateSocialMedia(browser, def) {
   // ── Capture portrait screenshot (440×956 CSS @ dpr 3 = 1320×2868 physical) ─
   console.log('[social] capturing portrait screenshot…');
   const portCtx = await browser.newContext({
-    viewport: { width: 440, height: 956 },
+    viewport: { width: 440, height: 840 },
     deviceScaleFactor: 1,
   });
   await portCtx.addInitScript(() => {
@@ -356,7 +356,7 @@ async function generateSocialMedia(browser, def) {
   // ── Capture landscape screenshot (956×440 CSS @ dpr 3 = 2868×1320 physical) ─
   console.log('[social] capturing landscape screenshot…');
   const landCtx = await browser.newContext({
-    viewport: { width: 956, height: 440 },
+    viewport: { width: 840, height: 440 },
     deviceScaleFactor: 1,
   });
   await landCtx.addInitScript(() => {
@@ -369,11 +369,11 @@ async function generateSocialMedia(browser, def) {
 
   // ── Resize screenshots ─────────────────────────────────────────────────────
   const portShotResized = await sharp(portShotBuf)
-    .resize(256, 559)
+    .resize(258)
     .toBuffer();
 
   const landShotResized = await sharp(landShotBuf)
-    .resize(559, 256)
+    .resize(498)
     .toBuffer();
 
   // ── Resize frames ──────────────────────────────────────────────────────────
@@ -388,14 +388,26 @@ async function generateSocialMedia(browser, def) {
 
   // ── Text SVG (centered on x=836) ──────────────────────────────────────────
   const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_W}" height="${CANVAS_H}">
+<defs>
+<filter id="whiteOutlineEffect" color-interpolation-filters="sRGB">
+  <feMorphology in="SourceAlpha" result="MORPH" operator="dilate" radius="2" />
+  <feColorMatrix in="MORPH" result="WHITENED" type="matrix" values="-1 0 0 0 1, 0 -1 0 0 1, 0 0 -1 0 1, 0 0 0 1 0"/>
+  <feMerge>
+    <feMergeNode in="WHITENED"/>
+    <feMergeNode in="SourceGraphic"/>
+  </feMerge>
+</filter>
+</defs>
     <text x="836" y="456"
           font-family="Ubuntu, Arial, sans-serif"
           font-size="82" font-weight="bold" fill="#1a1a1a"
-          text-anchor="middle">Bullet GCSS</text>
+          text-anchor="middle"
+          filter="url(#whiteOutlineEffect)">Bullet GCSS</text>
     <text x="836" y="513"
           font-family="Ubuntu, Arial, sans-serif"
-          font-size="40" fill="#1a1a1a"
-          text-anchor="middle">
+          font-size="36" font-weight="bold" fill="#1a1a1a"
+          text-anchor="middle"
+          filter="url(#whiteOutlineEffect)">
       <tspan x="836" dy="0">A high caliber ground control station system</tspan>
       <tspan x="836" dy="1.4em">designed for the 21st century lifestyle</tspan>
     </text>
@@ -404,11 +416,11 @@ async function generateSocialMedia(browser, def) {
   // ── Composite onto 1280×640 white canvas ──────────────────────────────────
   // Layer order (bottom to top): land shot, port shot, land frame, port frame, text
   await sharp({
-    create: { width: CANVAS_W, height: CANVAS_H, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+    create: { width: CANVAS_W, height: CANVAS_H, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } },
   })
     .composite([
-      { input: landShotResized,      left: 554, top: 98 },
-      { input: portShotResized,      left: 149, top: 53 },
+      { input: landShotResized,      left: 590, top: 98 },
+      { input: portShotResized,      left: 148, top: 85 },
       { input: landFrameResized,     left: 547, top: 90 },
       { input: portFrameResized,     left: 137, top: 42 },
       { input: Buffer.from(textSvg), left: 0,   top: 0  },
