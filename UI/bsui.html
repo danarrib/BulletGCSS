@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <title>Bullet GCSS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <style>
+        /* ── Full-screen layout ──────────────────────────────────────────── */
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #main {
+            position: fixed;
+            top: var(--navbar-height, 56px);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Portrait: equal thirds ─────────────────────────────────────── */
+        #left-col {
+            display: contents;
+        }
+
+        #panel-info,
+        #panel-map,
+        #panel-efis {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Landscape: 50/50 columns ───────────────────────────────────── */
+        @media (orientation: landscape) {
+            #main { flex-direction: row; }
+
+            #left-col {
+                display: flex;
+                flex-direction: column;
+                width: 50%;
+                flex-shrink: 0;
+            }
+
+            #panel-info,
+            #panel-efis { flex: 1; }
+
+            #panel-map { flex: 1; }
+        }
+
+        /* ── Offcanvas animation ─────────────────────────────────────────── */
+        #sideMenu {
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+        }
+        #sideMenu.showing,
+        #sideMenu.show  { opacity: 1; }
+        #sideMenu.hiding { opacity: 0; }
+        .offcanvas-backdrop {
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+
+        /* ── Status icons ────────────────────────────────────────────────── */
+        .statusIcon {
+            height: 2em;
+            width: 2em;
+        }
+
+        /* ── Information panel ───────────────────────────────────────────── */
+        #panel-info {
+            display: flex;
+            align-items: center;
+            background: #000;
+        }
+
+        .tblDataView {
+            width: 100%;
+            margin: 0 1em;
+            border-spacing: 0;
+        }
+
+        .tblDataViewCellHeader {
+            font-size: 0.5em;
+            font-weight: bold;
+            color: #bbb;
+            white-space: nowrap;
+        }
+
+        .smalltext { font-size: 0.7em; }
+
+        /* ── Telemetry text colours (set by InfoPanelScripts.js) ─────────── */
+        .color-normal  { color: #fff; }
+        .color-ok      { color: #0c0; }
+        .color-warning { color: #fc0; }
+        .color-danger  { color: #f00; }
+
+        /* ── Map panel ───────────────────────────────────────────────────── */
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── EFIS panel ──────────────────────────────────────────────────── */
+        #panel-efis { background: #000; }
+
+        #hudview {
+            width: 100%;
+            height: 100%;
+        }
+
+        #cvsEFIS {
+            display: block;
+        }
+
+        /* ── RC command buttons ──────────────────────────────────────────── */
+        .btRcCmd {
+            padding: 0.45em 0.9em;
+            background: #2b2b2b;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            touch-action: manipulation;
+            white-space: nowrap;
+        }
+        .btRcCmd:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+        .btRcCmd.btn-active {
+            background: #0a5c0a;
+            border-color: #0c0;
+            color: #0f0;
+        }
+
+        /* ── RC command grid ─────────────────────────────────────────────── */
+        .rc-cmd-row {
+            display: flex;
+            align-items: center;
+            padding: 0.35em 0;
+            gap: 0.5em;
+            border-bottom: 1px solid #222;
+        }
+        .rc-cmd-label {
+            width: 7em;
+            flex-shrink: 0;
+            font-size: 0.875em;
+            color: #ccc;
+        }
+        .rc-cmd-btns {
+            display: flex;
+            gap: 0.4em;
+            flex: 1;
+        }
+        .cmd-number-input {
+            flex: 1;
+            padding: 0.4em 0.5em;
+            background: #1a1a1a;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 0.85em;
+            min-width: 0;
+        }
+
+        /* ── Command history ─────────────────────────────────────────────── */
+        .cmd-item {
+            display: flex;
+            align-items: center;
+            padding: 0.4em 0;
+            border-bottom: 1px solid #222;
+            gap: 0.5em;
+        }
+        .cmd-info { flex: 1; display: flex; flex-direction: column; }
+        .cmd-type { font-size: 0.85em; color: #ddd; }
+        .cmd-meta { font-size: 0.75em; color: #666; }
+        .cmd-status {
+            font-size: 0.75em;
+            padding: 0.2em 0.5em;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .cmd-status-pending  { background: #443300; color: #fc0; }
+        .cmd-status-sent     { background: #003344; color: #6cf; }
+        .cmd-status-acked    { background: #003300; color: #3f3; }
+        .cmd-status-failed,
+        .cmd-status-timeout  { background: #440000; color: #f66; }
+
+        /* ── Session list ────────────────────────────────────────────────── */
+        .session-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5em 0;
+            border-bottom: 1px solid #222;
+            gap: 0.5em;
+        }
+        .session-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+        .session-name {
+            font-size: 0.875em;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .session-meta { font-size: 0.75em; color: #666; }
+        .session-actions { display: flex; gap: 0.4em; flex-shrink: 0; }
+        .session-btn {
+            padding: 0.3em 0.65em;
+            background: #2b2b2b;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+        .session-btn-delete { background: #3c1010; border-color: #6a2020; }
+
+        /* ── Deletion overlay ────────────────────────────────────────────── */
+        @keyframes deletion-spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+        .deletion-spinner {
+            width: 3.5em; height: 3.5em;
+            border: 0.35em solid #444;
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: deletion-spin 0.8s linear infinite;
+        }
+
+        /* ── FAB button ──────────────────────────────────────────────────── */
+        #fabCommands {
+            position: fixed;
+            bottom: 4vmin;
+            right: 4vmin;
+            width: 14vmin;
+            height: 14vmin;
+            min-width: 52px;
+            min-height: 52px;
+            border-radius: 50%;
+            background: #555;
+            border: 2px solid #888;
+            color: #fff;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 5;
+            transition: background 0.2s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #fabCommands:active { background: #777; }
+        @media (hover: hover) {
+            #fabCommands:hover { background: #777; }
+        }
+
+        /* ── Mission Planner toolbar — landscape ────────────────────────── */
+        @media only screen and (orientation: landscape) {
+            #mpToolbar {
+                flex-direction: row !important;
+                height: 14vmin !important;
+                gap: 1.5vmin !important;
+                align-items: center !important;
+                justify-content: stretch !important;
+            }
+            .mp-toolbar-row {
+                flex: 1;
+                height: 100%;
+                align-items: center !important;
+                gap: 1.5vmin !important;
+            }
+            #mpMap {
+                bottom: 14vmin !important;
+            }
+            .mp-toolbar-btn {
+                flex: 1 !important;
+                width: 0 !important;
+                min-width: 0 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ── Dependencies (globals required by ES modules) ──────────────────── -->
+    <script src="mqttws31.js" type="text/javascript"></script>
+    <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+    <script src="js/olc.min.js"></script>
+    <script src="js/NoSleep.min.js"></script>
+
+    <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
+    <nav class="navbar navbar-dark bg-black fixed-top px-3 border-bottom border-secondary">
+        <button class="navbar-toggler border-0 p-1 me-2"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sideMenu"
+                aria-controls="sideMenu"
+                aria-label="Open menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Status icons — src updated by InfoPanelScripts.js via element IDs -->
+        <div class="d-flex gap-2 align-items-center me-auto">
+            <img alt="Connection status"      class="statusIcon" id="connectionIcon"     src="img/connection_broken.png" />
+            <img alt="Command channel status" class="statusIcon" id="commandChannelIcon" src="img/command_error.png" />
+            <img alt="Cellular signal"        class="statusIcon" id="cellIcon"           src="img/cell_broken.png" />
+            <img alt="RC signal"              class="statusIcon" id="radioIcon"          src="img/rx_bad.png" />
+            <img alt="Battery"                class="statusIcon" id="batteryIcon"        src="img/battery_0.png" />
+            <img alt="GPS"                    class="statusIcon" id="gpsIcon"            src="img/gps_bad.png" />
+            <img alt="Hardware health"        class="statusIcon" id="hardwareHealthIcon" src="img/health_error.png" />
+        </div>
+    </nav>
+
+    <!-- ── Main sidebar offcanvas ──────────────────────────────────────────── -->
+    <div class="offcanvas offcanvas-start text-bg-dark border-end border-secondary"
+         tabindex="-1"
+         id="sideMenu"
+         aria-labelledby="sideMenuLabel">
+
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title" id="sideMenuLabel">Bullet GCSS</h5>
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body p-0">
+            <nav class="nav flex-column">
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navSendCommand">Send command to UAV</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navFlightSessions">Flight Sessions</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navMonitorUAVs">Monitor other UAVs</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navMissionPlanner">Mission Planner</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navSettings">Settings</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navRefreshApp">Refresh App</a>
+                <a class="nav-link text-white py-3 px-4"
+                   href="https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md"
+                   target="_blank">Help</a>
+            </nav>
+        </div>
+
+    </div>
+
+    <!-- ── Settings offcanvas ──────────────────────────────────────────────── -->
+    <div class="offcanvas offcanvas-start text-bg-dark border-end border-secondary"
+         tabindex="-1"
+         id="bsOffcanvasSettings"
+         aria-labelledby="bsOffcanvasSettingsLabel">
+
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title" id="bsOffcanvasSettingsLabel">Settings</h5>
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body p-0">
+            <nav class="nav flex-column">
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navBrokerSettings">Broker settings</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="uisettingslink">UI settings</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navSecurityMenu">Security</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navKeepAwake">Keep screen awake</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
+                   href="#" id="navEnableCompass" style="display:none;">Enable compass</a>
+                <a class="nav-link text-white py-3 px-4"
+                   href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone"
+                   target="_blank" id="installhomelink">Install on home screen</a>
+            </nav>
+        </div>
+
+    </div>
+
+    <!-- ── Sessions offcanvas ──────────────────────────────────────────────── -->
+    <div class="offcanvas offcanvas-end text-bg-dark"
+         style="width: min(100vw, 480px);"
+         tabindex="-1"
+         id="bsOffcanvasSessions"
+         aria-labelledby="bsOffcanvasSessionsLabel">
+
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title" id="bsOffcanvasSessionsLabel">Flight Sessions</h5>
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body">
+            <h6 class="text-secondary mb-2">Current session</h6>
+            <div class="mb-2">
+                <input type="text"
+                       class="form-control form-control-sm bg-dark text-white border-secondary"
+                       id="currentSessionName" placeholder="Session name" />
+            </div>
+            <div class="d-flex gap-2 mb-4">
+                <input type="button" class="btRcCmd flex-fill" id="btRenameSession" value="Rename" />
+                <input type="button" class="btRcCmd flex-fill" id="btNewSession" value="New Session" />
+            </div>
+
+            <h6 class="text-secondary mb-2">Saved sessions</h6>
+            <div id="sessionsList" class="mb-4"></div>
+
+            <h6 class="text-secondary mb-2">Import / Export</h6>
+            <div class="d-flex flex-column gap-2">
+                <input type="button" class="btRcCmd" id="navExportSession" value="Export session…" />
+                <input type="button" class="btRcCmd" id="navImportSession" value="Import session…" />
+                <input type="button" class="btRcCmd" id="btStopReplay" value="Stop Replay" style="display:none;" />
+                <div id="playbackcontainer" style="display:none;">
+                    <p class="text-secondary small mb-1 mt-2">Replay Playback</p>
+                    <div class="d-flex justify-content-between small text-secondary mb-1">
+                        <span id="currentPlaybackTime">00:00</span>
+                        <span id="maxPlaybackTime">00:00</span>
+                    </div>
+                    <input type="range" min="0" max="100" value="0" step="0.1"
+                           class="form-range" id="sldrReplay" />
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Monitor other UAVs offcanvas ───────────────────────────────────── -->
+    <div class="offcanvas offcanvas-end text-bg-dark"
+         style="width: min(100vw, 480px);"
+         tabindex="-1"
+         id="bsOffcanvasMonitor"
+         aria-labelledby="bsOffcanvasMonitorLabel">
+
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title" id="bsOffcanvasMonitorLabel">Monitor other UAVs</h5>
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body">
+            <div id="monitoredList" class="mb-3"></div>
+            <input type="text"
+                   class="form-control form-control-sm bg-dark text-white border-secondary mb-2"
+                   id="inputMonitorTopic" placeholder="bulletgcss/telem/callsign" />
+            <p id="monitorTopicError" class="text-warning small mb-2" style="display:none;"></p>
+            <input type="button" class="btRcCmd w-100" id="btAddMonitorTopic" value="Add topic" />
+            <p class="text-secondary small mt-3">
+                Secondary aircraft are displayed on the map in different colours.
+                Tap a marker for details.
+            </p>
+        </div>
+
+    </div>
+
+    <!-- ── Broker Settings modal ─────────────────────────────────────────────── -->
+    <div class="modal fade" id="bsModalBroker" tabindex="-1"
+         aria-labelledby="bsModalBrokerLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="bsModalBrokerLabel">MQTT Broker settings</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Host</label>
+                            <input type="text" class="form-control form-control-sm" id="brokerHost" />
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Port</label>
+                            <input type="text" class="form-control form-control-sm" id="brokerPort" />
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Username</label>
+                            <input type="text" class="form-control form-control-sm" id="brokerUser" />
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Password</label>
+                            <input type="password" class="form-control form-control-sm" id="brokerPass" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-secondary small mb-1">Telemetry Topic</label>
+                            <input type="text" class="form-control form-control-sm" id="brokerTopic" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-secondary small mb-1">Command Topic</label>
+                            <input type="text" class="form-control form-control-sm" id="brokerCommandTopic" />
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       id="brokerUseTLS" value="1" />
+                                <label class="form-check-label small" for="brokerUseTLS">Use TLS</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <input type="button" class="btRcCmd" id="btResetBrokerSettings" value="Reset to default" />
+                    <input type="button" class="btRcCmd" id="btSaveBrokerSettings" value="Save" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── UI Settings modal ─────────────────────────────────────────────────── -->
+    <div class="modal fade" id="bsModalUI" tabindex="-1"
+         aria-labelledby="bsModalUILabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="bsModalUILabel">UI Settings</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Speed Unit</label>
+                            <select class="form-select form-select-sm" id="ui_speed">
+                                <option value="kmh">Km/h (Kilometers per hour)</option>
+                                <option value="mph">mph (Miles per hour)</option>
+                                <option value="kt">kt (Knots)</option>
+                                <option value="ms">m/s (meters per second)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Distance Unit</label>
+                            <select class="form-select form-select-sm" id="ui_distance">
+                                <option value="km">m / km (Meters or Kilometers)</option>
+                                <option value="mi">ft / mi (Feet or Miles)</option>
+                                <option value="nm">Nm (Nautical Miles)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Altitude Unit</label>
+                            <select class="form-select form-select-sm" id="ui_altitude">
+                                <option value="m">m (Meters)</option>
+                                <option value="ft">ft (Feet)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Current Unit</label>
+                            <select class="form-select form-select-sm" id="ui_current">
+                                <option value="a">Ampere</option>
+                                <option value="w">Watt</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Capacity Unit</label>
+                            <select class="form-select form-select-sm" id="ui_capacity">
+                                <option value="mah">mAh (miliampere hour)</option>
+                                <option value="mwh">mWh (miliwatt hour)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Efficiency Unit</label>
+                            <select class="form-select form-select-sm" id="ui_efficiency">
+                                <option value="mahkm">mAh per Kilometer</option>
+                                <option value="mwhkm">mWh per Kilometer</option>
+                                <option value="mahmi">mAh per Mile</option>
+                                <option value="mwhmi">mWh per Mile</option>
+                                <option value="mahnm">mAh per Nautical Mile</option>
+                                <option value="mwhnm">mWh per Nautical Mile</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Map Style</label>
+                            <select class="form-select form-select-sm" id="ui_map_style">
+                                <option value="dark">Dark (CARTO)</option>
+                                <option value="liberty">Liberty (OpenFreeMap)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label text-secondary small mb-1">Elevation Provider</label>
+                            <select class="form-select form-select-sm" id="ui_elevation_provider">
+                                <option value="OpenTopoData">Open Topo Data</option>
+                                <option value="OpenTopoDataDirect">Open Topo Data (Direct)</option>
+                                <option value="OpenElevation">Open Elevation</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <input type="button" class="btRcCmd" id="btSaveUISettings" value="Save" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Security modal ────────────────────────────────────────────────────── -->
+    <div class="modal fade" id="bsModalSecurity" tabindex="-1"
+         aria-labelledby="bsModalSecurityLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="bsModalSecurityLabel">Command Security</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="securityKeyStatus" class="mb-3">No key pair generated yet.</p>
+                    <div class="mb-3">
+                        <input type="button" class="btRcCmd" id="btGenerateKey" value="Generate key pair" />
+                    </div>
+                    <h6 class="text-secondary">Public Key for Config.h</h6>
+                    <div class="mb-2">
+                        <textarea class="form-control form-control-sm bg-dark text-white border-secondary"
+                                  id="securityPublicKeyArea" readonly rows="4"
+                                  placeholder="Generate a key pair first."></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <input type="button" class="btRcCmd" id="btCopyPublicKey"
+                               value="Copy to clipboard" style="display:none;" />
+                    </div>
+                    <p id="securityKeyHint" class="text-secondary small mb-0" style="display:none;">
+                        Paste this line into Config.h and re-flash the firmware to enable command verification.
+                    </p>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Commands modal ────────────────────────────────────────────────────── -->
+    <div class="modal fade" id="bsModalCommands" tabindex="-1"
+         aria-labelledby="bsModalCommandsLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="bsModalCommandsLabel">Send Command</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="commandsDownlinkWarning" class="text-warning small mb-2" style="display:none;">
+                        &#9888; No command channel. Commands will not be received.
+                    </p>
+                    <p id="commandsMroWarning" class="text-warning small mb-2" style="display:none;">
+                        &#9888; MSP RC Override not active. RC commands will have no effect.
+                    </p>
+                    <div class="rc-cmd-grid mb-3">
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">RTH</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btRthOn"     value="ON" />
+                                <input type="button" class="btRcCmd" id="btRthOff"    value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Alt Hold</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btAltHoldOn"  value="ON" />
+                                <input type="button" class="btRcCmd" id="btAltHoldOff" value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Set Altitude</span>
+                            <div class="rc-cmd-btns">
+                                <input type="number" class="cmd-number-input" id="inputAltitude"
+                                       min="-10000" max="100000" step="1" placeholder="m" />
+                                <input type="button" class="btRcCmd" id="btSendAltitude" value="Send" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Pos Hold</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btPosHoldOn"  value="ON" />
+                                <input type="button" class="btRcCmd" id="btPosHoldOff" value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Cruise</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btCruiseOn"  value="ON" />
+                                <input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Set Course</span>
+                            <div class="rc-cmd-btns">
+                                <input type="number" class="cmd-number-input" id="inputHeading"
+                                       min="0" max="359" step="1" placeholder="0–359°" />
+                                <input type="button" class="btRcCmd" id="btSendHeading" value="Send" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">WP Mission</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btWpOn"  value="ON" />
+                                <input type="button" class="btRcCmd" id="btWpOff" value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Jump to WP</span>
+                            <div class="rc-cmd-btns">
+                                <input type="number" class="cmd-number-input" id="inputWpIndex"
+                                       min="1" max="255" step="1" placeholder="WP #" />
+                                <input type="button" class="btRcCmd" id="btSendJumpWp" value="Send" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Beeper</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btBeeperOn"  value="ON" />
+                                <input type="button" class="btRcCmd" id="btBeeperOff" value="OFF" />
+                            </div>
+                        </div>
+                        <div class="rc-cmd-row">
+                            <span class="rc-cmd-label">Ping</span>
+                            <div class="rc-cmd-btns">
+                                <input type="button" class="btRcCmd" id="btSendPing" value="Send" />
+                            </div>
+                        </div>
+                    </div>
+                    <h6 class="text-secondary mb-2">Command History</h6>
+                    <div id="commandsList"></div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Main panels ────────────────────────────────────────────────────── -->
+    <div id="main">
+
+        <div id="left-col">
+
+            <!-- Information panel — element IDs match what InfoPanelScripts.js expects -->
+            <div id="panel-info">
+                <table class="tblDataView">
+                    <tr>
+                        <td width="15%" class="tblDataViewCellHeader">Callsign</td>
+                        <td width="35%" id="callsignPlaceHolder"></td>
+                        <td width="15%" class="tblDataViewCellHeader">Mode</td>
+                        <td width="35%" id="activeModePlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td class="tblDataViewCellHeader">UAV Loc</td>
+                        <td id="coordinatesPlaceHolder"></td>
+                        <td class="tblDataViewCellHeader">Home Dist</td>
+                        <td id="homeDistancePlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td class="tblDataViewCellHeader" nowrap>WP Mission</td>
+                        <td id="waipointPlaceHolder"></td>
+                        <td class="tblDataViewCellHeader">GPS status</td>
+                        <td id="gpsInfoPlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td class="tblDataViewCellHeader">Batt Volt</td>
+                        <td id="batteryVoltagePlaceHolder"></td>
+                        <td class="tblDataViewCellHeader">RSSI</td>
+                        <td id="rssiPlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td id="ampDrawLabel" class="tblDataViewCellHeader">Amp Draw</td>
+                        <td id="ampDrawPlaceHolder"></td>
+                        <td id="capacityLabel" class="tblDataViewCellHeader">mAh Used</td>
+                        <td id="mAhUsedPlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td class="tblDataViewCellHeader">Throttle</td>
+                        <td id="throttlePlaceHolder"></td>
+                        <td id="efficiencyLabel" class="tblDataViewCellHeader">Efficiency</td>
+                        <td id="efficiencyPlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td class="tblDataViewCellHeader">Azi/Elev</td>
+                        <td id="aziElevPlaceHolder"></td>
+                        <td class="tblDataViewCellHeader" id="flightTimeLabel">Flt Time</td>
+                        <td id="flightTimePlaceHolder"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" id="statusPlaceHolder" align="center">&nbsp;</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- EFIS — hudview/cvsEFIS IDs match what EfisScripts.js expects -->
+            <div id="panel-efis">
+                <div id="hudview">
+                    <canvas id="cvsEFIS"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Map — div#map ID matches what MapScripts.js expects -->
+        <div id="panel-map">
+            <div id="map"></div>
+        </div>
+
+    </div>
+
+    <!-- ── FAB commands button ─────────────────────────────────────────────── -->
+    <button id="fabCommands" title="Send command">CMD</button>
+
+    <!-- ── Mission Planner View ────────────────────────────────────────────── -->
+    <div id="missionPlannerView" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;background:#0a0a0a;">
+        <!-- Stats bar -->
+        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
+            <img alt="Connection status"      class="statusIcon" id="mpConnectionIcon"     src="img/connection_broken.png" />
+            <img alt="Command channel status" class="statusIcon" id="mpCommandChannelIcon"  src="img/command_error.png" />
+            <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
+            <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
+                <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
+                <span style="color:#fff;font-size:3.5vmin;" id="mpStats">0 waypoints</span>
+            </div>
+        </div>
+        <!-- Map container -->
+        <div id="mpMap" style="position:absolute;top:12vmin;left:0;right:0;bottom:28vmin;"></div>
+        <!-- Toast message -->
+        <div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
+        <!-- Action toolbar -->
+        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;height:28vmin;background:#1a1a1a;border-top:1px solid #333;display:flex;flex-direction:column;justify-content:space-evenly;padding:0 2vmin;z-index:101;">
+            <div class="mp-toolbar-row" style="display:flex;gap:2vmin;justify-content:center;">
+                <input type="button" id="mpBtSave"     value="Save"     class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtLoad"     value="Load"     class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtExport"   value="Export"   class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtImport"   value="Import"   class="btRcCmd mp-toolbar-btn" />
+            </div>
+            <div class="mp-toolbar-row" style="display:flex;gap:2vmin;justify-content:center;">
+                <input type="button" id="mpBtUpload"   value="Upload"   class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtDownload" value="Download" class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtClear"    value="Clear"    class="btRcCmd mp-toolbar-btn" />
+                <input type="button" id="mpBtClose"    value="Close"    class="btRcCmd mp-toolbar-btn" />
+            </div>
+        </div>
+        <!-- Saved missions panel -->
+        <div id="mpSavedMissionsPanel" style="display:none;position:absolute;bottom:28vmin;left:0;right:0;max-height:60vmin;overflow-y:auto;background:#1a1a1a;border-top:1px solid #444;z-index:105;padding:3vmin 4vmin;">
+            <div style="display:flex;align-items:center;margin-bottom:2vmin;">
+                <span style="flex:1;color:#fff;font-size:4vmin;font-weight:bold;">Saved Missions</span>
+                <input type="button" id="mpBtCloseSavedList" value="&#10005;" class="btRcCmd" style="flex:none;" />
+            </div>
+            <div id="mpSavedMissionsEmpty" style="display:none;color:#aaa;font-size:3.5vmin;padding:2vmin 0;">No saved missions.</div>
+            <div id="mpSavedMissionsList"></div>
+        </div>
+        <!-- Upload progress overlay -->
+        <div id="mpUploadProgress" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;border:1px solid #555;border-radius:8px;padding:5vmin;z-index:110;text-align:center;min-width:60vw;">
+            <p id="mpUploadProgressText" style="color:#fff;font-size:4vmin;margin:0 0 3vmin;"></p>
+            <input type="button" id="mpBtCancelUpload" value="Cancel" class="btRcCmd" />
+        </div>
+    </div>
+
+    <!-- ── WP Parameter Modal ───────────────────────────────────────────────── -->
+    <div id="wpModalOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:201;pointer-events:none;"></div>
+    <div id="wpModal" style="display:none;position:fixed;z-index:202;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;min-width:55vw;max-width:82vw;border:1px solid #555;">
+        <div style="font-weight:bold;font-size:4.5vmin;margin-bottom:3vmin;">Waypoint <span id="wpModalNum"></span></div>
+        <p style="margin:0 0 2vmin;">
+            Action<br/>
+            <select id="wpModalAction" style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;">
+                <option value="1">Waypoint</option>
+                <option value="3">Loiter</option>
+                <option value="4">RTH</option>
+                <option value="8">Land</option>
+            </select>
+        </p>
+        <p style="margin:0 0 2vmin;">
+            Altitude (m above home)<br/>
+            <input type="number" id="wpModalAlt" min="0" max="2000" step="1" value="50"
+                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+        </p>
+        <p id="wpModalElevRow" style="margin:0 0 2vmin;display:none;">
+            <span id="wpModalElevText" style="color:#aaa;font-size:3.5vmin;"></span>
+        </p>
+        <p style="margin:0 0 2vmin;" id="wpModalSpeedRow">
+            Speed (m/s, 0 = FC default)<br/>
+            <input type="number" id="wpModalSpeed" min="0" max="30" step="0.5" value="0"
+                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+        </p>
+        <p style="margin:0 0 2vmin;display:none;" id="wpModalLoiterRow">
+            Loiter time (s)<br/>
+            <input type="number" id="wpModalLoiter" min="1" max="9999" step="1" value="10"
+                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+        </p>
+        <div style="display:flex;gap:2vmin;margin-top:3vmin;">
+            <input type="button" id="wpModalDelete" value="Delete" class="btRcCmd" style="flex:1;background:#722;" />
+            <input type="button" id="wpModalClose"  value="OK"     class="btRcCmd" style="flex:2;" />
+        </div>
+    </div>
+
+    <!-- ── Secondary aircraft popup ─────────────────────────────────────────── -->
+    <div id="secAircraftPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
+    <div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;min-width:60vw;max-width:85vw;border:1px solid #555;">
+        <div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
+        <div id="secPopupLastSeen"   style="color:#aaa;font-size:3.5vmin;margin-bottom:1.5vmin;"></div>
+        <div id="secPopupOlc"        style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
+        <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:2vmin;">Copied!</div>
+        <div style="margin-top:3vmin;">
+            <input type="button" id="btSecPopupStop"  value="Stop tracking" class="btRcCmd" style="width:100%;margin-bottom:2vmin;" />
+            <input type="button" id="btSecPopupClose" value="Close"         class="btRcCmd" style="width:100%;" />
+        </div>
+    </div>
+
+    <!-- ── Session deletion overlay ─────────────────────────────────────────── -->
+    <div id="deletingSessionOverlay"
+         style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+                background:rgba(0,0,0,0.85);z-index:9999;
+                align-items:center;justify-content:center;flex-direction:column;">
+        <div class="deletion-spinner"></div>
+        <p style="color:#fff;margin-top:1.5em;">Please wait&hellip;</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Import map — module resolution for all ES module imports -->
+    <script type="importmap">
+    {
+        "imports": {
+            "./js/CommScripts.js":           "./js/CommScripts.js",
+            "./js/EfisScripts.js":           "./js/EfisScripts.js",
+            "./js/MapScripts.js":            "./js/MapScripts.js",
+            "./js/InfoPanelScripts.js":      "./js/InfoPanelScripts.js",
+            "./js/SessionScripts.js":        "./js/SessionScripts.js",
+            "./js/MissionPlannerScripts.js": "./js/MissionPlannerScripts.js"
+        }
+    }
+    </script>
+    <script type="module" src="js/bsPageScripts.js"></script>
+
+</body>
+</html>

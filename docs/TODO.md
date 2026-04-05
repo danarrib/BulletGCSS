@@ -79,8 +79,27 @@ In landscape mode the sidebar menu has more items than fit on screen, making the
 
 ---
 
-### U2. Migrate UI to Bootstrap 5 ⏳ Deferred
-Eventually migrate the UI to Bootstrap 5 for consistent, mobile-correct components. Priority: replace the sidebar menus with Bootstrap's **Offcanvas** component (directly fixes the touch handling issues). Bootstrap 5.3 dark mode (`data-bs-theme="dark"`) reduces the conflict with the existing dark theme. Integration approach: adopt Bootstrap JS + utility classes first, keep existing custom CSS for layout and theme, audit conflicts incrementally.
+### U2. Migrate UI to Bootstrap 5
+
+Full migration of `basicui.html` to a new Bootstrap 5–based page (`bsui.html`). The migration is broken into discrete steps, each independently testable. Completed steps are marked ✅.
+
+**Target file:** `UI/bsui.html` — entry point for the new UI.
+**New script:** `UI/js/bsPageScripts.js` — replaces `PageScripts.js` for the Bootstrap page.
+
+| Step | Description | Status |
+|------|-------------|--------|
+| BS1 | **Basic layout** — Bootstrap 5.3.8 via CDN, dark theme, 3 panel placeholders (Info, Map, EFIS), offcanvas sidebar with slide+fade animation. Portrait: equal thirds. Landscape: 50/50 columns (Info+EFIS left, Map right). | ✅ Done |
+| BS2 | **JS module wiring** — `bsPageScripts.js` imports all existing ES modules (CommScripts, EfisScripts, MapScripts, InfoPanelScripts, SessionScripts), handles session management, MQTT connect, and the full render timer loop. No changes to any existing module files. | ✅ Done |
+| BS3 | **Information panel** — Real telemetry data table with all existing element IDs (`callsignPlaceHolder`, `coordinatesPlaceHolder`, etc.) so InfoPanelScripts.js works without modification. Color classes (`color-ok`, `color-danger`, etc.) included. | ✅ Done |
+| BS4 | **Map panel** — `<div id="map">` filling `#panel-map`. MapScripts.js initialises against this ID at module load. | ✅ Done |
+| BS5 | **EFIS panel** — `<div id="hudview"><canvas id="cvsEFIS"></canvas>` filling `#panel-efis`. EfisScripts.js sizes the canvas to hudview dimensions on every frame. | ✅ Done |
+| BS6 | **Status icons** — Real `<img>` elements in the navbar with the IDs InfoPanelScripts.js targets (`connectionIcon`, `commandChannelIcon`, `cellIcon`, `radioIcon`, `batteryIcon`, `gpsIcon`, `hardwareHealthIcon`). Updated live by `updateDataView`. | ✅ Done |
+| BS7 | **Settings panels** — Broker settings, UI settings, Security, and INAV settings migrated from custom sidebar panels into Bootstrap **modals**. Existing form HTML and JS functions reused with no logic changes. | ✅ Done |
+| BS8 | **Commands panel** — RC commands panel (RTH, AltHold, Cruise, WP, PosHold, Angle, Beeper) migrated into a Bootstrap **modal**. FAB button triggers `data-bs-toggle="modal"`. Existing command JS reused. | ✅ Done |
+| BS9 | **Flight Sessions panel** — Sessions list, replay controls, import/export migrated into a Bootstrap **offcanvas** (slides in from right or bottom). Existing session JS functions reused. | ✅ Done |
+| BS10 | **Monitor other UAVs panel** — Monitored topics list and Add topic input migrated into a Bootstrap **offcanvas**. Existing JS reused. | ✅ Done |
+| BS11 | **Mission Planner** — Full-screen mission planner overlay and `MissionPlannerScripts.js` wired into the new page. Planner HTML copied from `basicui.html`; menu link triggers `openMissionPlanner()`. | ✅ Done |
+| BS12 | **PWA cutover** — Update `manifest.json` `start_url` to `bsui.html`. Update service worker cache. Update GitHub Actions deploy if needed. Retire `basicui.html`. | ⬜ Todo |
 
 ---
 
