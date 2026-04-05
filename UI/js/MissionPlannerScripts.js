@@ -807,10 +807,12 @@ function clearMission() {
 // ── Open / close planner view ─────────────────────────────────────────────────
 
 function syncStatusIcons() {
-    var connSrc = document.getElementById('connectionIcon');
-    var cmdSrc  = document.getElementById('commandChannelIcon');
-    if (connSrc) document.getElementById('mpConnectionIcon').src = connSrc.src;
-    if (cmdSrc)  document.getElementById('mpCommandChannelIcon').src = cmdSrc.src;
+    var connSrc  = document.getElementById('connectionIcon');
+    var connDest = document.getElementById('mpConnectionIcon');
+    var cmdSrc   = document.getElementById('commandChannelIcon');
+    var cmdDest  = document.getElementById('mpCommandChannelIcon');
+    if (connSrc  && connDest) connDest.src = connSrc.src;
+    if (cmdSrc   && cmdDest)  cmdDest.src  = cmdSrc.src;
     var dot = document.getElementById('mpWpValidDot');
     if (dot) {
         var valid = data.isWaypointMissionValid;
