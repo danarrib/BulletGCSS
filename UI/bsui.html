@@ -30,7 +30,7 @@
             flex-direction: column;
         }
 
-        /* ── Portrait: equal thirds ─────────────────────────────────────── */
+        /* ── Portrait: equal thirds, order Info → Map → EFIS ───────────── */
         #left-col {
             display: contents;
         }
@@ -41,6 +41,10 @@
             flex: 1;
             overflow: hidden;
         }
+
+        #panel-info { order: 1; }
+        #panel-map  { order: 2; }
+        #panel-efis { order: 3; }
 
         /* ── Landscape: 50/50 columns ───────────────────────────────────── */
         @media (orientation: landscape) {
