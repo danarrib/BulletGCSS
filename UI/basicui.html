@@ -1001,15 +1001,26 @@
         <div id="secPopupOlc"        style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
         <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:1.5vmin;">Copied!</div>
         <table style="width:100%;border-collapse:collapse;font-size:3.5vmin;margin-bottom:2vmin;">
-            <tr><td style="color:#aaa;padding:0.8vmin 0;width:50%;">Altitude (ASL)</td>  <td id="secPopupAsl"        style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Vertical Speed</td>            <td id="secPopupVsp"        style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Horiz. Speed</td>              <td id="secPopupGsp"        style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Heading</td>                   <td id="secPopupHeading"    style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Distance</td>                  <td id="secPopupDistance"   style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Azimuth</td>                   <td id="secPopupAzimuth"    style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Battery</td>                   <td id="secPopupBattery"    style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Flight Time</td>               <td id="secPopupFlightTime" style="text-align:right;"></td></tr>
-            <tr><td style="color:#aaa;padding:0.8vmin 0;">Home Distance</td>             <td id="secPopupHomeDist"   style="text-align:right;"></td></tr>
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;width:25%;">Altitude</td>          <td id="secPopupAsl"        style="text-align:right;width:25%;"></td>
+                <td style="color:#aaa;padding:0.8vmin 0 0.8vmin 2vmin;width:25%;">Vert. Speed</td>  <td id="secPopupVsp"        style="text-align:right;width:25%;"></td>
+            </tr>
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;">Horiz. Speed</td>                <td id="secPopupGsp"        style="text-align:right;"></td>
+                <td style="color:#aaa;padding:0.8vmin 0 0.8vmin 2vmin;">Heading</td>       <td id="secPopupHeading"    style="text-align:right;"></td>
+            </tr>
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;">Distance</td>                    <td id="secPopupDistance"   style="text-align:right;"></td>
+                <td style="color:#aaa;padding:0.8vmin 0 0.8vmin 2vmin;">Azimuth</td>       <td id="secPopupAzimuth"    style="text-align:right;"></td>
+            </tr>
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;">Battery</td>                     <td id="secPopupBattery"    style="text-align:right;"></td>
+                <td style="color:#aaa;padding:0.8vmin 0 0.8vmin 2vmin;">Flight Time</td>   <td id="secPopupFlightTime" style="text-align:right;"></td>
+            </tr>
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;">Home Dist.</td>                  <td id="secPopupHomeDist"   style="text-align:right;"></td>
+                <td colspan="2"></td>
+            </tr>
         </table>
         <div style="margin-top:1vmin;">
             <input type="button" id="btSecPopupStop"  value="Stop tracking" class="btRcCmd" style="width:100%;margin-bottom:2vmin;" />
