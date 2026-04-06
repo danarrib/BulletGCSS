@@ -416,10 +416,26 @@
         }
 
         @media only screen and (orientation: landscape) {
-            #missionPlannerView {
+            #mpToolbar {
+                grid-template-columns: repeat(8, 1fr);
+                height: 11vmin;
+            }
+            #mpMap {
+                bottom: 11vmin !important;
+            }
+            #mpSavedMissionsPanel {
+                bottom: 11vmin !important;
+            }
+
+            /* Mission planner open: navbar shrinks to left half,
+               stats bar occupies the freed right half */
+            body.mp-open nav.navbar {
+                width: 50%;
+            }
+            body.mp-open #missionPlannerView {
                 top: 0;
             }
-            #mpStatsBar {
+            body.mp-open #mpStatsBar {
                 position: fixed;
                 top: 0;
                 left: 50%;
@@ -429,18 +445,9 @@
                 border-left: 1px solid #333;
                 padding: 0 2vmin;
                 gap: 2vmin;
-                z-index: 1031;
             }
-            #mpToolbar {
-                grid-template-columns: repeat(8, 1fr);
-                height: 11vmin;
-            }
-            #mpMap {
+            body.mp-open #mpMap {
                 top: 0 !important;
-                bottom: 11vmin !important;
-            }
-            #mpSavedMissionsPanel {
-                bottom: 11vmin !important;
             }
         }
     </style>

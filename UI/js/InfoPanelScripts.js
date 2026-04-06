@@ -407,9 +407,9 @@ export function updateDataView(data)
 
     document.getElementById("throttlePlaceHolder").innerHTML = data.throttlePercent + " %";
     if(data.isAutoThrottleActive)
-        document.getElementById("throttlePlaceHolder").className = "color-warning";
+        document.getElementById("throttlePlaceHolder").className = "color-warning tblDataViewCellValue";
     else
-        document.getElementById("throttlePlaceHolder").className = "color-normal";
+        document.getElementById("throttlePlaceHolder").className = "color-normal tblDataViewCellValue";
 
 
     var mAhPerKm = 0;

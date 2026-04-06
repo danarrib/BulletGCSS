@@ -638,7 +638,7 @@ function parseSecondaryTelemetry(incomingTopic, payload) {
                 raw = parseInt(parts[1]);
                 if (inRange(raw, 0, 100)) entry.batteryPercent = raw;
                 break;
-            case "ftm":
+            case "flt":
                 raw = parseInt(parts[1]);
                 if (raw >= 0) entry.flightTime = raw;
                 break;
