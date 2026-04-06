@@ -803,6 +803,27 @@ function wireEventListeners() {
     document.getElementById("secAircraftPopupOverlay").addEventListener("click", closeSecondaryPopup);
 }
 
+// ── Update notification ───────────────────────────────────────────────────────
+
+function checkforNewUIVersion() {
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState !== XMLHttpRequest.DONE) return;
+        if (xmlhttp.status === 200) {
+            try {
+                var json = JSON.parse(xmlhttp.responseText);
+                if (json.lastVersion !== currentVersion) {
+                    console.log("New UI version available!");
+                    document.getElementById("refreshMenuBadge").style.display = "inline";
+                    document.getElementById("gearIconBadge").style.display    = "block";
+                }
+            } catch(e) { /* ignore parse errors */ }
+        }
+    };
+    xmlhttp.open("GET", "uiversion.json?t=" + Date.now(), true);
+    xmlhttp.send();
+}
+
 // ── DOMContentLoaded ─────────────────────────────────────────────────────────
 
 window.addEventListener("DOMContentLoaded", async function() {
@@ -931,6 +952,9 @@ window.addEventListener("DOMContentLoaded", async function() {
         }
     }, 1000);
 
+    var lastVersionCheckTime = Date.now();
+    checkforNewUIVersion();
+
     setInterval(function() {
         drawMissionOnMap(data);
         drawHomeOnMap(data);
@@ -940,6 +964,10 @@ window.addEventListener("DOMContentLoaded", async function() {
             data.isWaypointMissionValid === 1 && updatingWpAltitudes === false &&
             data.waypointCount === (data.currentMissionWaypoints.length - 1)) {
             getMissionWaypointsAltitude();
+        }
+        if (Date.now() - lastVersionCheckTime > 15000) {
+            checkforNewUIVersion();
+            lastVersionCheckTime = Date.now();
         }
     }, pageSettings.lowPriorityTasksInterval);
 

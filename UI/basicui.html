@@ -61,6 +61,8 @@
 
 	<link rel="manifest" href="manifest.json?uid=(UNIQUEID)" />
 
+    <script>var currentVersion = "(UNIQUEID)";</script>
+
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;700&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -393,13 +395,14 @@
     <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
     <nav class="navbar navbar-dark bg-black fixed-top px-3">
         <button id="gearIcon" class="navbar-toggler border-0 p-1"
-                style="font-size:1.4em; color:#fff;"
+                style="font-size:1.4em; color:#fff; position:relative;"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#sideMenu"
                 aria-controls="sideMenu"
                 aria-label="Open menu">
             <i class="bi bi-gear-fill"></i>
+            <span id="gearIconBadge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;background:#f00;border-radius:50%;"></span>
         </button>
 
         <!-- Status icons — src updated by InfoPanelScripts.js via element IDs -->
@@ -440,8 +443,8 @@
                    href="#" id="navMissionPlanner"><i class="bi bi-map me-3"></i>Mission Planner</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
                    href="#" id="navSettings"><i class="bi bi-gear me-3"></i>Settings</a>
-                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navRefreshApp"><i class="bi bi-arrow-clockwise me-3"></i>Refresh App</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary d-flex align-items-center"
+                   href="#" id="navRefreshApp"><i class="bi bi-arrow-clockwise me-3"></i>Refresh App<span id="refreshMenuBadge" class="badge bg-danger ms-2" style="display:none;font-size:0.6em;">NEW</span></a>
                 <a class="nav-link text-white py-3 px-4"
                    href="https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md"
                    target="_blank"><i class="bi bi-question-circle me-3"></i>Help</a>
@@ -997,9 +1000,13 @@
     <div id="secAircraftPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
     <div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;min-width:60vw;max-width:85vw;border:1px solid #555;">
         <div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
-        <div id="secPopupLastSeen"   style="color:#aaa;font-size:3.5vmin;margin-bottom:1.5vmin;"></div>
-        <div id="secPopupOlc"        style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
-        <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:1.5vmin;">Copied!</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.5vmin;">
+            <div id="secPopupLastSeen" style="color:#aaa;font-size:3.5vmin;"></div>
+            <div style="text-align:right;">
+                <div id="secPopupOlc"       style="cursor:pointer;color:#6CF;font-size:3.5vmin;" title="Tap to copy Plus Code"></div>
+                <div id="secPopupOlcCopied" style="display:none;color:#9F6;font-size:3vmin;">Copied!</div>
+            </div>
+        </div>
         <table style="width:100%;border-collapse:collapse;font-size:3.5vmin;margin-bottom:2vmin;">
             <tr>
                 <td style="color:#aaa;padding:0.8vmin 0;width:25%;">Altitude</td>          <td id="secPopupAsl"        style="text-align:right;width:25%;"></td>
