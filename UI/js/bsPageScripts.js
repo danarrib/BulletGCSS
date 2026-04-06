@@ -488,8 +488,9 @@ function refreshSecondaryPopup() {
     csEl.style.borderColor = entry.colour;
 
     var elapsed = entry.lastSeen > 0 ? Math.floor((Date.now() - entry.lastSeen) / 1000) : -1;
-    document.getElementById("secPopupLastSeen").textContent = 'Last seen: ' +
-        (elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago');
+    var elapsedStr = elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago';
+    document.getElementById("secPopupLastSeen").innerHTML =
+        '<span style="color:#aaa;">Last seen:</span> ' + elapsedStr;
 
     var olcEl = document.getElementById("secPopupOlc");
     var latDeg = entry.lat / 10000000.0;
@@ -949,6 +950,10 @@ window.addEventListener("DOMContentLoaded", async function() {
                 wpLatitude:  data.gpsLatitude,
                 wpLongitude: data.gpsLongitude,
             };
+        }
+        for (var topic in otherAircraft) {
+            var sec = otherAircraft[topic];
+            if (sec.flightTime !== null) sec.flightTime++;
         }
     }, 1000);
 
