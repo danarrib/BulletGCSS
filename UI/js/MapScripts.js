@@ -176,7 +176,9 @@ export function updateSecondaryAircraftOnMap() {
         obj.labelEl.style.top     = Math.round(px.y) + 'px';
         obj.labelEl.style.opacity = stale ? '0.5' : '1';
 
-        var altRawM = entry.alt / 100;
+        var altRawM = (entry.asl !== null && data.homeAltitudeSL)
+            ? entry.asl - data.homeAltitudeSL
+            : entry.alt / 100;
         var spdMs   = entry.gsp / 100;
         var altUnit = localStorage.getItem("ui_altitude") || "m";
         var spdUnit = localStorage.getItem("ui_speed") || "kmh";

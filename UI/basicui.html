@@ -391,7 +391,7 @@
     <script src="js/NoSleep.min.js"></script>
 
     <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
-    <nav class="navbar navbar-dark bg-black fixed-top px-3 border-bottom border-secondary">
+    <nav class="navbar navbar-dark bg-black fixed-top px-3">
         <button id="gearIcon" class="navbar-toggler border-0 p-1"
                 style="font-size:1.4em; color:#fff;"
                 type="button"
@@ -918,7 +918,7 @@
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
     <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,56px);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
         <!-- Stats bar -->
-        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
+        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
             <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
                 <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
@@ -930,7 +930,7 @@
         <!-- Toast message -->
         <div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
         <!-- Action toolbar -->
-        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #333;z-index:101;">
+        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;border-top:1px solid #333;z-index:101;">
             <input type="button" id="mpBtSave"     value="Save"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtLoad"     value="Load"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtExport"   value="Export"   class="btRcCmd mp-toolbar-btn" />
@@ -999,8 +999,19 @@
         <div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
         <div id="secPopupLastSeen"   style="color:#aaa;font-size:3.5vmin;margin-bottom:1.5vmin;"></div>
         <div id="secPopupOlc"        style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
-        <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:2vmin;">Copied!</div>
-        <div style="margin-top:3vmin;">
+        <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:1.5vmin;">Copied!</div>
+        <table style="width:100%;border-collapse:collapse;font-size:3.5vmin;margin-bottom:2vmin;">
+            <tr><td style="color:#aaa;padding:0.8vmin 0;width:50%;">Altitude (ASL)</td>  <td id="secPopupAsl"        style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Vertical Speed</td>            <td id="secPopupVsp"        style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Horiz. Speed</td>              <td id="secPopupGsp"        style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Heading</td>                   <td id="secPopupHeading"    style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Distance</td>                  <td id="secPopupDistance"   style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Azimuth</td>                   <td id="secPopupAzimuth"    style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Battery</td>                   <td id="secPopupBattery"    style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Flight Time</td>               <td id="secPopupFlightTime" style="text-align:right;"></td></tr>
+            <tr><td style="color:#aaa;padding:0.8vmin 0;">Home Distance</td>             <td id="secPopupHomeDist"   style="text-align:right;"></td></tr>
+        </table>
+        <div style="margin-top:1vmin;">
             <input type="button" id="btSecPopupStop"  value="Stop tracking" class="btRcCmd" style="width:100%;margin-bottom:2vmin;" />
             <input type="button" id="btSecPopupClose" value="Close"         class="btRcCmd" style="width:100%;" />
         </div>

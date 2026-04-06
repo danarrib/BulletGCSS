@@ -8,7 +8,8 @@ import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings,
          restoreFromSessionMessages, replayFromSessionMessages,
          publishCommand, commandHistory, otherAircraft,
          addMonitoredTopic, removeMonitoredTopic,
-         loadAndSubscribeMonitoredTopics, secondsToNiceTime } from './CommScripts.js';
+         loadAndSubscribeMonitoredTopics, secondsToNiceTime,
+         getDistanceBetweenTwoPoints } from './CommScripts.js';
 import { renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap,
          drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude,
@@ -491,9 +492,9 @@ function refreshSecondaryPopup() {
         (elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago');
 
     var olcEl = document.getElementById("secPopupOlc");
+    var latDeg = entry.lat / 10000000.0;
+    var lonDeg = entry.lon / 10000000.0;
     if (entry.lastSeen > 0 && typeof OpenLocationCode !== 'undefined') {
-        var latDeg = entry.lat / 10000000.0;
-        var lonDeg = entry.lon / 10000000.0;
         var code = OpenLocationCode.encode(latDeg, lonDeg);
         olcEl.textContent = '\uD83D\uDCCD ' + code;
         olcEl.style.display = '';
@@ -508,6 +509,78 @@ function refreshSecondaryPopup() {
     } else {
         olcEl.style.display = 'none';
     }
+
+    var altUnit = localStorage.getItem("ui_altitude") || "m";
+    var spdUnit = localStorage.getItem("ui_speed")    || "kmh";
+    var distUnit = localStorage.getItem("ui_distance") || "km";
+
+    // Altitude ASL
+    var aslEl = document.getElementById("secPopupAsl");
+    if (entry.asl !== null) {
+        aslEl.textContent = altUnit === "ft"
+            ? (entry.asl * 3.28084).toFixed(0) + " ft"
+            : entry.asl.toFixed(0) + " m";
+    } else { aslEl.textContent = "—"; }
+
+    // Vertical speed
+    var vspMs = entry.vsp / 100;
+    document.getElementById("secPopupVsp").textContent = vspMs.toFixed(1) + " m/s";
+
+    // Horizontal speed
+    var gspMs = entry.gsp / 100;
+    var gspText;
+    switch (spdUnit) {
+        case "mph": gspText = (gspMs * 2.23694).toFixed(0) + " mph"; break;
+        case "ms":  gspText = gspMs.toFixed(1)              + " m/s"; break;
+        case "kt":  gspText = (gspMs * 1.94384).toFixed(0) + " kt";  break;
+        default:    gspText = (gspMs * 3.6).toFixed(0)      + " km/h"; break;
+    }
+    document.getElementById("secPopupGsp").textContent = gspText;
+
+    // Heading
+    document.getElementById("secPopupHeading").textContent = entry.heading + "°";
+
+    // Distance and azimuth from primary aircraft
+    var distEl = document.getElementById("secPopupDistance");
+    var aziEl  = document.getElementById("secPopupAzimuth");
+    if (entry.lastSeen > 0 && data.gpsLatitude && data.gpsLongitude) {
+        var distM = getDistanceBetweenTwoPoints(data.gpsLatitude, data.gpsLongitude, latDeg, lonDeg);
+        var distText;
+        if (distUnit === "mi") distText = (distM / 1609.34).toFixed(2) + " mi";
+        else if (distUnit === "ft") distText = (distM * 3.28084).toFixed(0) + " ft";
+        else distText = distM >= 1000 ? (distM / 1000).toFixed(2) + " km" : distM.toFixed(0) + " m";
+        distEl.textContent = distText;
+
+        var dLat = (latDeg - data.gpsLatitude) * Math.PI / 180;
+        var dLon = (lonDeg - data.gpsLongitude) * Math.PI / 180;
+        var lat1r = data.gpsLatitude * Math.PI / 180;
+        var lat2r = latDeg * Math.PI / 180;
+        var sinX = Math.sin(dLon) * Math.cos(lat2r);
+        var cosX = Math.cos(lat1r) * Math.sin(lat2r) - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
+        var brng = (Math.atan2(sinX, cosX) * 180 / Math.PI + 360) % 360;
+        aziEl.textContent = brng.toFixed(0) + "°";
+    } else {
+        distEl.textContent = "—";
+        aziEl.textContent  = "—";
+    }
+
+    // Battery
+    var batEl = document.getElementById("secPopupBattery");
+    batEl.textContent = entry.batteryPercent !== null ? entry.batteryPercent + "%" : "—";
+
+    // Flight time
+    var ftEl = document.getElementById("secPopupFlightTime");
+    ftEl.textContent = entry.flightTime !== null ? secondsToNiceTime(entry.flightTime) : "—";
+
+    // Home distance
+    var hdEl = document.getElementById("secPopupHomeDist");
+    if (entry.homeDistance !== null) {
+        var hdM = entry.homeDistance;
+        var hdText;
+        if (distUnit === "mi") hdText = (hdM / 1609.34).toFixed(2) + " mi";
+        else hdText = hdM >= 1000 ? (hdM / 1000).toFixed(2) + " km" : hdM.toFixed(0) + " m";
+        hdEl.textContent = hdText;
+    } else { hdEl.textContent = "—"; }
 }
 
 function showSecondaryAircraftPopup(topic) {
