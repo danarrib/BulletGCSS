@@ -8,7 +8,8 @@ import { data, mqtt, mqttConnected, MQTTconnect, MQTTSetDefaultSettings,
          restoreFromSessionMessages, replayFromSessionMessages,
          publishCommand, commandHistory, otherAircraft,
          addMonitoredTopic, removeMonitoredTopic,
-         loadAndSubscribeMonitoredTopics, secondsToNiceTime } from './CommScripts.js';
+         loadAndSubscribeMonitoredTopics, secondsToNiceTime,
+         getDistanceBetweenTwoPoints } from './CommScripts.js';
 import { renderEFIS } from './EfisScripts.js';
 import { drawAircraftOnMap, drawAircraftPathOnMap, drawCourseLineOnMap, drawMissionOnMap,
          drawHomeOnMap, drawUserOnMap, centerMap, getMissionWaypointsAltitude,
@@ -487,13 +488,13 @@ function refreshSecondaryPopup() {
     csEl.style.borderColor = entry.colour;
 
     var elapsed = entry.lastSeen > 0 ? Math.floor((Date.now() - entry.lastSeen) / 1000) : -1;
-    document.getElementById("secPopupLastSeen").textContent = 'Last seen: ' +
-        (elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago');
+    var elapsedStr = elapsed < 0 ? 'Never' : elapsed < 60 ? elapsed + ' s ago' : Math.floor(elapsed / 60) + ' min ago';
+    document.getElementById("secPopupLastSeen").innerHTML = elapsedStr;
 
     var olcEl = document.getElementById("secPopupOlc");
+    var latDeg = entry.lat / 10000000.0;
+    var lonDeg = entry.lon / 10000000.0;
     if (entry.lastSeen > 0 && typeof OpenLocationCode !== 'undefined') {
-        var latDeg = entry.lat / 10000000.0;
-        var lonDeg = entry.lon / 10000000.0;
         var code = OpenLocationCode.encode(latDeg, lonDeg);
         olcEl.textContent = '\uD83D\uDCCD ' + code;
         olcEl.style.display = '';
@@ -508,6 +509,78 @@ function refreshSecondaryPopup() {
     } else {
         olcEl.style.display = 'none';
     }
+
+    var altUnit = localStorage.getItem("ui_altitude") || "m";
+    var spdUnit = localStorage.getItem("ui_speed")    || "kmh";
+    var distUnit = localStorage.getItem("ui_distance") || "km";
+
+    // Altitude ASL
+    var aslEl = document.getElementById("secPopupAsl");
+    if (entry.asl !== null) {
+        aslEl.textContent = altUnit === "ft"
+            ? (entry.asl * 3.28084).toFixed(0) + " ft"
+            : entry.asl.toFixed(0) + " m";
+    } else { aslEl.textContent = "—"; }
+
+    // Vertical speed
+    var vspMs = entry.vsp / 100;
+    document.getElementById("secPopupVsp").textContent = vspMs.toFixed(1) + " m/s";
+
+    // Horizontal speed
+    var gspMs = entry.gsp / 100;
+    var gspText;
+    switch (spdUnit) {
+        case "mph": gspText = (gspMs * 2.23694).toFixed(0) + " mph"; break;
+        case "ms":  gspText = gspMs.toFixed(1)              + " m/s"; break;
+        case "kt":  gspText = (gspMs * 1.94384).toFixed(0) + " kt";  break;
+        default:    gspText = (gspMs * 3.6).toFixed(0)      + " km/h"; break;
+    }
+    document.getElementById("secPopupGsp").textContent = gspText;
+
+    // Heading
+    document.getElementById("secPopupHeading").textContent = entry.heading + "°";
+
+    // Distance and azimuth from primary aircraft
+    var distEl = document.getElementById("secPopupDistance");
+    var aziEl  = document.getElementById("secPopupAzimuth");
+    if (entry.lastSeen > 0 && data.gpsLatitude && data.gpsLongitude) {
+        var distM = getDistanceBetweenTwoPoints(data.gpsLatitude, data.gpsLongitude, latDeg, lonDeg);
+        var distText;
+        if (distUnit === "mi") distText = (distM / 1609.34).toFixed(2) + " mi";
+        else if (distUnit === "ft") distText = (distM * 3.28084).toFixed(0) + " ft";
+        else distText = distM >= 1000 ? (distM / 1000).toFixed(2) + " km" : distM.toFixed(0) + " m";
+        distEl.textContent = distText;
+
+        var dLat = (latDeg - data.gpsLatitude) * Math.PI / 180;
+        var dLon = (lonDeg - data.gpsLongitude) * Math.PI / 180;
+        var lat1r = data.gpsLatitude * Math.PI / 180;
+        var lat2r = latDeg * Math.PI / 180;
+        var sinX = Math.sin(dLon) * Math.cos(lat2r);
+        var cosX = Math.cos(lat1r) * Math.sin(lat2r) - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
+        var brng = (Math.atan2(sinX, cosX) * 180 / Math.PI + 360) % 360;
+        aziEl.textContent = brng.toFixed(0) + "°";
+    } else {
+        distEl.textContent = "—";
+        aziEl.textContent  = "—";
+    }
+
+    // Battery
+    var batEl = document.getElementById("secPopupBattery");
+    batEl.textContent = entry.batteryPercent !== null ? entry.batteryPercent + "%" : "—";
+
+    // Flight time
+    var ftEl = document.getElementById("secPopupFlightTime");
+    ftEl.textContent = entry.flightTime !== null ? secondsToNiceTime(entry.flightTime) : "—";
+
+    // Home distance
+    var hdEl = document.getElementById("secPopupHomeDist");
+    if (entry.homeDistance !== null) {
+        var hdM = entry.homeDistance;
+        var hdText;
+        if (distUnit === "mi") hdText = (hdM / 1609.34).toFixed(2) + " mi";
+        else hdText = hdM >= 1000 ? (hdM / 1000).toFixed(2) + " km" : hdM.toFixed(0) + " m";
+        hdEl.textContent = hdText;
+    } else { hdEl.textContent = "—"; }
 }
 
 function showSecondaryAircraftPopup(topic) {
@@ -719,15 +792,140 @@ function wireEventListeners() {
 
     // Secondary aircraft popup
     document.getElementById("btSecPopupStop").addEventListener("click", function() {
-        if (currentPopupTopic) {
-            removeMonitoredTopic(currentPopupTopic);
-            removeSecondaryAircraftFromMap(currentPopupTopic);
-            renderMonitoredList();
-        }
+        if (!currentPopupTopic) return;
+        var cs = otherAircraft[currentPopupTopic] ? otherAircraft[currentPopupTopic].callsign || currentPopupTopic : currentPopupTopic;
+        if (!confirm('Stop tracking ' + cs + '?')) return;
+        removeMonitoredTopic(currentPopupTopic);
+        removeSecondaryAircraftFromMap(currentPopupTopic);
+        renderMonitoredList();
         closeSecondaryPopup();
     });
     document.getElementById("btSecPopupClose").addEventListener("click",         closeSecondaryPopup);
     document.getElementById("secAircraftPopupOverlay").addEventListener("click", closeSecondaryPopup);
+
+    // ── Icon info modal ────────────────────────────────────────────────────
+    ['connectionIcon','commandChannelIcon','cellIcon','radioIcon','batteryIcon','gpsIcon','hardwareHealthIcon'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { openIconInfoModal(id); });
+    });
+    document.getElementById("iconInfoModalOverlay").addEventListener('click', closeIconInfoModal);
+    document.getElementById("btIconInfoClose").addEventListener('click',       closeIconInfoModal);
+}
+
+// ── Status icon info modal ────────────────────────────────────────────────────
+
+var iconInfoData = {
+    connectionIcon: {
+        title: "Connection Status",
+        states: [
+            { img: "img/connection_ok.png",       text: "Connected. Both the UI and the aircraft are connected to the MQTT broker and messages are arriving on time (within 10 seconds)." },
+            { img: "img/connection_attention.png", text: "High latency. Both the UI and the aircraft are connected to the MQTT broker, but the last message from the aircraft was received more than 10 seconds ago." },
+            { img: "img/connection_error.png",    text: "Aircraft offline. The UI is connected to the MQTT broker, but no messages have been received from the aircraft for more than 30 seconds. The aircraft may have lost connectivity." },
+            { img: "img/connection_broken.png",   text: "Not connected. The UI is not connected to the MQTT broker. Check your internet connection and review the broker settings." },
+        ]
+    },
+    commandChannelIcon: {
+        title: "Command Channel",
+        states: [
+            { img: "img/command_ok.png",      text: "Ready. The firmware is subscribed to the command topic and MSP RC Override is active on the flight controller. All commands — including flight mode toggles — will be accepted." },
+            { img: "img/command_warning.png", text: "Partial. The firmware is subscribed to the command topic, but MSP RC Override is not active on the flight controller. Ping will work, but RC channel commands (RTH, altitude hold, cruise, etc.) will be ignored by INAV." },
+            { img: "img/command_error.png",   text: "Unavailable. The UI is not connected to MQTT, or the firmware has not confirmed it is subscribed to the command topic. No commands can be received by the aircraft." },
+        ]
+    },
+    cellIcon: {
+        title: "Cellular Signal",
+        states: [
+            { img: "img/cell_excelent.png", text: "Excellent. The aircraft modem has 3 signal bars. The cellular link is strong and reliable." },
+            { img: "img/cell_good.png",     text: "Good. The aircraft modem has 2 signal bars. The cellular link is working well." },
+            { img: "img/cell_poor.png",     text: "Poor. The aircraft modem has only 1 signal bar. The connection may be unstable or intermittent." },
+            { img: "img/cell_broken.png",   text: "No signal. The aircraft modem has no signal or is not connected to the cellular network." },
+        ]
+    },
+    radioIcon: {
+        title: "RC Signal",
+        states: [
+            { img: "img/rx_ok.png",     text: "Good. RSSI is above 50%. The radio control link is working fine." },
+            { img: "img/rx_poor.png",   text: "Poor. RSSI is between 30% and 49%. The control link is alive but not ideal." },
+            { img: "img/rx_bad.png",    text: "Bad. RSSI is between 10% and 29%. The radio control link is degraded — fly with caution." },
+            { img: "img/rx_broken.png", text: "Broken. RSSI is below 10%. Very poor or no RC control signal. The aircraft may be in failsafe." },
+        ]
+    },
+    batteryIcon: {
+        title: "Battery",
+        states: [
+            { img: "img/battery_100.png", text: "81–100% — Battery is fully charged." },
+            { img: "img/battery_80.png",  text: "61–80% — Battery charge is good." },
+            { img: "img/battery_60.png",  text: "41–60% — Battery is at medium level." },
+            { img: "img/battery_40.png",  text: "21–40% — Battery is getting low. Consider returning home soon." },
+            { img: "img/battery_20.png",  text: "5–20% — Battery is low. Return to home immediately." },
+            { img: "img/battery_0.png",   text: "0–4% — Battery is critically low. Land immediately." },
+        ]
+    },
+    gpsIcon: {
+        title: "GPS Health",
+        states: [
+            { img: "img/gps_ok.png",     text: "Good. 11 or more satellites. GPS reception is reliable for autonomous flight." },
+            { img: "img/gps_poor.png",   text: "Fair. 8–10 satellites. The aircraft can fly, but GPS precision may be reduced." },
+            { img: "img/gps_bad.png",    text: "Bad. Fewer than 7 satellites with a 3D fix. The position exists but is dangerously close to the unflyable edge. Avoid autonomous flight." },
+            { img: "img/gps_broken.png", text: "No fix. HDOP is 0 or above 5. There is no reliable position. Do not fly in autonomous mode." },
+        ]
+    },
+    hardwareHealthIcon: {
+        title: "Hardware Health",
+        states: [
+            { img: "img/health_ok.png",    text: "All good. All aircraft hardware sensors are working correctly." },
+            { img: "img/health_error.png", text: "Error. A hardware problem was detected on the aircraft. A sensor may be missing, not powered, or not calibrated. The aircraft may not arm in this condition." },
+        ]
+    },
+};
+
+function openIconInfoModal(iconId) {
+    var info = iconInfoData[iconId];
+    if (!info) return;
+    var currentSrc = document.getElementById(iconId).getAttribute('src');
+
+    document.getElementById("iconInfoTitle").textContent = info.title;
+
+    var body = document.getElementById("iconInfoBody");
+    body.innerHTML = '';
+    for (var i = 0; i < info.states.length; i++) {
+        var state = info.states[i];
+        if (state.img !== currentSrc) continue;
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:3vmin;padding:1.5vmin 2vmin;border-radius:6px;';
+        row.innerHTML = '<img src="' + state.img + '" style="width:2.5em;height:2.5em;flex-shrink:0;" />'
+                      + '<span style="font-size:3.5vmin;line-height:1.4;">' + state.text + '</span>';
+        body.appendChild(row);
+        break;
+    }
+
+    document.getElementById("iconInfoModalOverlay").style.display = 'block';
+    document.getElementById("iconInfoModal").style.display = 'block';
+}
+
+function closeIconInfoModal() {
+    document.getElementById("iconInfoModal").style.display = 'none';
+    document.getElementById("iconInfoModalOverlay").style.display = 'none';
+}
+
+// ── Update notification ───────────────────────────────────────────────────────
+
+function checkforNewUIVersion() {
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function() {
+        if (xmlhttp.readyState !== XMLHttpRequest.DONE) return;
+        if (xmlhttp.status === 200) {
+            try {
+                var json = JSON.parse(xmlhttp.responseText);
+                if (json.lastVersion !== currentVersion) {
+                    console.log("New UI version available!");
+                    document.getElementById("refreshMenuBadge").style.display = "inline";
+                    document.getElementById("gearIconBadge").style.display    = "block";
+                }
+            } catch(e) { /* ignore parse errors */ }
+        }
+    };
+    xmlhttp.open("GET", "uiversion.json?t=" + Date.now(), true);
+    xmlhttp.send();
 }
 
 // ── DOMContentLoaded ─────────────────────────────────────────────────────────
@@ -856,7 +1054,14 @@ window.addEventListener("DOMContentLoaded", async function() {
                 wpLongitude: data.gpsLongitude,
             };
         }
+        for (var topic in otherAircraft) {
+            var sec = otherAircraft[topic];
+            if (sec.flightTime !== null) sec.flightTime++;
+        }
     }, 1000);
+
+    var lastVersionCheckTime = Date.now();
+    checkforNewUIVersion();
 
     setInterval(function() {
         drawMissionOnMap(data);
@@ -867,6 +1072,10 @@ window.addEventListener("DOMContentLoaded", async function() {
             data.isWaypointMissionValid === 1 && updatingWpAltitudes === false &&
             data.waypointCount === (data.currentMissionWaypoints.length - 1)) {
             getMissionWaypointsAltitude();
+        }
+        if (Date.now() - lastVersionCheckTime > 15000) {
+            checkforNewUIVersion();
+            lastVersionCheckTime = Date.now();
         }
     }, pageSettings.lowPriorityTasksInterval);
 

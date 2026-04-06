@@ -546,8 +546,13 @@ export function addMonitoredTopic(newTopic) {
     paletteNextIndex++;
 
     otherAircraft[newTopic] = {
-        topic:      newTopic,
-        callsign:   "",
+        topic:          newTopic,
+        callsign:       "",
+        asl:            null,
+        heading:        0,
+        batteryPercent: null,
+        flightTime:     null,
+        homeDistance:   null,
         lat:        0,   // integer degrees × 1e7
         lon:        0,
         alt:        0,   // integer cm
@@ -620,6 +625,26 @@ function parseSecondaryTelemetry(incomingTopic, payload) {
             case "alt":
                 raw = parseInt(parts[1]);
                 if (inRange(raw, -1000000, 10000000)) entry.alt = raw;
+                break;
+            case "asl":
+                raw = parseFloat(parts[1]);
+                if (inRange(raw, -500, 20000)) entry.asl = raw;
+                break;
+            case "hea":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, 0, 360)) entry.heading = raw;
+                break;
+            case "bfp":
+                raw = parseInt(parts[1]);
+                if (inRange(raw, 0, 100)) entry.batteryPercent = raw;
+                break;
+            case "ftm":
+                raw = parseInt(parts[1]);
+                if (raw >= 0) entry.flightTime = raw;
+                break;
+            case "hds":
+                raw = parseInt(parts[1]);
+                if (raw >= 0) entry.homeDistance = raw;
                 break;
             case "gsp":
                 raw = parseInt(parts[1]);

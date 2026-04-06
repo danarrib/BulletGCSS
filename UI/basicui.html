@@ -61,6 +61,8 @@
 
 	<link rel="manifest" href="manifest.json?uid=(UNIQUEID)" />
 
+    <script>var currentVersion = "(UNIQUEID)";</script>
+
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;700&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -135,6 +137,7 @@
         .statusIcon {
             height: 2em;
             width: 2em;
+            cursor: pointer;
         }
 
         /* ── Information panel ───────────────────────────────────────────── */
@@ -356,6 +359,33 @@
             #fabCommands:hover { background: #777; }
         }
 
+        /* ── Dark form inputs (WP modal) ────────────────────────────────────── */
+        .dark-input {
+            width: 100%;
+            padding: 2vmin;
+            background: #222;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 4vmin;
+            box-sizing: border-box;
+        }
+
+        /* ── Modal paragraph spacing ─────────────────────────────────────────── */
+        .modal-p { margin: 0 0 2vmin; }
+
+        /* ── Flex button row & modifiers ─────────────────────────────────────── */
+        .btn-row          { display: flex; gap: 2vmin; }
+        .btn-flex         { flex: 1; }
+        .btn-flex-2       { flex: 2; }
+        .btRcCmd.btn-danger { background: #722; }
+
+        /* ── Secondary aircraft popup table cells ────────────────────────────── */
+        .pop-lbl   { color: #aaa; padding: 0.8vmin 0; width: 25%; font-size: 0.9em; }
+        .pop-lbl-r { color: #aaa; padding: 0.8vmin 0 0.8vmin 2vmin; width: 25%; font-size: 0.9em; }
+        .pop-val   { text-align: right; }
+        .pop-val-w { text-align: right; width: 25%; }
+
         /* ── Mission Planner toolbar ─────────────────────────────────────── */
         #mpToolbar {
             display: grid !important;
@@ -391,15 +421,16 @@
     <script src="js/NoSleep.min.js"></script>
 
     <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
-    <nav class="navbar navbar-dark bg-black fixed-top px-3 border-bottom border-secondary">
+    <nav class="navbar navbar-dark bg-black fixed-top px-3">
         <button id="gearIcon" class="navbar-toggler border-0 p-1"
-                style="font-size:1.4em; color:#fff;"
+                style="font-size:1.4em; color:#fff; position:relative;"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#sideMenu"
                 aria-controls="sideMenu"
                 aria-label="Open menu">
             <i class="bi bi-gear-fill"></i>
+            <span id="gearIconBadge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;background:#f00;border-radius:50%;"></span>
         </button>
 
         <!-- Status icons — src updated by InfoPanelScripts.js via element IDs -->
@@ -440,8 +471,8 @@
                    href="#" id="navMissionPlanner"><i class="bi bi-map me-3"></i>Mission Planner</a>
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
                    href="#" id="navSettings"><i class="bi bi-gear me-3"></i>Settings</a>
-                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
-                   href="#" id="navRefreshApp"><i class="bi bi-arrow-clockwise me-3"></i>Refresh App</a>
+                <a class="nav-link text-white py-3 px-4 border-bottom border-secondary d-flex align-items-center"
+                   href="#" id="navRefreshApp"><i class="bi bi-arrow-clockwise me-3"></i>Refresh App<span id="refreshMenuBadge" class="badge bg-danger ms-2" style="display:none;font-size:0.6em;">NEW</span></a>
                 <a class="nav-link text-white py-3 px-4"
                    href="https://github.com/danarrib/BulletGCSS/blob/master/docs/README.md"
                    target="_blank"><i class="bi bi-question-circle me-3"></i>Help</a>
@@ -477,7 +508,7 @@
                 <a class="nav-link text-white py-3 px-4 border-bottom border-secondary"
                    href="#" id="navEnableCompass" style="display:none;"><i class="bi bi-compass me-3"></i>Enable compass</a>
                 <a class="nav-link text-white py-3 px-4"
-                   href="https://github.com/danarrib/BulletGCSS/wiki/How-to-install-Bullet-GCSS-on-SmartPhone"
+                   href="https://github.com/danarrib/BulletGCSS/blob/master/docs/How-to-install-Bullet-GCSS-on-SmartPhone.md"
                    target="_blank" id="installhomelink"><i class="bi bi-phone me-3"></i>Install on home screen</a>
             </nav>
         </div>
@@ -918,7 +949,7 @@
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
     <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,56px);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
         <!-- Stats bar -->
-        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
+        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
             <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
                 <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>
@@ -930,7 +961,7 @@
         <!-- Toast message -->
         <div id="mpToast" style="display:none;position:absolute;top:14vmin;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:2vmin 4vmin;border-radius:6px;font-size:3.5vmin;z-index:102;white-space:nowrap;pointer-events:none;"></div>
         <!-- Action toolbar -->
-        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #333;z-index:101;">
+        <div id="mpToolbar" style="position:absolute;bottom:0;left:0;right:0;border-top:1px solid #333;z-index:101;">
             <input type="button" id="mpBtSave"     value="Save"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtLoad"     value="Load"     class="btRcCmd mp-toolbar-btn" />
             <input type="button" id="mpBtExport"   value="Export"   class="btRcCmd mp-toolbar-btn" />
@@ -960,49 +991,80 @@
     <div id="wpModalOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:201;pointer-events:none;"></div>
     <div id="wpModal" style="display:none;position:fixed;z-index:202;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;min-width:55vw;max-width:82vw;border:1px solid #555;">
         <div style="font-weight:bold;font-size:4.5vmin;margin-bottom:3vmin;">Waypoint <span id="wpModalNum"></span></div>
-        <p style="margin:0 0 2vmin;">
+        <p class="modal-p">
             Action<br/>
-            <select id="wpModalAction" style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;">
+            <select id="wpModalAction" class="dark-input">
                 <option value="1">Waypoint</option>
                 <option value="3">Loiter</option>
                 <option value="4">RTH</option>
                 <option value="8">Land</option>
             </select>
         </p>
-        <p style="margin:0 0 2vmin;">
+        <p class="modal-p">
             Altitude (m above home)<br/>
-            <input type="number" id="wpModalAlt" min="0" max="2000" step="1" value="50"
-                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+            <input type="number" id="wpModalAlt" min="0" max="2000" step="1" value="50" class="dark-input" />
         </p>
-        <p id="wpModalElevRow" style="margin:0 0 2vmin;display:none;">
+        <p id="wpModalElevRow" class="modal-p" style="display:none;">
             <span id="wpModalElevText" style="color:#aaa;font-size:3.5vmin;"></span>
         </p>
-        <p style="margin:0 0 2vmin;" id="wpModalSpeedRow">
+        <p class="modal-p" id="wpModalSpeedRow">
             Speed (m/s, 0 = FC default)<br/>
-            <input type="number" id="wpModalSpeed" min="0" max="30" step="0.5" value="0"
-                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+            <input type="number" id="wpModalSpeed" min="0" max="30" step="0.5" value="0" class="dark-input" />
         </p>
-        <p style="margin:0 0 2vmin;display:none;" id="wpModalLoiterRow">
+        <p class="modal-p" id="wpModalLoiterRow" style="display:none;">
             Loiter time (s)<br/>
-            <input type="number" id="wpModalLoiter" min="1" max="9999" step="1" value="10"
-                   style="width:100%;padding:2vmin;background:#222;color:#fff;border:1px solid #555;border-radius:4px;font-size:4vmin;box-sizing:border-box;" />
+            <input type="number" id="wpModalLoiter" min="1" max="9999" step="1" value="10" class="dark-input" />
         </p>
-        <div style="display:flex;gap:2vmin;margin-top:3vmin;">
-            <input type="button" id="wpModalDelete" value="Delete" class="btRcCmd" style="flex:1;background:#722;" />
-            <input type="button" id="wpModalClose"  value="OK"     class="btRcCmd" style="flex:2;" />
+        <div class="btn-row" style="margin-top:3vmin;">
+            <input type="button" id="wpModalDelete" value="Delete" class="btRcCmd btn-flex btn-danger" />
+            <input type="button" id="wpModalClose"  value="OK"     class="btRcCmd btn-flex-2" />
+        </div>
+    </div>
+
+    <!-- ── Status icon info modal ───────────────────────────────────────────── -->
+    <div id="iconInfoModalOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
+    <div id="iconInfoModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;width:90vw;max-width:100vh;border:1px solid #555;">
+        <div id="iconInfoTitle" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
+        <div id="iconInfoBody"></div>
+        <div class="btn-row" style="margin-top:2vmin;">
+            <input type="button" id="btIconInfoClose" value="Close" class="btRcCmd btn-flex" />
         </div>
     </div>
 
     <!-- ── Secondary aircraft popup ─────────────────────────────────────────── -->
     <div id="secAircraftPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
-    <div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;min-width:60vw;max-width:85vw;border:1px solid #555;">
+    <div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;width:90vw;max-width:100vh;border:1px solid #555;">
         <div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
-        <div id="secPopupLastSeen"   style="color:#aaa;font-size:3.5vmin;margin-bottom:1.5vmin;"></div>
-        <div id="secPopupOlc"        style="cursor:pointer;color:#6CF;font-size:3.5vmin;margin-bottom:0.5vmin;" title="Tap to copy Plus Code"></div>
-        <div id="secPopupOlcCopied"  style="display:none;color:#9F6;font-size:3vmin;margin-bottom:2vmin;">Copied!</div>
-        <div style="margin-top:3vmin;">
-            <input type="button" id="btSecPopupStop"  value="Stop tracking" class="btRcCmd" style="width:100%;margin-bottom:2vmin;" />
-            <input type="button" id="btSecPopupClose" value="Close"         class="btRcCmd" style="width:100%;" />
+        <div id="secPopupOlcCopied" style="display:none;color:#9F6;font-size:3vmin;">Copied!</div>
+        <table style="width:100%;border-collapse:collapse;font-size:3.5vmin;margin-bottom:2vmin;">
+            <tr>
+                <td class="pop-lbl">Last seen</td>                       <td id="secPopupLastSeen"  class="pop-val-w"></td>
+                <td id="secPopupOlc" class="pop-val" style="width:50%;" colspan="2"></td>
+            </tr>
+            <tr>
+                <td class="pop-lbl">Altitude</td>                        <td id="secPopupAsl"        class="pop-val-w"></td>
+                <td class="pop-lbl-r">Vert. Speed</td>                   <td id="secPopupVsp"        class="pop-val-w"></td>
+            </tr>
+            <tr>
+                <td class="pop-lbl">Horiz. Speed</td>                    <td id="secPopupGsp"        class="pop-val"></td>
+                <td class="pop-lbl-r">Heading</td>                       <td id="secPopupHeading"    class="pop-val"></td>
+            </tr>
+            <tr>
+                <td class="pop-lbl">Distance</td>                        <td id="secPopupDistance"   class="pop-val"></td>
+                <td class="pop-lbl-r">Azimuth</td>                       <td id="secPopupAzimuth"    class="pop-val"></td>
+            </tr>
+            <tr>
+                <td class="pop-lbl">Battery</td>                         <td id="secPopupBattery"    class="pop-val"></td>
+                <td class="pop-lbl-r">Flight Time</td>                   <td id="secPopupFlightTime" class="pop-val"></td>
+            </tr>
+            <tr>
+                <td class="pop-lbl">Home Dist.</td>                      <td id="secPopupHomeDist"   class="pop-val"></td>
+                <td colspan="2"></td>
+            </tr>
+        </table>
+        <div class="btn-row" style="margin-top:1vmin;">
+            <input type="button" id="btSecPopupStop"  value="Stop tracking" class="btRcCmd btn-flex btn-danger" />
+            <input type="button" id="btSecPopupClose" value="Close"         class="btRcCmd btn-flex" />
         </div>
     </div>
 
