@@ -1000,14 +1000,12 @@
     <div id="secAircraftPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
     <div id="secAircraftPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;width:90vw;max-width:90vh;border:1px solid #555;">
         <div id="secPopupCallsign" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.5vmin;">
-            <div id="secPopupLastSeen" style="font-size:3.5vmin;"></div>
-            <div style="text-align:right;">
-                <div id="secPopupOlc"       style="cursor:pointer;color:#6CF;font-size:3.5vmin;" title="Tap to copy Plus Code"></div>
-                <div id="secPopupOlcCopied" style="display:none;color:#9F6;font-size:3vmin;">Copied!</div>
-            </div>
-        </div>
+        <div id="secPopupOlcCopied" style="display:none;color:#9F6;font-size:3vmin;">Copied!</div>
         <table style="width:100%;border-collapse:collapse;font-size:3.5vmin;margin-bottom:2vmin;">
+            <tr>
+                <td style="color:#aaa;padding:0.8vmin 0;width:25%;">Last seen</td>          <td id="secPopupLastSeen"        style="text-align:right;width:25%;"></td>
+                <td id="secPopupOlc" style="text-align:right;width:50%;" colspan="2"></td>
+            </tr>
             <tr>
                 <td style="color:#aaa;padding:0.8vmin 0;width:25%;">Altitude</td>          <td id="secPopupAsl"        style="text-align:right;width:25%;"></td>
                 <td style="color:#aaa;padding:0.8vmin 0 0.8vmin 2vmin;width:25%;">Vert. Speed</td>  <td id="secPopupVsp"        style="text-align:right;width:25%;"></td>
