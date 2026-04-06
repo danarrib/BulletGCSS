@@ -793,11 +793,12 @@ function wireEventListeners() {
 
     // Secondary aircraft popup
     document.getElementById("btSecPopupStop").addEventListener("click", function() {
-        if (currentPopupTopic) {
-            removeMonitoredTopic(currentPopupTopic);
-            removeSecondaryAircraftFromMap(currentPopupTopic);
-            renderMonitoredList();
-        }
+        if (!currentPopupTopic) return;
+        var cs = otherAircraft[currentPopupTopic] ? otherAircraft[currentPopupTopic].callsign || currentPopupTopic : currentPopupTopic;
+        if (!confirm('Stop tracking ' + cs + '?')) return;
+        removeMonitoredTopic(currentPopupTopic);
+        removeSecondaryAircraftFromMap(currentPopupTopic);
+        renderMonitoredList();
         closeSecondaryPopup();
     });
     document.getElementById("btSecPopupClose").addEventListener("click",         closeSecondaryPopup);
