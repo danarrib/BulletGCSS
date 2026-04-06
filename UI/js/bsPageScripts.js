@@ -889,12 +889,13 @@ function openIconInfoModal(iconId) {
     body.innerHTML = '';
     for (var i = 0; i < info.states.length; i++) {
         var state = info.states[i];
-        var isCurrent = state.img === currentSrc;
+        if (state.img !== currentSrc) continue;
         var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:3vmin;padding:1.5vmin 2vmin;border-radius:6px;margin-bottom:1vmin;border:1px solid ' + (isCurrent ? '#555;background:#2a2a2a;' : 'transparent;');
+        row.style.cssText = 'display:flex;align-items:center;gap:3vmin;padding:1.5vmin 2vmin;border-radius:6px;';
         row.innerHTML = '<img src="' + state.img + '" style="width:2.5em;height:2.5em;flex-shrink:0;" />'
                       + '<span style="font-size:3.5vmin;line-height:1.4;">' + state.text + '</span>';
         body.appendChild(row);
+        break;
     }
 
     document.getElementById("iconInfoModalOverlay").style.display = 'block';
