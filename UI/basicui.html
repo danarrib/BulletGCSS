@@ -386,6 +386,20 @@
         .pop-val   { text-align: right; }
         .pop-val-w { text-align: right; width: 25%; }
 
+        /* ── Mission Planner stats bar ───────────────────────────────────── */
+        #mpStatsBar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 12vmin;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            padding: 0 4vmin;
+            gap: 3vmin;
+            z-index: 101;
+            background: #0a0a0a;
+        }
+
         /* ── Mission Planner toolbar ─────────────────────────────────────── */
         #mpToolbar {
             display: grid !important;
@@ -408,6 +422,32 @@
             }
             #mpMap {
                 bottom: 11vmin !important;
+            }
+            #mpSavedMissionsPanel {
+                bottom: 11vmin !important;
+            }
+
+            /* Mission planner open: navbar shrinks to left half,
+               stats bar occupies the freed right half */
+            body.mp-open nav.navbar {
+                width: 50%;
+            }
+            body.mp-open #missionPlannerView {
+                top: 0;
+            }
+            body.mp-open #mpStatsBar {
+                position: fixed;
+                top: 0;
+                left: 50%;
+                right: 0;
+                height: var(--navbar-height, 56px);
+                border-bottom: none;
+                border-left: 1px solid #333;
+                padding: 0 2vmin;
+                gap: 2vmin;
+            }
+            body.mp-open #mpMap {
+                top: 0 !important;
             }
         }
     </style>
@@ -949,7 +989,7 @@
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
     <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,56px);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
         <!-- Stats bar -->
-        <div style="position:absolute;top:0;left:0;right:0;height:12vmin;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 4vmin;z-index:101;gap:3vmin;">
+        <div id="mpStatsBar">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
             <div style="flex:1;display:flex;flex-direction:column;gap:0.5vmin;overflow:hidden;">
                 <span style="color:#aaa;font-size:3vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="mpMissionName">Untitled mission</span>

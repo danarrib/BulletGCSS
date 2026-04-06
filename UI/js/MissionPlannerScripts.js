@@ -823,6 +823,7 @@ function syncStatusIcons() {
 
 export function openMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'block';
+    document.body.classList.add('mp-open');
     syncStatusIcons();
 
     // Restore auto-saved mission on first open if planner is empty
@@ -859,6 +860,7 @@ export function openMissionPlanner() {
 
 export function closeMissionPlanner() {
     document.getElementById('missionPlannerView').style.display = 'none';
+    document.body.classList.remove('mp-open');
     closeSavedMissionsPanel();
     closeWpModal();
     if (plannerUpdateInterval) { clearInterval(plannerUpdateInterval); plannerUpdateInterval = null; }
