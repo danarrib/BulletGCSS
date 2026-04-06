@@ -802,6 +802,108 @@ function wireEventListeners() {
     });
     document.getElementById("btSecPopupClose").addEventListener("click",         closeSecondaryPopup);
     document.getElementById("secAircraftPopupOverlay").addEventListener("click", closeSecondaryPopup);
+
+    // ── Icon info modal ────────────────────────────────────────────────────
+    ['connectionIcon','commandChannelIcon','cellIcon','radioIcon','batteryIcon','gpsIcon','hardwareHealthIcon'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { openIconInfoModal(id); });
+    });
+    document.getElementById("iconInfoModalOverlay").addEventListener('click', closeIconInfoModal);
+    document.getElementById("btIconInfoClose").addEventListener('click',       closeIconInfoModal);
+}
+
+// ── Status icon info modal ────────────────────────────────────────────────────
+
+var iconInfoData = {
+    connectionIcon: {
+        title: "Connection Status",
+        states: [
+            { img: "img/connection_ok.png",       text: "Connected. Both the UI and the aircraft are connected to the MQTT broker and messages are arriving on time (within 10 seconds)." },
+            { img: "img/connection_attention.png", text: "High latency. Both the UI and the aircraft are connected to the MQTT broker, but the last message from the aircraft was received more than 10 seconds ago." },
+            { img: "img/connection_error.png",    text: "Aircraft offline. The UI is connected to the MQTT broker, but no messages have been received from the aircraft for more than 30 seconds. The aircraft may have lost connectivity." },
+            { img: "img/connection_broken.png",   text: "Not connected. The UI is not connected to the MQTT broker. Check your internet connection and review the broker settings." },
+        ]
+    },
+    commandChannelIcon: {
+        title: "Command Channel",
+        states: [
+            { img: "img/command_ok.png",      text: "Ready. The firmware is subscribed to the command topic and MSP RC Override is active on the flight controller. All commands — including flight mode toggles — will be accepted." },
+            { img: "img/command_warning.png", text: "Partial. The firmware is subscribed to the command topic, but MSP RC Override is not active on the flight controller. Ping will work, but RC channel commands (RTH, altitude hold, cruise, etc.) will be ignored by INAV." },
+            { img: "img/command_error.png",   text: "Unavailable. The UI is not connected to MQTT, or the firmware has not confirmed it is subscribed to the command topic. No commands can be received by the aircraft." },
+        ]
+    },
+    cellIcon: {
+        title: "Cellular Signal",
+        states: [
+            { img: "img/cell_excelent.png", text: "Excellent. The aircraft modem has 3 signal bars. The cellular link is strong and reliable." },
+            { img: "img/cell_good.png",     text: "Good. The aircraft modem has 2 signal bars. The cellular link is working well." },
+            { img: "img/cell_poor.png",     text: "Poor. The aircraft modem has only 1 signal bar. The connection may be unstable or intermittent." },
+            { img: "img/cell_broken.png",   text: "No signal. The aircraft modem has no signal or is not connected to the cellular network." },
+        ]
+    },
+    radioIcon: {
+        title: "RC Signal",
+        states: [
+            { img: "img/rx_ok.png",     text: "Good. RSSI is above 50%. The radio control link is working fine." },
+            { img: "img/rx_poor.png",   text: "Poor. RSSI is between 30% and 49%. The control link is alive but not ideal." },
+            { img: "img/rx_bad.png",    text: "Bad. RSSI is between 10% and 29%. The radio control link is degraded — fly with caution." },
+            { img: "img/rx_broken.png", text: "Broken. RSSI is below 10%. Very poor or no RC control signal. The aircraft may be in failsafe." },
+        ]
+    },
+    batteryIcon: {
+        title: "Battery",
+        states: [
+            { img: "img/battery_100.png", text: "81–100% — Battery is fully charged." },
+            { img: "img/battery_80.png",  text: "61–80% — Battery charge is good." },
+            { img: "img/battery_60.png",  text: "41–60% — Battery is at medium level." },
+            { img: "img/battery_40.png",  text: "21–40% — Battery is getting low. Consider returning home soon." },
+            { img: "img/battery_20.png",  text: "5–20% — Battery is low. Return to home immediately." },
+            { img: "img/battery_0.png",   text: "0–4% — Battery is critically low. Land immediately." },
+        ]
+    },
+    gpsIcon: {
+        title: "GPS Health",
+        states: [
+            { img: "img/gps_ok.png",     text: "Good. 11 or more satellites. GPS reception is reliable for autonomous flight." },
+            { img: "img/gps_poor.png",   text: "Fair. 8–10 satellites. The aircraft can fly, but GPS precision may be reduced." },
+            { img: "img/gps_bad.png",    text: "Bad. Fewer than 7 satellites with a 3D fix. The position exists but is dangerously close to the unflyable edge. Avoid autonomous flight." },
+            { img: "img/gps_broken.png", text: "No fix. HDOP is 0 or above 5. There is no reliable position. Do not fly in autonomous mode." },
+        ]
+    },
+    hardwareHealthIcon: {
+        title: "Hardware Health",
+        states: [
+            { img: "img/health_ok.png",    text: "All good. All aircraft hardware sensors are working correctly." },
+            { img: "img/health_error.png", text: "Error. A hardware problem was detected on the aircraft. A sensor may be missing, not powered, or not calibrated. The aircraft may not arm in this condition." },
+        ]
+    },
+};
+
+function openIconInfoModal(iconId) {
+    var info = iconInfoData[iconId];
+    if (!info) return;
+    var currentSrc = document.getElementById(iconId).getAttribute('src');
+
+    document.getElementById("iconInfoTitle").textContent = info.title;
+
+    var body = document.getElementById("iconInfoBody");
+    body.innerHTML = '';
+    for (var i = 0; i < info.states.length; i++) {
+        var state = info.states[i];
+        var isCurrent = state.img === currentSrc;
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:3vmin;padding:1.5vmin 2vmin;border-radius:6px;margin-bottom:1vmin;border:1px solid ' + (isCurrent ? '#555;background:#2a2a2a;' : 'transparent;');
+        row.innerHTML = '<img src="' + state.img + '" style="width:2.5em;height:2.5em;flex-shrink:0;" />'
+                      + '<span style="font-size:3.5vmin;line-height:1.4;">' + state.text + '</span>';
+        body.appendChild(row);
+    }
+
+    document.getElementById("iconInfoModalOverlay").style.display = 'block';
+    document.getElementById("iconInfoModal").style.display = 'block';
+}
+
+function closeIconInfoModal() {
+    document.getElementById("iconInfoModal").style.display = 'none';
+    document.getElementById("iconInfoModalOverlay").style.display = 'none';
 }
 
 // ── Update notification ───────────────────────────────────────────────────────

@@ -137,6 +137,7 @@
         .statusIcon {
             height: 2em;
             width: 2em;
+            cursor: pointer;
         }
 
         /* ── Information panel ───────────────────────────────────────────── */
@@ -380,8 +381,8 @@
         .btRcCmd.btn-danger { background: #722; }
 
         /* ── Secondary aircraft popup table cells ────────────────────────────── */
-        .pop-lbl   { color: #aaa; padding: 0.8vmin 0; width: 25%; }
-        .pop-lbl-r { color: #aaa; padding: 0.8vmin 0 0.8vmin 2vmin; width: 25%; }
+        .pop-lbl   { color: #aaa; padding: 0.8vmin 0; width: 25%; font-size: 0.9em; }
+        .pop-lbl-r { color: #aaa; padding: 0.8vmin 0 0.8vmin 2vmin; width: 25%; font-size: 0.9em; }
         .pop-val   { text-align: right; }
         .pop-val-w { text-align: right; width: 25%; }
 
@@ -1017,6 +1018,16 @@
         <div class="btn-row" style="margin-top:3vmin;">
             <input type="button" id="wpModalDelete" value="Delete" class="btRcCmd btn-flex btn-danger" />
             <input type="button" id="wpModalClose"  value="OK"     class="btRcCmd btn-flex-2" />
+        </div>
+    </div>
+
+    <!-- ── Status icon info modal ───────────────────────────────────────────── -->
+    <div id="iconInfoModalOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:199;"></div>
+    <div id="iconInfoModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:#1a1a1a;color:#fff;border-radius:8px;padding:4vmin;width:90vw;max-width:100vh;border:1px solid #555;">
+        <div id="iconInfoTitle" style="font-size:5vmin;font-weight:bold;margin-bottom:2vmin;padding-bottom:2vmin;border-bottom:1px solid #555;"></div>
+        <div id="iconInfoBody" style="max-height:65vh;overflow-y:auto;"></div>
+        <div class="btn-row" style="margin-top:2vmin;">
+            <input type="button" id="btIconInfoClose" value="Close" class="btRcCmd btn-flex" />
         </div>
     </div>
 
