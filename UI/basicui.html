@@ -79,7 +79,7 @@
 
         #main {
             position: fixed;
-            top: var(--navbar-height, 56px);
+            top: var(--navbar-height, 10vmin);
             left: 0;
             right: 0;
             bottom: 0;
@@ -135,9 +135,10 @@
 
         /* ── Status icons ────────────────────────────────────────────────── */
         .statusIcon {
-            height: 2em;
-            width: 2em;
+            height: 8vmin;
+            width: 8vmin;
             cursor: pointer;
+            font-size: 7vmin;
         }
 
         /* ── Information panel ───────────────────────────────────────────── */
@@ -440,7 +441,7 @@
                 top: 0;
                 left: 50%;
                 right: 0;
-                height: var(--navbar-height, 56px);
+                height: var(--navbar-height, 10vmin);
                 border-bottom: none;
                 border-left: 1px solid #333;
                 padding: 0 2vmin;
@@ -469,7 +470,7 @@
                 data-bs-target="#sideMenu"
                 aria-controls="sideMenu"
                 aria-label="Open menu">
-            <i class="bi bi-gear-fill"></i>
+            <i class="bi bi-gear-fill statusIcon"></i>
             <span id="gearIconBadge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;background:#f00;border-radius:50%;"></span>
         </button>
 
@@ -987,7 +988,7 @@
     <button id="fabCommands" title="Send command">CMD</button>
 
     <!-- ── Mission Planner View ────────────────────────────────────────────── -->
-    <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,56px);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
+    <div id="missionPlannerView" style="display:none;position:fixed;top:var(--navbar-height,10vmin);left:0;right:0;bottom:0;z-index:100;background:#0a0a0a;">
         <!-- Stats bar -->
         <div id="mpStatsBar">
             <span id="mpWpValidDot" style="width:2.5vmin;height:2.5vmin;border-radius:50%;background:#555;flex-shrink:0;" title="Mission validity: unknown"></span>
