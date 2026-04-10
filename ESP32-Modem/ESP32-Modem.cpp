@@ -238,14 +238,17 @@ SemaphoreHandle_t cmdMutex;
 uav_status    publishedStatus;
 msp_set_wp_t  publishedMission[256];
 
-// Downlink flag: set by the MQTT task when it subscribes to the command topic.
+// Downlink flag: set by modemTask when it subscribes to the command topic.
 // Read by fcTask to keep uavstatus.downlinkStatus current without a mutex
 // (volatile bool read/write is atomic on ESP32).
-volatile bool     downlinkActive  = false;
-// Heartbeat updated at the top of every loop() iteration.
-// fcTask uses this to detect when the Arduino loop task has frozen
-// (e.g. due to a hung modem AT command with no timeout).
-volatile uint32_t loopLastAliveMs = 0;
+volatile bool     downlinkActive   = false;
+// Heartbeat updated at the top of every modemTask() iteration.
+// fcTask uses this to detect when modemTask has frozen
+// (e.g. due to a hung AT command with no timeout).
+volatile uint32_t modemLastAliveMs = 0;
+
+// Handle for modemTask — stored so fcTask can kill and restart it on freeze.
+TaskHandle_t modemTaskHandle = NULL;
 
 // ── Forward declarations ──────────────────────────────────────────────────────
 // Required because .cpp files do not get Arduino IDE's auto-prototype injection.
@@ -261,6 +264,7 @@ void connectToGprsNetwork();
 #endif
 
 void fcTask(void* param);
+void modemTask(void* param);
 void getTelemetryData();
 void get_cellSignalStrength();
 void msp_get_gps();
@@ -432,8 +436,11 @@ void connectToTheInternet() {
       // → connection declared dead within ~35 s of NAT timeout, well before
       //   the next MQTT publish attempt triggers the blocking hang.
       modem.sendAT(GF("+CTCPKA=1,20,5,3"));
-      modem.waitResponse();
-      LOGLINE("TCP keepalive configured (idle=20s, interval=5s, retries=3)");
+      if (modem.waitResponse() == 1) {
+        LOGLINE("TCP keepalive configured (idle=20s, interval=5s, retries=3)");
+      } else {
+        LOGLINE("WARNING: AT+CTCPKA not accepted by modem firmware");
+      }
       String modemName = modem.getModemName();
       LOGLINE("Modem Name: %s", modemName.c_str());
       #endif
@@ -528,11 +535,10 @@ void connectToTheInternet() {
 // whenever it needs to run.
 // How long loop() can be silent before we suspect a modem freeze (ms).
 // Normal loop() latency is a few ms; even a slow MQTT publish rarely
-// exceeds a few seconds. 30 s is a conservative warn threshold.
-#define LOOP_FREEZE_THRESHOLD_MS  30000
-// How long to wait before giving up and restarting the ESP32.
-// At this point the modem is unrecoverably hung — a reboot is the only option.
-#define LOOP_FREEZE_RESTART_MS    60000
+// exceeds a few seconds.
+#define LOOP_FREEZE_THRESHOLD_MS  15000
+// How long to wait before killing modemTask and doing a hardware modem reset.
+#define LOOP_FREEZE_RESTART_MS    30000
 
 void fcTask(void* param) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -540,22 +546,62 @@ void fcTask(void* param) {
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
 
-        // Detect a frozen Arduino loop task (e.g. modem hung on AT command).
-        // fcTask runs at higher priority on the same core, so it continues
-        // to execute even when loop() is blocked inside TinyGSM.
-        // Print at most once per second to avoid flooding the serial output.
-        uint32_t loopSilenceMs = millis() - loopLastAliveMs;
-        if (loopLastAliveMs > 0 && loopSilenceMs > LOOP_FREEZE_THRESHOLD_MS) {
-            if (loopSilenceMs > LOOP_FREEZE_RESTART_MS) {
-                LOGLINE("FATAL: loop task frozen for %lu s — restarting ESP32",
-                        loopSilenceMs / 1000);
-                ESP.restart();
-            }
-            static uint32_t lastFreezeWarnMs = 0;
-            if (millis() - lastFreezeWarnMs >= 1000) {
-                LOGLINE("WARNING: loop task frozen for %lu s — possible modem hang",
-                        loopSilenceMs / 1000);
-                lastFreezeWarnMs = millis();
+        // Detect a frozen modemTask (e.g. modem hung on AT command).
+        // fcTask runs on Core 1 at priority 2; modemTask runs on Core 0 at
+        // priority 1. The heartbeat is updated every modemTask iteration.
+        uint32_t modemSilenceMs = millis() - modemLastAliveMs;
+        if (modemLastAliveMs > 0 && modemSilenceMs > LOOP_FREEZE_THRESHOLD_MS) {
+            if (modemSilenceMs > LOOP_FREEZE_RESTART_MS) {
+                LOGLINE("FATAL: modem task frozen for %lu s — killing and restarting modem",
+                        modemSilenceMs / 1000);
+
+                // 1. Kill the frozen task.
+                if (modemTaskHandle != NULL) {
+                    vTaskDelete(modemTaskHandle);
+                    modemTaskHandle = NULL;
+                }
+
+                // 2. Recreate mutexes — modemTask may have been killed while
+                //    holding dataMutex or cmdMutex, which would leave them
+                //    permanently locked.  Deleting and recreating is safe here
+                //    because no other task is waiting on them at this point.
+                if (dataMutex != NULL) { vSemaphoreDelete(dataMutex); dataMutex = xSemaphoreCreateMutex(); }
+                if (cmdMutex  != NULL) { vSemaphoreDelete(cmdMutex);  cmdMutex  = xSemaphoreCreateMutex(); }
+
+                // 3. Hardware-reset the modem (GPIO only — safe from any task).
+                #ifdef TINY_GSM_MODEM_SIM7600
+                digitalWrite(MODEM_POWER_ON, LOW);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                digitalWrite(MODEM_POWER_ON, HIGH);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                digitalWrite(MODEM_PWKEY, HIGH);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                digitalWrite(MODEM_PWKEY, LOW);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                #elif defined(TINY_GSM_MODEM_SIM800)
+                digitalWrite(MODEM_RST, LOW);
+                vTaskDelay(pdMS_TO_TICKS(200));
+                digitalWrite(MODEM_RST, HIGH);
+                vTaskDelay(pdMS_TO_TICKS(200));
+                #endif
+
+                // 4. Reset modem-side state so modemTask runs the cold-start path.
+                modemInitialized   = false;
+                gprsFailureCounter = 0;
+                failureCounter     = 0;
+                downlinkActive     = false;
+                modemLastAliveMs   = 0;
+
+                // 5. Restart modemTask on Core 0.
+                xTaskCreatePinnedToCore(modemTask, "modemTask", 8192, NULL, 1, &modemTaskHandle, 0);
+                LOGLINE("modemTask restarted — waiting for reconnect");
+            } else {
+                static uint32_t lastFreezeWarnMs = 0;
+                if (millis() - lastFreezeWarnMs >= 1000) {
+                    LOGLINE("WARNING: modem task frozen for %lu s — possible modem hang",
+                            modemSilenceMs / 1000);
+                    lastFreezeWarnMs = millis();
+                }
             }
         }
 
@@ -574,21 +620,18 @@ void setup()
   prefs.end();
   LOGLINE("Loaded lastSeq from NVS: %lu", lastSeq);
 
-  #ifndef USE_WIFI
-    connectToGprsNetwork();
-  #endif
-
   msp.begin(mspSerial, 750);
   mspSerial.begin(115200, SERIAL_8N1, SERIAL_PIN_RX, SERIAL_PIN_TX, false, 1000L);
 
   client.setServer(mqttServer, mqttPort);
   client.setCallback(mqttCommandCallback);
 
-  // Create shared-state mutexes, then start the FC task. All MSP hardware
-  // is initialised above, so the task can safely begin probing the FC.
+  // Create shared-state mutexes, then start both tasks.
+  // modemTask owns all networking (Core 0); fcTask owns all MSP/FC comms (Core 1).
   dataMutex = xSemaphoreCreateMutex();
   cmdMutex  = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(fcTask, "fcTask", 4096, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(fcTask,    "fcTask",    4096, NULL, 2, NULL,             1);
+  xTaskCreatePinnedToCore(modemTask, "modemTask", 8192, NULL, 1, &modemTaskHandle, 0);
 }
 
 // Called by PubSubClient when a message arrives on the downlink (command) topic.
@@ -993,15 +1036,50 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
 void loop()
 {
-  loopLastAliveMs = millis();
-  sendMessageTask();
-  client.loop();
+  // All networking is handled by modemTask (Core 0).
+  // The Arduino loop task is unused; yield forever.
+  vTaskDelay(portMAX_DELAY);
+}
 
-  // Check the failure counter and reset everything if it's above 10.
-  if(failureCounter >= 10)
-  {
-    LOGLINE("Failure count is too high. Restarting everything...");
-    ESP.restart();
+// ── modemTask ─────────────────────────────────────────────────────────────────
+// Owns all TinyGSM/MQTT networking. Runs on Core 0 at priority 1.
+// fcTask monitors this task via the modemLastAliveMs heartbeat and will kill,
+// hardware-reset, and restart it if it freezes for more than LOOP_FREEZE_RESTART_MS.
+void modemTask(void* param) {
+  // Cold-start: establish the network connection before entering the main loop.
+  // For GSM this includes modem init, SIM unlock, network registration, and GPRS.
+  // For WiFi this is a no-op on the first call (connection happens inside
+  // sendMessageTask → connectToTheInternet → connectToWifiNetwork).
+  #ifndef USE_WIFI
+  connectToGprsNetwork();
+  #endif
+
+  while (true) {
+    // Update heartbeat so fcTask knows we are alive.
+    modemLastAliveMs = millis();
+
+    // Reconnect network / MQTT broker if needed (no-op when already connected).
+    connectToTheInternet();
+    connectToTheBroker();
+
+    // Build and publish the telemetry message (rate-limited internally).
+    sendMessageTask();
+
+    // Drive the PubSubClient receive loop: handles incoming command messages,
+    // MQTT keepalive PINGREQ/PINGRESP, and connection state tracking.
+    client.loop();
+
+    // Escalate persistent publish failures to a modem restart.
+    // fcTask will handle the actual restart via the watchdog; here we just
+    // signal it by zeroing the heartbeat so the threshold fires immediately.
+    if (failureCounter >= 10) {
+      LOGLINE("Failure count too high (%d) — signalling modem restart", failureCounter);
+      modemLastAliveMs = 0;
+      vTaskDelay(portMAX_DELAY); // block here; fcTask's watchdog will kill us
+    }
+
+    // Yield briefly between iterations so other tasks on Core 0 can run.
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
