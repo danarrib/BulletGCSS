@@ -424,6 +424,16 @@ void connectToTheInternet() {
       #ifdef TINY_GSM_MODEM_SIM7600
       modem.setNetworkMode(38);
       delay(1000);
+      // Enable TCP keepalive so the modem proactively detects half-open
+      // connections caused by NAT/firewall timeouts (~30-60 s on cellular).
+      // Without this the modem silently blocks in AT+CIPSEND for 75-120 s
+      // waiting for a TCP ACK that will never arrive.
+      // Parameters: enable=1, idle=20 s, interval=5 s, retries=3
+      // → connection declared dead within ~35 s of NAT timeout, well before
+      //   the next MQTT publish attempt triggers the blocking hang.
+      modem.sendAT(GF("+CTCPKA=1,20,5,3"));
+      modem.waitResponse();
+      LOGLINE("TCP keepalive configured (idle=20s, interval=5s, retries=3)");
       String modemName = modem.getModemName();
       LOGLINE("Modem Name: %s", modemName.c_str());
       #endif
@@ -469,6 +479,8 @@ void connectToTheInternet() {
         #ifdef TINY_GSM_MODEM_SIM7600
         modem.setNetworkMode(38);
         delay(1000);
+        modem.sendAT(GF("+CTCPKA=1,20,5,3"));
+        modem.waitResponse();
         #endif
         failureCounter++; // counts toward the ESP32 restart threshold too
       }
@@ -516,8 +528,11 @@ void connectToTheInternet() {
 // whenever it needs to run.
 // How long loop() can be silent before we suspect a modem freeze (ms).
 // Normal loop() latency is a few ms; even a slow MQTT publish rarely
-// exceeds a few seconds. 30 s is a conservative threshold.
-#define LOOP_FREEZE_THRESHOLD_MS 30000
+// exceeds a few seconds. 30 s is a conservative warn threshold.
+#define LOOP_FREEZE_THRESHOLD_MS  30000
+// How long to wait before giving up and restarting the ESP32.
+// At this point the modem is unrecoverably hung — a reboot is the only option.
+#define LOOP_FREEZE_RESTART_MS    60000
 
 void fcTask(void* param) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -531,6 +546,11 @@ void fcTask(void* param) {
         // Print at most once per second to avoid flooding the serial output.
         uint32_t loopSilenceMs = millis() - loopLastAliveMs;
         if (loopLastAliveMs > 0 && loopSilenceMs > LOOP_FREEZE_THRESHOLD_MS) {
+            if (loopSilenceMs > LOOP_FREEZE_RESTART_MS) {
+                LOGLINE("FATAL: loop task frozen for %lu s — restarting ESP32",
+                        loopSilenceMs / 1000);
+                ESP.restart();
+            }
             static uint32_t lastFreezeWarnMs = 0;
             if (millis() - lastFreezeWarnMs >= 1000) {
                 LOGLINE("WARNING: loop task frozen for %lu s — possible modem hang",
