@@ -250,6 +250,11 @@ volatile uint32_t modemLastAliveMs = 0;
 // Handle for modemTask — stored so fcTask can kill and restart it on freeze.
 TaskHandle_t modemTaskHandle = NULL;
 
+// Signal strength polled by modemTask and read by fcTask.
+// Written only in modemTask (via get_cellSignalStrength()); read by fcTask to
+// update uavstatus.  volatile uint8_t is atomically readable on ESP32.
+volatile uint8_t sharedSignalStrength = 0;
+
 // ── Forward declarations ──────────────────────────────────────────────────────
 // Required because .cpp files do not get Arduino IDE's auto-prototype injection.
 
@@ -1069,6 +1074,15 @@ void modemTask(void* param) {
     // MQTT keepalive PINGREQ/PINGRESP, and connection state tracking.
     client.loop();
 
+    // Poll signal strength every 10 s.  Done here (in modemTask) because the
+    // GSM path sends AT+CSQ which can block for hundreds of milliseconds —
+    // unsafe to call from fcTask which has a strict 160 ms cycle budget.
+    static uint32_t lastSignalPollMs = 0;
+    if (millis() - lastSignalPollMs >= 10000) {
+      lastSignalPollMs = millis();
+      get_cellSignalStrength();
+    }
+
     // Escalate persistent publish failures to a modem restart.
     // fcTask will handle the actual restart via the watchdog; here we just
     // signal it by zeroing the heartbeat so the threshold fires immediately.
@@ -1161,7 +1175,9 @@ void getTelemetryData()
       break;
     case 5:
       MSP_TIME("msp_get_activeboxes",   msp_get_activeboxes());
-      MSP_TIME("get_cellSignalStrength", get_cellSignalStrength());
+      // Signal strength is polled by modemTask to avoid a blocking AT+CSQ call
+      // here.  Just read the value it last stored.
+      uavstatus.cellSignalStrength = sharedSignalStrength;
       break;
   }
   // Waypoint fetch state machine — one WP per cycle (~30 ms each) so the
@@ -1220,33 +1236,28 @@ void getTelemetryData()
   xSemaphoreGive(dataMutex);
 }
 
+// Poll signal strength and store in sharedSignalStrength.
+// Called only from modemTask — never from fcTask — because the GSM path
+// sends AT+CSQ which blocks until the modem responds (~5-1000 ms depending
+// on modem load).  fcTask reads sharedSignalStrength directly (no blocking).
 void get_cellSignalStrength()
 {
+    uint8_t level;
     #ifdef USE_WIFI
       long rssi = abs(WiFi.RSSI());
-
-      if(rssi < 50)
-        uavstatus.cellSignalStrength = 3;
-      else if(rssi < 60)
-        uavstatus.cellSignalStrength = 2;
-      else if(rssi < 70)
-        uavstatus.cellSignalStrength = 1;
-      else
-        uavstatus.cellSignalStrength = 0;
+      if      (rssi < 50) level = 3;
+      else if (rssi < 60) level = 2;
+      else if (rssi < 70) level = 1;
+      else                level = 0;
     #else
       int rssi = modem.getSignalQuality();
-
-      if(rssi == 99)
-        uavstatus.cellSignalStrength = 0;
-      else if(rssi >= 20)
-        uavstatus.cellSignalStrength = 3;
-      else if(rssi >= 15)
-        uavstatus.cellSignalStrength = 2;
-      else if(rssi >= 10)
-        uavstatus.cellSignalStrength = 1;
-      else
-        uavstatus.cellSignalStrength = 0;
+      if      (rssi == 99) level = 0;
+      else if (rssi >= 20) level = 3;
+      else if (rssi >= 15) level = 2;
+      else if (rssi >= 10) level = 1;
+      else                 level = 0;
     #endif
+    sharedSignalStrength = level;
 }
 
 void msp_get_gps() 
