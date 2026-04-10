@@ -31,7 +31,9 @@
 // Set serial for debug console (to the Serial Monitor, default speed 115200)
 #define SerialMon Serial
 // Timestamped log macro — prefix every log line with seconds since boot
-#define LOG(fmt, ...) SerialMon.printf("[%4lu] " fmt "\n", millis() / 1000, ##__VA_ARGS__)
+#define LOGLINE(fmt, ...) SerialMon.printf("[%4lu] " fmt "\n", millis() / 1000, ##__VA_ARGS__)
+#define LOG(fmt, ...) SerialMon.printf("[%4lu] " fmt, millis() / 1000, ##__VA_ARGS__)
+#define LOGNOTS(fmt, ...) SerialMon.printf(fmt "\n", ##__VA_ARGS__)
 // Set serial for AT commands
 #define SerialAT Serial1
 
@@ -239,7 +241,11 @@ msp_set_wp_t  publishedMission[256];
 // Downlink flag: set by the MQTT task when it subscribes to the command topic.
 // Read by fcTask to keep uavstatus.downlinkStatus current without a mutex
 // (volatile bool read/write is atomic on ESP32).
-volatile bool downlinkActive = false;
+volatile bool     downlinkActive  = false;
+// Heartbeat updated at the top of every loop() iteration.
+// fcTask uses this to detect when the Arduino loop task has frozen
+// (e.g. due to a hung modem AT command with no timeout).
+volatile uint32_t loopLastAliveMs = 0;
 
 // ── Forward declarations ──────────────────────────────────────────────────────
 // Required because .cpp files do not get Arduino IDE's auto-prototype injection.
@@ -343,20 +349,20 @@ void connectToTheInternet() {
     // Wait for WiFi to connect
     while (WiFi.status() != WL_CONNECTED)
     {
-      LOG("Connecting WiFi..");
+      LOGLINE("Connecting WiFi..");
       delay(5000); // Give WiFi some time to connect
       if(WiFi.status() != WL_CONNECTED)
       {
         failureCounter++;
         if(failureCounter>=10)
         {
-          LOG("Too many fails connecting to WiFi. Restarting...");
+          LOGLINE("Too many fails connecting to WiFi. Restarting...");
           ESP.restart();
         }
       }
     }
   
-    LOG("WiFi connected!");
+    LOGLINE("WiFi connected!");
     #ifdef USE_TLS
       espClient.setInsecure(); // Encrypt without certificate verification
     #endif
@@ -393,7 +399,7 @@ void connectToTheInternet() {
       pinMode(MODEM_RST, OUTPUT);
       I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
       bool isOk = setPowerBoostKeepOn(1);
-      LOG("IP5306 KeepOn %s", isOk ? "OK" : "FAIL");
+      LOGLINE("IP5306 KeepOn %s", isOk ? "OK" : "FAIL");
       digitalWrite(MODEM_RST, HIGH);
       #endif
 
@@ -407,58 +413,58 @@ void connectToTheInternet() {
       digitalWrite(MODEM_PWKEY, LOW);
       digitalWrite(MODEM_POWER_ON, HIGH);
 
-      LOG("Wait...");
+      LOGLINE("Wait...");
       delay(3000);
       SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
       delay(6000);
 
-      LOG("Initializing modem...");
+      LOGLINE("Initializing modem...");
       modem.restart();
 
       #ifdef TINY_GSM_MODEM_SIM7600
       modem.setNetworkMode(38);
       delay(1000);
       String modemName = modem.getModemName();
-      LOG("Modem Name: %s", modemName.c_str());
+      LOGLINE("Modem Name: %s", modemName.c_str());
       #endif
 
       String modemInfo = modem.getModemInfo();
-      LOG("Modem Info: %s", modemInfo.c_str());
+      LOGLINE("Modem Info: %s", modemInfo.c_str());
 
       if (strlen(GSM_PIN) > 0) {
         SimStatus simStatus = modem.getSimStatus();
         if (simStatus == SIM_LOCKED) {
-          LOG("SIM card is PIN-locked. Attempting to unlock...");
+          LOGLINE("SIM card is PIN-locked. Attempting to unlock...");
           if (modem.simUnlock(GSM_PIN)) {
-            LOG("SIM card unlocked successfully.");
+            LOGLINE("SIM card unlocked successfully.");
           } else {
-            LOG("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
+            LOGLINE("ERROR: SIM card unlock failed. Check GSM_PIN in Config.h.");
             delay(5000);
             ESP.restart();
           }
         } else if (simStatus == SIM_READY) {
-          LOG("SIM card is ready (no PIN required).");
+          LOGLINE("SIM card is ready (no PIN required).");
         }
       }
 
       // Block until registered — acceptable at boot, nothing is flying yet
       while (!modem.waitForNetwork(600000L)) {
-        LOG("Waiting for network...");
+        LOGLINE("Waiting for network...");
         delay(10000);
       }
-      LOG("Network connected");
+      LOGLINE("Network connected");
 
     } else {
       // ── Reconnect path: GPRS dropped mid-flight ─────────────────────────────
       // Do NOT restart the modem on every drop — that causes the 2-minute hang.
       // Instead, count failures and escalate progressively.
       gprsFailureCounter++;
-      LOG("GPRS disconnected (failure %d)", gprsFailureCounter);
+      LOGLINE("GPRS disconnected (failure %d)", gprsFailureCounter);
 
       // Every 5 failures, do a soft modem restart to recover from states like
       // CSQ 99,99 (network registration lost) without a full hardware power cycle.
       if (gprsFailureCounter % 5 == 0) {
-        LOG("Restarting modem for GPRS recovery...");
+        LOGLINE("Restarting modem for GPRS recovery...");
         modem.restart();
         #ifdef TINY_GSM_MODEM_SIM7600
         modem.setNetworkMode(38);
@@ -469,25 +475,25 @@ void connectToTheInternet() {
 
       // Hard ceiling: if we can't recover after 15 attempts, restart the ESP32
       if (gprsFailureCounter >= 15) {
-        LOG("GPRS unrecoverable after 15 attempts. Restarting ESP32...");
+        LOGLINE("GPRS unrecoverable after 15 attempts. Restarting ESP32...");
         ESP.restart();
       }
 
       // Wait briefly for network re-registration — short enough that the main
       // loop keeps running and the FC task is not starved for long.
       if (!modem.isNetworkConnected()) {
-        LOG("Waiting for network re-registration (60s)...");
+        LOGLINE("Waiting for network re-registration (60s)...");
         if (!modem.waitForNetwork(60000L)) {
-          LOG("Network not available yet. Will retry next cycle.");
+          LOGLINE("Network not available yet. Will retry next cycle.");
           return; // come back next 1-second tick
         }
       }
     }
 
     // ── Connect GPRS (shared by cold-start and reconnect paths) ─────────────
-    LOG("Connecting to APN: %s", apn);
+    LOGLINE("Connecting to APN: %s", apn);
     if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-      LOG("APN connection failed");
+      LOGLINE("APN connection failed");
       if (!modemInitialized) {
         // Cold-start GPRS failure — hard restart (nothing is flying yet)
         ESP.restart();
@@ -496,7 +502,7 @@ void connectToTheInternet() {
       return;
     }
     if (modem.isGprsConnected()) {
-      LOG("GPRS connected");
+      LOGLINE("GPRS connected");
       modemInitialized = true; // set only on first successful GPRS connection
       gprsFailureCounter = 0;
     }
@@ -508,11 +514,26 @@ void connectToTheInternet() {
 // of how long individual MSP calls take. Pinned to Core 1 at priority 2,
 // above the Arduino loop task (priority 1), so it preempts network operations
 // whenever it needs to run.
+// How long loop() can be silent before we suspect a modem freeze (ms).
+// Normal loop() latency is a few ms; even a slow MQTT publish rarely
+// exceeds a few seconds. 30 s is a conservative threshold.
+#define LOOP_FREEZE_THRESHOLD_MS 30000
+
 void fcTask(void* param) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xPeriod = pdMS_TO_TICKS(TASK_MSP_READ_MS);
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
+
+        // Detect a frozen Arduino loop task (e.g. modem hung on AT command).
+        // fcTask runs at higher priority on the same core, so it continues
+        // to execute even when loop() is blocked inside TinyGSM.
+        uint32_t loopSilenceMs = millis() - loopLastAliveMs;
+        if (loopLastAliveMs > 0 && loopSilenceMs > LOOP_FREEZE_THRESHOLD_MS) {
+            LOGLINE("WARNING: loop task frozen for %lu s — possible modem hang",
+                    loopSilenceMs / 1000);
+        }
+
         getTelemetryData();
     }
 }
@@ -526,7 +547,7 @@ void setup()
   prefs.begin("bulletgcss", true); // read-only
   lastSeq = prefs.getUInt("lastSeq", 0);
   prefs.end();
-  LOG("Loaded lastSeq from NVS: %lu", lastSeq);
+  LOGLINE("Loaded lastSeq from NVS: %lu", lastSeq);
 
   #ifndef USE_WIFI
     connectToGprsNetwork();
@@ -553,12 +574,12 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   memcpy(buf, payload, length);
   buf[length] = '\0';
 
-  LOG("Command received: %s", buf);
+  LOGLINE("Command received: %s", buf);
 
   // ── Step 1: Reject immediately if no public key is configured ───────────────
   static const uint8_t zeroKey[32] = {0};
   if (memcmp(commandPublicKey, zeroKey, 32) == 0) {
-    LOG("Command rejected: no public key configured in Config.h");
+    LOGLINE("Command rejected: no public key configured in Config.h");
     return;
   }
 
@@ -615,14 +636,14 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
   // ── Step 3: Require all security fields to be present ────────────────────────
   if (strlen(cmd) == 0 || strlen(cid) == 0 || strlen(seqStr) == 0 || strlen(sig) != 88) {
-    LOG("Command rejected: missing or malformed security fields");
+    LOGLINE("Command rejected: missing or malformed security fields");
     return;
   }
 
   // ── Step 4: Replay protection — seq must be strictly greater than lastSeq ────
   uint32_t seq = (uint32_t)strtoul(seqStr, NULL, 10);
   if (seq <= lastSeq) {
-    LOG("Command rejected: seq %lu <= lastSeq %lu", seq, lastSeq);
+    LOGLINE("Command rejected: seq %lu <= lastSeq %lu", seq, lastSeq);
     return;
   }
 
@@ -633,12 +654,12 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
   uint8_t sigBytes[64];
   if (!base64Decode64(sig, sigBytes)) {
-    LOG("Command rejected: signature base64 decode failed");
+    LOGLINE("Command rejected: signature base64 decode failed");
     return;
   }
 
   if (!Ed25519::verify(sigBytes, commandPublicKey, canonical, strlen(canonical))) {
-    LOG("Command rejected: invalid signature");
+    LOGLINE("Command rejected: invalid signature");
     return;
   }
 
@@ -652,7 +673,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
   if (!deferAck) {
     char ack[32];
     snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
-    LOG("Command verified and accepted. Sending ack: %s", ack);
+    LOGLINE("Command verified and accepted. Sending ack: %s", ack);
     sendMessage(ack);
   }
 
@@ -665,46 +686,46 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       // Payload field: heading:<degrees 0-359>
       // MSP_SET_HEAD expects centidegrees (U16).
       if (strlen(headingStr) == 0) {
-          LOG("setheading: missing heading field");
+          LOGLINE("setheading: missing heading field");
           return;
       }
       int deg = atoi(headingStr);
       if (deg < 0 || deg > 359) {
-          LOG("setheading: invalid heading %d", deg);
+          LOGLINE("setheading: invalid heading %d", deg);
           return;
       }
       int32_t centideg = (int32_t)(deg * 100);
       msp.send(MSP2_INAV_SET_CRUISE_HEADING, &centideg, sizeof(centideg));
-      LOG("setheading: sent %d° (%d centideg)", deg, centideg);
+      LOGLINE("setheading: sent %d° (%d centideg)", deg, centideg);
 
   } else if (strcmp(cmd, "jumpwp") == 0) {
       // Jump to waypoint N during an active WP mission.
       // Payload field: wp:<index 0-based>
       // MSP2_INAV_SET_WP_INDEX expects a U8.
       if (strlen(wpStr) == 0) {
-          LOG("jumpwp: missing wp field");
+          LOGLINE("jumpwp: missing wp field");
           return;
       }
       int wpIdx = atoi(wpStr);
       if (wpIdx < 0 || wpIdx > 254) {
-          LOG("jumpwp: invalid wp index %d", wpIdx);
+          LOGLINE("jumpwp: invalid wp index %d", wpIdx);
           return;
       }
       uint8_t wpIdxU8 = (uint8_t)wpIdx;
       msp.send(MSP2_INAV_SET_WP_INDEX, &wpIdxU8, sizeof(wpIdxU8));
-      LOG("jumpwp: sent index %d", wpIdxU8);
+      LOGLINE("jumpwp: sent index %d", wpIdxU8);
 
   } else if (strcmp(cmd, "setalt") == 0) {
       // Set target altitude while altitude-hold / cruise / WP mode is active.
       // Payload field: alt:<centimetres, signed, relative to home>
       // MSP2_INAV_SET_ALT_TARGET expects I32.
       if (strlen(altStr) == 0) {
-          LOG("setalt: missing alt field");
+          LOGLINE("setalt: missing alt field");
           return;
       }
       int32_t altCm = (int32_t)atoi(altStr);
       msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
-      LOG("setalt: sent %d cm", altCm);
+      LOGLINE("setalt: sent %d cm", altCm);
 
   } else if (strcmp(cmd, "getmission") == 0) {
       // Fetch the full published mission and send each WP as a dlwp: telemetry message,
@@ -716,7 +737,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       xSemaphoreGive(dataMutex);
 
       if (wpCount == 0) {
-          LOG("getmission: no mission loaded, sending NACK");
+          LOGLINE("getmission: no mission loaded, sending NACK");
           char nack[64];
           snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:nomission,", cid);
           sendMessage(nack);
@@ -726,7 +747,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       // Heap-allocate the snapshot to avoid blowing the loopTask stack
       msp_set_wp_t *wpSnapshot = (msp_set_wp_t *)malloc(wpCount * sizeof(msp_set_wp_t));
       if (!wpSnapshot) {
-          LOG("getmission: malloc failed, sending NACK");
+          LOGLINE("getmission: malloc failed, sending NACK");
           char nack[64];
           snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:oom,", cid);
           sendMessage(nack);
@@ -739,7 +760,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
       xSemaphoreGive(dataMutex);
 
-      LOG("getmission: sending %d WP(s)", wpCount);
+      LOGLINE("getmission: sending %d WP(s)", wpCount);
       for (uint8_t i = 0; i < wpCount; i++) {
           msp_set_wp_t *wp = &wpSnapshot[i];
           char dlwpMsg[128];
@@ -751,14 +772,14 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
                    (int)wp->p1, (int)wp->p2, (int)wp->p3,
                    (int)wp->flag);
           sendMessage(dlwpMsg);
-          LOG("getmission: sent dlwp %d", i + 1);
+          LOGLINE("getmission: sent dlwp %d", i + 1);
       }
       free(wpSnapshot);
 
       char ackMsg[32];
       snprintf(ackMsg, sizeof(ackMsg), "cmd:ack,cid:%s,", cid);
       sendMessage(ackMsg);
-      LOG("getmission: ACK sent");
+      LOGLINE("getmission: ACK sent");
 
   } else if (strcmp(cmd, "setwp") == 0) {
       // Upload a waypoint to the firmware staging buffer.
@@ -767,7 +788,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       // Last WP (f:165) triggers full validation + FC upload; ACK or NACK is sent after validation.
 
       if (strlen(wpnoStr) == 0 || strlen(wplaStr) == 0 || strlen(wploStr) == 0 || strlen(wpalStr) == 0) {
-          LOG("setwp: missing required fields");
+          LOGLINE("setwp: missing required fields");
           if (stagedMission) { free(stagedMission); stagedMission = NULL; }
           stagedCount = 0; stagingActive = false;
           if (deferAck) {
@@ -790,7 +811,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
       uint8_t maxWp = (uavstatus.maxWaypoints > 0) ? uavstatus.maxWaypoints : NAV_MAX_WAYPOINTS_FIRMWARE;
       if (wpno == 0 || wpno > maxWp) {
-          LOG("setwp: wpno %d out of range (max %d)", wpno, maxWp);
+          LOGLINE("setwp: wpno %d out of range (max %d)", wpno, maxWp);
           if (stagedMission) { free(stagedMission); stagedMission = NULL; }
           stagedCount = 0; stagingActive = false;
           if (deferAck) {
@@ -806,7 +827,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           if (stagedMission) { free(stagedMission); stagedMission = NULL; }
           stagedMission = (msp_set_wp_t *)malloc(maxWp * sizeof(msp_set_wp_t));
           if (!stagedMission) {
-              LOG("setwp: malloc failed for staging buffer");
+              LOGLINE("setwp: malloc failed for staging buffer");
               stagedCount = 0; stagingActive = false;
               if (deferAck) {
                   char nack[64];
@@ -818,11 +839,11 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           memset(stagedMission, 0, maxWp * sizeof(msp_set_wp_t));
           stagedCount = 0;
           stagingActive = true;
-          LOG("setwp: staging buffer reset for new upload");
+          LOGLINE("setwp: staging buffer reset for new upload");
       }
 
       if (!stagingActive) {
-          LOG("setwp: received wpno:%d but staging not active — missing wpno:1", wpno);
+          LOGLINE("setwp: received wpno:%d but staging not active — missing wpno:1", wpno);
           if (deferAck) {
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:gap,", cid);
@@ -843,7 +864,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       stagedMission[wpno - 1].flag           = wpF;
       if (wpno > stagedCount) stagedCount = wpno;
 
-      LOG("setwp: staged WP %d (action:%d lat:%ld lon:%ld alt:%ld f:%d)",
+      LOGLINE("setwp: staged WP %d (action:%d lat:%ld lon:%ld alt:%ld f:%d)",
                        wpno, wpAc, (long)wpLat, (long)wpLon, (long)wpAlt, wpF);
 
       if (wpF != 0xA5) {
@@ -857,7 +878,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           uint8_t fmWpSnap = publishedStatus.fmWp;
           xSemaphoreGive(dataMutex);
           if (fmWpSnap != 0) {
-              LOG("setwp: rejected — WP Mission mode is currently active");
+              LOGLINE("setwp: rejected — WP Mission mode is currently active");
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:busy,", cid);
               sendMessage(nack);
@@ -870,7 +891,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       // Check all indices 1..stagedCount are filled (no gaps)
       for (uint8_t i = 0; i < stagedCount; i++) {
           if (stagedMission[i].waypointNumber != i + 1) {
-              LOG("setwp: gap in staged mission at slot %d (expected wpno %d)", i, i + 1);
+              LOGLINE("setwp: gap in staged mission at slot %d (expected wpno %d)", i, i + 1);
               char nack[64];
               snprintf(nack, sizeof(nack), "cmd:nack,cid:%s,reason:gap,", cid);
               sendMessage(nack);
@@ -881,17 +902,17 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       }
 
       // All checks passed — upload to FC via MSP_SET_WP
-      LOG("setwp: uploading %d WP(s) to FC...", stagedCount);
+      LOGLINE("setwp: uploading %d WP(s) to FC...", stagedCount);
       for (uint8_t i = 0; i < stagedCount; i++) {
           msp.send(MSP_SET_WP, &stagedMission[i], sizeof(msp_set_wp_t));
-          LOG("  WP %d → FC", stagedMission[i].waypointNumber);
+          LOGLINE("  WP %d → FC", stagedMission[i].waypointNumber);
       }
 
       // Send success ACK (deferred from step 6)
       char ackWp[32];
       snprintf(ackWp, sizeof(ackWp), "cmd:ack,cid:%s,", cid);
       sendMessage(ackWp);
-      LOG("setwp: upload complete, ACK sent");
+      LOGLINE("setwp: upload complete, ACK sent");
 
       free(stagedMission); stagedMission = NULL;
       stagedCount = 0;
@@ -908,21 +929,21 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       }
 
       if (entry == nullptr) {
-          LOG("Unknown command type: '%s'", cmd);
+          LOGLINE("Unknown command type: '%s'", cmd);
           return;
       }
 
       if (strlen(stateStr) == 0) {
-          LOG("RC command '%s': missing state field", cmd);
+          LOGLINE("RC command '%s': missing state field", cmd);
           return;
       }
       int state = atoi(stateStr);
       if (state != 0 && state != 1) {
-          LOG("RC command '%s': invalid state '%s'", cmd, stateStr);
+          LOGLINE("RC command '%s': invalid state '%s'", cmd, stateStr);
           return;
       }
       if (!entry->mode->available) {
-          LOG("RC command '%s': unavailable (mode not found or channel not overrideable)", cmd);
+          LOGLINE("RC command '%s': unavailable (mode not found or channel not overrideable)", cmd);
           return;
       }
 
@@ -937,23 +958,24 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       xSemaphoreGive(cmdMutex);
 
       if (state == 1)
-          LOG("%s ON -> RC_CH%d will be held at %d", cmd,
+          LOGLINE("%s ON -> RC_CH%d will be held at %d", cmd,
                            entry->mode->range.rcChannelIndex + 1, entry->mode->range.onValue);
       else
-          LOG("%s OFF -> RC_CH%d released to radio", cmd,
+          LOGLINE("%s OFF -> RC_CH%d released to radio", cmd,
                            entry->mode->range.rcChannelIndex + 1);
   }
 }
 
 void loop()
 {
+  loopLastAliveMs = millis();
   sendMessageTask();
   client.loop();
 
   // Check the failure counter and reset everything if it's above 10.
   if(failureCounter >= 10)
   {
-    LOG("Failure count is too high. Restarting everything...");
+    LOGLINE("Failure count is too high. Restarting everything...");
     ESP.restart();
   }
 }
@@ -987,11 +1009,11 @@ void getTelemetryData()
     char name[32];
     uint16_t nameLen = 0;
     if (msp.requestText(MSP_NAME, name, &nameLen)) {
-      LOG("MSP connected");
+      LOGLINE("MSP connected");
       fcReady = true;
       lastMspCommunicationTs = millis();
     } else {
-      LOG("Waiting for flight controller...");
+      LOGLINE("Waiting for flight controller...");
       return;
     }
   }
@@ -1055,7 +1077,7 @@ void getTelemetryData()
 
   uint32_t _cycleElapsed = millis() - _cycleStart;
   if (_cycleElapsed > TASK_MSP_READ_MS)
-      LOG("WARNING: cycle %d overrun (%lu ms)", rrCycle, _cycleElapsed);
+      LOGLINE("WARNING: cycle %d overrun (%lu ms)", rrCycle, _cycleElapsed);
   if (++rrCycle > 5) rrCycle = 0;
   //SerialMon.printf("[timing] total cycle ms: %lu\n", _cycleElapsed);
 
@@ -1071,7 +1093,7 @@ void getTelemetryData()
   // startup flags so the full init sequence re-runs when the FC comes back.
   if (millis() - lastMspCommunicationTs > MSP_PORT_RECOVERY_THRESHOLD)
   {
-      LOG("MSP connection lost - resetting...");
+      LOGLINE("MSP connection lost - resetting...");
       msp.reset();
       fcReady           = false;
       boxIdsFetched     = false;
@@ -1142,7 +1164,7 @@ void msp_get_gps()
     }
     else
     {
-      LOG("GPS RAW returned false!");
+      LOGLINE("GPS RAW returned false!");
     }
 }
 
@@ -1157,7 +1179,7 @@ void msp_get_gps_comp() {
     }
     else
     {
-      LOG("GPS COMP returned false!");
+      LOGLINE("GPS COMP returned false!");
     }
 }
 
@@ -1173,7 +1195,7 @@ void msp_get_attitude() {
     }
     else
     {
-      LOG("ATTITUDE returned false!");
+      LOGLINE("ATTITUDE returned false!");
     }
 }
 
@@ -1190,7 +1212,7 @@ void msp_get_altitude() {
     }
     else
     {
-      LOG("ALTITUDE returned false!");
+      LOGLINE("ALTITUDE returned false!");
     }
 }
 
@@ -1212,7 +1234,7 @@ void msp_get_wp_getinfo() {
     }
     else
     {
-      LOG("WP GETINFO returned false!");
+      LOGLINE("WP GETINFO returned false!");
     }
 }
 
@@ -1230,7 +1252,7 @@ void msp_get_nav_status() {
     }
     else
     {
-      LOG("NAV STATUS returned false!");
+      LOGLINE("NAV STATUS returned false!");
     }
 }
 
@@ -1258,7 +1280,7 @@ void msp2_get_inav_analog() {
     }
     else
     {
-      LOG("MSP2 ANALOG returned false!");
+      LOGLINE("MSP2 ANALOG returned false!");
     }
 }
 
@@ -1272,7 +1294,7 @@ void msp_get_sensor_status() {
     }
     else
     {
-      LOG("MSP SENSOR STATUS returned false!");
+      LOGLINE("MSP SENSOR STATUS returned false!");
     }
 }
 
@@ -1290,7 +1312,7 @@ void msp2_get_misc2() {
     }
     else
     {
-      LOG("MSP2 MISC2 returned false!");
+      LOGLINE("MSP2 MISC2 returned false!");
     }
 }
 
@@ -1315,7 +1337,7 @@ void msp_get_wp(uint8_t wp_no) {
     }
     else
     {
-      LOG("MSP WP returned false!");
+      LOGLINE("MSP WP returned false!");
     }
 }
 
@@ -1329,11 +1351,11 @@ void msp_get_fc_version() {
         uavstatus.fcVersionMajor = fcVer.versionMajor;
         uavstatus.fcVersionMinor = fcVer.versionMinor;
         uavstatus.fcVersionPatch = fcVer.versionPatchLevel;
-        LOG("FC version: %d.%d.%d", fcVer.versionMajor, fcVer.versionMinor, fcVer.versionPatchLevel);
+        LOGLINE("FC version: %d.%d.%d", fcVer.versionMajor, fcVer.versionMinor, fcVer.versionPatchLevel);
         fcVersionFetched = true;
         lastMspCommunicationTs = millis();
     } else {
-        LOG("MSP FC_VERSION returned false!");
+        LOGLINE("MSP FC_VERSION returned false!");
     }
 }
 
@@ -1371,7 +1393,7 @@ void msp_get_boxids() {
         boxIdsFetched = 1;
         lastMspCommunicationTs = millis();
     } else {
-        LOG("MSP BOXIDS request failed!");
+        LOGLINE("MSP BOXIDS request failed!");
     }
 }
 
@@ -1387,7 +1409,7 @@ void msp_get_mode_ranges() {
 
     if (msp.request(MSP_MODE_RANGES, entries, sizeof(entries), &dataLen)) {
         int entryCount = dataLen / sizeof(modeRangeEntry_t);
-        LOG("MSP_MODE_RANGES: %d entries received", entryCount);
+        LOGLINE("MSP_MODE_RANGES: %d entries received", entryCount);
 
         for (int i = 0; i < entryCount; i++) {
             modeRangeEntry_t &e = entries[i];
@@ -1400,7 +1422,7 @@ void msp_get_mode_ranges() {
             uint16_t pwmLo  = 900 + e.startStep * 25;
             uint16_t pwmHi  = 900 + e.endStep   * 25;
 
-            LOG("  id=%d auxCh=%d steps=%d-%d => RC_CH%d (%d-%d) onVal=%d",
+            LOGLINE("  id=%d auxCh=%d steps=%d-%d => RC_CH%d (%d-%d) onVal=%d",
                 e.permanentId, e.auxChannelIndex,
                 e.startStep, e.endStep,
                 rcCh + 1, pwmLo, pwmHi, onVal);
@@ -1415,20 +1437,20 @@ void msp_get_mode_ranges() {
             }
         }
 
-        LOG("Mode ranges summary:");
+        LOGLINE("Mode ranges summary:");
         for (int j = 0; j < CMD_MODE_COUNT; j++) {
             FlightMode* m = cmdModes[j].mode;
             if (m->range.found)
-                LOG("  %-8s RC_CH%d onValue=%d", cmdModes[j].cmdName,
+                LOGLINE("  %-8s RC_CH%d onValue=%d", cmdModes[j].cmdName,
                                  m->range.rcChannelIndex + 1, m->range.onValue);
             else
-                LOG("  %-8s not found", cmdModes[j].cmdName);
+                LOGLINE("  %-8s not found", cmdModes[j].cmdName);
         }
 
         modeRangesFetched = true;
         lastMspCommunicationTs = millis();
     } else {
-        LOG("MSP_MODE_RANGES request failed!");
+        LOGLINE("MSP_MODE_RANGES request failed!");
     }
 }
 
@@ -1468,12 +1490,12 @@ static void updateCommandAvailability() {
     for (int i = 0; i < CMD_MODE_COUNT; i++) {
         FlightMode* m = cmdModes[i].mode;
         if (!m->range.found) {
-            LOG("  %-8s UNAVAILABLE (no mode range)", cmdModes[i].cmdName);
+            LOGLINE("  %-8s UNAVAILABLE (no mode range)", cmdModes[i].cmdName);
             m->available = false;
         } else {
             bool enabled = (mspOverrideChannelsMask & (1UL << m->range.rcChannelIndex)) != 0;
             m->available = enabled;
-            LOG("  %-8s RC_CH%-2d %s", cmdModes[i].cmdName,
+            LOGLINE("  %-8s RC_CH%-2d %s", cmdModes[i].cmdName,
                              m->range.rcChannelIndex + 1, enabled ? "OK" : "BLOCKED");
         }
     }
@@ -1486,10 +1508,10 @@ void msp_get_override_channels() {
 
     // Step 1: read the current override mask from the FC
     if (!msp_get_setting_u32("msp_override_channels", mspOverrideChannelsMask)) {
-        LOG("msp_override_channels read failed!");
+        LOGLINE("msp_override_channels read failed!");
         return;
     }
-    LOG("msp_override_channels (current): 0x%08X", mspOverrideChannelsMask);
+    LOGLINE("msp_override_channels (current): 0x%08X", mspOverrideChannelsMask);
 
     // Step 2: build a mask of every channel we need to control
     uint32_t neededMask = 0;
@@ -1502,26 +1524,26 @@ void msp_get_override_channels() {
     uint32_t missingMask = neededMask & ~mspOverrideChannelsMask;
     if (missingMask != 0) {
         uint32_t newMask = mspOverrideChannelsMask | missingMask;
-        LOG("Adding channels to msp_override_channels: 0x%08X -> 0x%08X",
+        LOGLINE("Adding channels to msp_override_channels: 0x%08X -> 0x%08X",
                          mspOverrideChannelsMask, newMask);
 
         if (!msp_set_setting_u32("msp_override_channels", newMask)) {
-            LOG("msp_override_channels write failed!");
+            LOGLINE("msp_override_channels write failed!");
             return;
         }
 
         // Step 4: read back to confirm the FC accepted the new value
         uint32_t confirmedMask = 0;
         if (!msp_get_setting_u32("msp_override_channels", confirmedMask)) {
-            LOG("msp_override_channels confirm-read failed!");
+            LOGLINE("msp_override_channels confirm-read failed!");
             return;
         }
         mspOverrideChannelsMask = confirmedMask;
-        LOG("msp_override_channels (confirmed): 0x%08X", mspOverrideChannelsMask);
+        LOGLINE("msp_override_channels (confirmed): 0x%08X", mspOverrideChannelsMask);
     }
 
     // Step 5: update per-command availability from the final confirmed mask
-    LOG("Command availability:");
+    LOGLINE("Command availability:");
     updateCommandAvailability();
 
     mspOverrideFetched = true;
@@ -1543,14 +1565,14 @@ void msp_get_rc() {
             rcChannels[i] = buf[i];
 
         if (firstRead) {
-            LOG("MSP_RC: %d channels", count);
+            LOGLINE("MSP_RC: %d channels", count);
             for (uint8_t i = 0; i < count; i++)
-                LOG("  CH%d: %d", i + 1, rcChannels[i]);
+                LOGLINE("  CH%d: %d", i + 1, rcChannels[i]);
         }
 
         lastMspCommunicationTs = millis();
     } else {
-        LOG("MSP_RC request failed!");
+        LOGLINE("MSP_RC request failed!");
     }
 }
 
@@ -1745,7 +1767,7 @@ void msp_get_callsign() {
     }
     else
     {
-      LOG("MSP CALLSIGN returned false!");
+      LOGLINE("MSP CALLSIGN returned false!");
     }
 }
 
@@ -1768,7 +1790,7 @@ void msp_get_activeboxes() {
         }
         SerialMon.printf(" ");
       }
-      LOG("");
+      LOGLINE("");
       */
       
       uint64_t boxes64 = 0;
@@ -1834,7 +1856,7 @@ void msp_get_activeboxes() {
       // Detect MSP RC Override going inactive — clear all command states so
       // stale commands don't fire when the pilot switches the mode back on.
       if (uavstatus.mspRcOverride && !fmMspOverride) {
-          LOG("MSP RC Override deactivated — clearing all command states");
+          LOGLINE("MSP RC Override deactivated — clearing all command states");
           clearAllCommandStates();
       }
       uavstatus.mspRcOverride = fmMspOverride;
@@ -1843,7 +1865,7 @@ void msp_get_activeboxes() {
     }
     else
     {
-      LOG("MSP ACTIVEBOXES returned false!");
+      LOGLINE("MSP ACTIVEBOXES returned false!");
     }
 }
 
@@ -1860,7 +1882,7 @@ void sendMessageTask() {
 
     if(msgCounter==0)
     {
-      LOG("Sending first message: id:0");
+      LOGLINE("Sending first message: id:0");
       char sessionStartMsg[] = "id:0,";
       sendMessage(sessionStartMsg);
     }
@@ -1925,7 +1947,7 @@ void sendWaypointsMessage() {
     if(wpSnapshot[i].flag != 0)
       sprintf(wpsg, "%sf:%d,", wpsg, wpSnapshot[i].flag);
 
-    LOG("Sending message: %s", wpsg);
+    LOGLINE("Sending message: %s", wpsg);
     sendMessage(wpsg);
   }
 
@@ -2134,12 +2156,12 @@ void base64Encode32(const uint8_t* input, char* output) {
 void sendMessage(char* message) {
   if(client.publish(mqttUplinkTopic, message))
   {
-      LOG("publish OK");
+      LOGNOTS("publish OK");
   }
   else
   {
     failureCounter++;
-    LOG("publish FAILED");
+    LOGNOTS("publish FAILED");
   }
 }
 
@@ -2147,30 +2169,30 @@ void connectToTheBroker()
 {
   while (!client.connected())
   {
-    LOG("Connecting to the MQTT broker...");
+    LOGLINE("Connecting to the MQTT broker...");
     char mqttClientId[32];
     snprintf(mqttClientId, sizeof(mqttClientId), "ESP32_%llX", ESP.getEfuseMac());
     if (client.connect(mqttClientId, mqttUser, mqttPassword))
     {
-      LOG("Connected to the broker!");
+      LOGLINE("Connected to the broker!");
       if (client.subscribe(mqttDownlinkTopic))
       {
         downlinkActive = true;
-        LOG("Subscribed to command topic: %s", mqttDownlinkTopic);
+        LOGLINE("Subscribed to command topic: %s", mqttDownlinkTopic);
       }
       else
       {
         downlinkActive = false;
-        LOG("Failed to subscribe to command topic.");
+        LOGLINE("Failed to subscribe to command topic.");
       }
     }
     else
     {
-      LOG("Error connecting to the broker - State: %d", client.state());
+      LOGLINE("Error connecting to the broker - State: %d", client.state());
       failureCounter++;
       if(failureCounter>=10)
       {
-        LOG("Too many fails connecting to Broker. Restarting...");
+        LOGLINE("Too many fails connecting to Broker. Restarting...");
         ESP.restart();
       }
       delay(5000);
