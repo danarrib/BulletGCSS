@@ -1352,7 +1352,7 @@ void msp_get_boxnames() {
     if(boxIdsFetched)
       return;
       
-    char inavdata[512];
+    char inavdata[1024];
     uint16_t dataLen = 0;
     if (msp.requestText(MSP_BOXNAMES, &inavdata, &dataLen))
     {
