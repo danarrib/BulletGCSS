@@ -188,17 +188,16 @@ FlightMode modePosHold  = {};
 // command dispatch, and conflict resolution — eliminating per-mode repetition.
 struct FlightModeEntry {
     const char* cmdName;  // MQTT command string (e.g. "rth")
-    const char* boxName;  // INAV mode name from MSP_BOXNAMES (e.g. "NAV RTH")
-    uint8_t     permId;   // MSP_PERM_ID_* constant for MSP_MODE_RANGES matching
+    uint8_t     permId;   // MSP_PERM_ID_* constant for MSP_BOXIDS / MSP_MODE_RANGES matching
     FlightMode* mode;
 };
 static FlightModeEntry cmdModes[] = {
-    { "rth",     "NAV RTH",     MSP_PERM_ID_RTH,     &modeRth     },
-    { "althold", "NAV ALTHOLD", MSP_PERM_ID_ALTHOLD, &modeAltHold },
-    { "cruise",  "NAV CRUISE",  MSP_PERM_ID_CRUISE,  &modeCruise  },
-    { "beeper",  "BEEPER",      MSP_PERM_ID_BEEPER,  &modeBeeper  },
-    { "wp",      "NAV WP",      MSP_PERM_ID_WP,      &modeWp      },
-    { "poshold", "NAV POSHOLD", MSP_PERM_ID_POSHOLD, &modePosHold },
+    { "rth",     MSP_PERM_ID_RTH,     &modeRth     },
+    { "althold", MSP_PERM_ID_ALTHOLD, &modeAltHold },
+    { "cruise",  MSP_PERM_ID_CRUISE,  &modeCruise  },
+    { "beeper",  MSP_PERM_ID_BEEPER,  &modeBeeper  },
+    { "wp",      MSP_PERM_ID_WP,      &modeWp      },
+    { "poshold", MSP_PERM_ID_POSHOLD, &modePosHold },
 };
 static const int CMD_MODE_COUNT = sizeof(cmdModes) / sizeof(cmdModes[0]);
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,7 +266,7 @@ void msp_get_sensor_status();
 void msp2_get_misc2();
 void msp_get_wp(uint8_t wp_no);
 void msp_get_fc_version();
-void msp_get_boxnames();
+void msp_get_boxids();
 void msp_get_mode_ranges();
 void msp_get_override_channels();
 bool msp_get_setting_u32(const char* name, uint32_t &value);
@@ -1009,7 +1008,7 @@ void getTelemetryData()
 
   // Startup-only — each has an internal flag and returns immediately once done.
   msp_get_fc_version();
-  msp_get_boxnames();
+  msp_get_boxids();
   msp_get_mode_ranges();
   msp_get_override_channels();
 
@@ -1347,52 +1346,41 @@ void msp_get_fc_version() {
     }
 }
 
-void msp_get_boxnames() {
+void msp_get_boxids() {
     // Only needs to run once
-    if(boxIdsFetched)
-      return;
-      
-    char inavdata[1024];
+    if (boxIdsFetched)
+        return;
+
+    // MSP_BOXIDS returns one permanentId byte per active box, in boxIndex order.
+    // This is far smaller than MSP_BOXNAMES (text) and never overflows INAV's
+    // 512-byte MSP output buffer regardless of how many modes are configured.
+    uint8_t boxIds[64];
     uint16_t dataLen = 0;
-    if (msp.requestText(MSP_BOXNAMES, &inavdata, &dataLen))
-    {
-      uint8_t boxIndex = 0;
-
-      char* chars_array = strtok(inavdata, ";");
-      
-      while(chars_array)
-      {
-        // Check commandable modes via table first
-        bool matched = false;
-        for (int i = 0; i < CMD_MODE_COUNT; i++) {
-          if (strcmp(chars_array, cmdModes[i].boxName) == 0) {
-            cmdModes[i].mode->boxId = boxIndex;
-            matched = true;
-            break;
-          }
+    if (msp.request(MSP_BOXIDS, boxIds, sizeof(boxIds), &dataLen)) {
+        for (uint8_t boxIndex = 0; boxIndex < dataLen; boxIndex++) {
+            uint8_t permId = boxIds[boxIndex];
+            bool matched = false;
+            for (int i = 0; i < CMD_MODE_COUNT; i++) {
+                if (permId == cmdModes[i].permId) {
+                    cmdModes[i].mode->boxId = boxIndex;
+                    matched = true;
+                    break;
+                }
+            }
+            // Non-commandable modes (used for flight mode detection only)
+            if (!matched) {
+                if      (permId == MSP_PERM_ID_ARM)         boxIdArm         = boxIndex;
+                else if (permId == MSP_PERM_ID_FAILSAFE)    boxIdFailsafe    = boxIndex;
+                else if (permId == MSP_PERM_ID_MANUAL)      boxIdManual      = boxIndex;
+                else if (permId == MSP_PERM_ID_ANGLE)       boxIdAngle       = boxIndex;
+                else if (permId == MSP_PERM_ID_HORIZON)     boxIdHorizon     = boxIndex;
+                else if (permId == MSP_PERM_ID_MSPOVERRIDE) boxIdMspOverride = boxIndex;
+            }
         }
-        // Non-commandable modes (used for flight mode detection only)
-        if (!matched) {
-          if      (strcmp(chars_array, "ARM")            == 0) boxIdArm         = boxIndex;
-          else if (strcmp(chars_array, "FAILSAFE")        == 0) boxIdFailsafe    = boxIndex;
-          else if (strcmp(chars_array, "MANUAL")          == 0) boxIdManual      = boxIndex;
-          else if (strcmp(chars_array, "ANGLE")           == 0) boxIdAngle       = boxIndex;
-          else if (strcmp(chars_array, "HORIZON")         == 0) boxIdHorizon     = boxIndex;
-          else if (strcmp(chars_array, "MSP RC OVERRIDE") == 0) boxIdMspOverride = boxIndex;
-        }
-
-        chars_array = strtok(NULL, ";");
-        boxIndex++;
-      }
-
-      // Set it to 1 so it doesn't run next time
-      boxIdsFetched = 1;
-
-      lastMspCommunicationTs = millis();
-    }
-    else
-    {
-      SerialMon.println("MSP BOXNAMES returned false!");
+        boxIdsFetched = 1;
+        lastMspCommunicationTs = millis();
+    } else {
+        SerialMon.println("MSP BOXIDS request failed!");
     }
 }
 

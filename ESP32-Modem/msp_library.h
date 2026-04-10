@@ -44,7 +44,7 @@
 #define MSP_ATTITUDE          108
 #define MSP_ALTITUDE          109
 #define MSP_ACTIVEBOXES       113
-#define MSP_BOXNAMES          116
+#define MSP_BOXIDS            119
 #define MSP_WP                118
 #define MSP_NAV_STATUS        121
 #define MSP_SENSOR_STATUS     151
@@ -56,18 +56,21 @@
 #define MSP2_INAV_SET_ALT_TARGET    0x2222  // in: set target altitude (I32 cm, relative to home)
 #define MSP2_INAV_SET_CRUISE_HEADING 0x2223 // in: set Cruise/Course Hold heading (I32 centidegrees)
 
-// Permanent IDs for MSP_MODE_RANGES entries (from INAV src/main/fc/fc_msp_box.c).
+// Permanent IDs for flight modes (from INAV src/main/fc/fc_msp_box.c).
+// Used to match MSP_BOXIDS and MSP_MODE_RANGES responses.
 // These are NOT the same as boxId_e enum values — do not confuse them.
-// ARM (permId 0) is intentionally omitted: remote arming/disarming is not
-// implemented and requires dedicated safety confirmation logic before it can
-// be added.
-#define MSP_PERM_ID_ANGLE    1
-#define MSP_PERM_ID_ALTHOLD  3
-#define MSP_PERM_ID_RTH      10
-#define MSP_PERM_ID_BEEPER   13
-#define MSP_PERM_ID_POSHOLD  11
-#define MSP_PERM_ID_WP       28
-#define MSP_PERM_ID_CRUISE   53
+#define MSP_PERM_ID_ARM         0
+#define MSP_PERM_ID_ANGLE       1
+#define MSP_PERM_ID_HORIZON     2
+#define MSP_PERM_ID_ALTHOLD     3
+#define MSP_PERM_ID_RTH         10
+#define MSP_PERM_ID_POSHOLD     11
+#define MSP_PERM_ID_MANUAL      12
+#define MSP_PERM_ID_BEEPER      13
+#define MSP_PERM_ID_FAILSAFE    27
+#define MSP_PERM_ID_WP          28
+#define MSP_PERM_ID_CRUISE      53
+#define MSP_PERM_ID_MSPOVERRIDE 50
 
 // One entry returned by MSP_MODE_RANGES (4 bytes each, up to 20 entries)
 struct modeRangeEntry_t {
