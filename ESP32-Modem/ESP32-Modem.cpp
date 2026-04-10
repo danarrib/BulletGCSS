@@ -528,10 +528,15 @@ void fcTask(void* param) {
         // Detect a frozen Arduino loop task (e.g. modem hung on AT command).
         // fcTask runs at higher priority on the same core, so it continues
         // to execute even when loop() is blocked inside TinyGSM.
+        // Print at most once per second to avoid flooding the serial output.
         uint32_t loopSilenceMs = millis() - loopLastAliveMs;
         if (loopLastAliveMs > 0 && loopSilenceMs > LOOP_FREEZE_THRESHOLD_MS) {
-            LOGLINE("WARNING: loop task frozen for %lu s — possible modem hang",
-                    loopSilenceMs / 1000);
+            static uint32_t lastFreezeWarnMs = 0;
+            if (millis() - lastFreezeWarnMs >= 1000) {
+                LOGLINE("WARNING: loop task frozen for %lu s — possible modem hang",
+                        loopSilenceMs / 1000);
+                lastFreezeWarnMs = millis();
+            }
         }
 
         getTelemetryData();
