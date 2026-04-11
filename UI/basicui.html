@@ -784,8 +784,11 @@
                 </div>
                 <div class="modal-body">
                     <p id="securityKeyStatus" class="mb-3">No key pair generated yet.</p>
-                    <div class="mb-3">
+                    <div class="mb-3 d-flex flex-wrap gap-2">
                         <input type="button" class="btRcCmd" id="btGenerateKey" value="Generate key pair" />
+                        <input type="button" class="btRcCmd" id="btExportKey" value="Export key…" style="display:none;" />
+                        <input type="button" class="btRcCmd" id="btImportKey" value="Import key…" />
+                        <input type="file" id="importKeyFile" accept=".pem" style="display:none;" />
                     </div>
                     <h6 class="text-secondary">Public Key for Config.h</h6>
                     <div class="mb-2">

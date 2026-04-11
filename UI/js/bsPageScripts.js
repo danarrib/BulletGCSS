@@ -276,6 +276,14 @@ function loadSecurityPanel() {
     document.getElementById("btCopyPublicKey").style.display  = hasKey ? "inline-block" : "none";
     document.getElementById("securityKeyHint").style.display  = hasKey ? "block" : "none";
     document.getElementById("btGenerateKey").value = hasKey ? "Regenerate key pair" : "Generate key pair";
+
+    // Show export button only when a key with exportable material exists
+    var jwkStr = hasKey ? localStorage.getItem("commandPrivateKey") : null;
+    var canExport = false;
+    if (jwkStr) {
+        try { canExport = !!JSON.parse(jwkStr).d; } catch(e) {}
+    }
+    document.getElementById("btExportKey").style.display = canExport ? "inline-block" : "none";
 }
 
 async function generateKeyPair() {
@@ -316,6 +324,150 @@ async function copyPublicKey() {
         }, 2000);
     } catch(e) {
         document.getElementById("securityPublicKeyArea").select();
+    }
+}
+
+// ── Key export ────────────────────────────────────────────────────────────────
+// Encrypts the private key JWK with AES-256-GCM (key derived via PBKDF2 from a
+// user-supplied password) and downloads the result as a PEM file.
+//
+// Binary payload format (version 1):
+//   Byte 0      : 0x01 (version)
+//   Bytes 1–16  : PBKDF2 salt (random, 16 bytes)
+//   Bytes 17–28 : AES-GCM IV  (random, 12 bytes)
+//   Bytes 29+   : AES-256-GCM ciphertext of the UTF-8 JWK string
+async function exportPrivateKey() {
+    var jwkStr = localStorage.getItem("commandPrivateKey");
+    if (!jwkStr) { alert("No key pair to export."); return; }
+
+    var password = prompt("Enter a password to protect the exported key file:");
+    if (password === null) return;
+    if (password === "") { alert("Password cannot be empty."); return; }
+    var confirm = prompt("Confirm password:");
+    if (confirm === null) return;
+    if (confirm !== password) { alert("Passwords do not match."); return; }
+
+    try {
+        var salt = window.crypto.getRandomValues(new Uint8Array(16));
+        var iv   = window.crypto.getRandomValues(new Uint8Array(12));
+
+        var pwKey = await window.crypto.subtle.importKey(
+            "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]
+        );
+        var aesKey = await window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+            pwKey,
+            { name: "AES-GCM", length: 256 },
+            false, ["encrypt"]
+        );
+
+        var ciphertext = new Uint8Array(await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            new TextEncoder().encode(jwkStr)
+        ));
+
+        // Assemble: version | salt | iv | ciphertext
+        var payload = new Uint8Array(1 + salt.length + iv.length + ciphertext.length);
+        payload[0] = 0x01;
+        payload.set(salt, 1);
+        payload.set(iv, 1 + salt.length);
+        payload.set(ciphertext, 1 + salt.length + iv.length);
+
+        var b64   = btoa(String.fromCharCode.apply(null, payload));
+        var lines = b64.match(/.{1,64}/g).join("\n");
+        var pem   = "-----BEGIN ENCRYPTED ED25519 PRIVATE KEY-----\n"
+                  + lines + "\n"
+                  + "-----END ENCRYPTED ED25519 PRIVATE KEY-----\n";
+
+        var blob = new Blob([pem], { type: "application/x-pem-file" });
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement("a");
+        a.href     = url;
+        a.download = "bulletgcss-key.pem";
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        alert("Export failed: " + e.message);
+    }
+}
+
+// ── Key import ────────────────────────────────────────────────────────────────
+// Reads a PEM file produced by exportPrivateKey(), decrypts it with the
+// user-supplied password, validates the key, then stores it in localStorage.
+async function importPrivateKey(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    event.target.value = ""; // reset so the same file can be re-selected
+
+    var hasKey = localStorage.getItem("commandPrivateKey") !== null;
+    if (hasKey) {
+        if (!confirm("Importing a key will replace your current key pair.\n\nYou will need to update Config.h with the new public key and re-flash the firmware.\n\nContinue?"))
+            return;
+    }
+
+    try {
+        var text    = await file.text();
+        var pemBody = text
+            .replace("-----BEGIN ENCRYPTED ED25519 PRIVATE KEY-----", "")
+            .replace("-----END ENCRYPTED ED25519 PRIVATE KEY-----", "")
+            .replace(/\s/g, "");
+
+        var payload = Uint8Array.from(atob(pemBody), function(c) { return c.charCodeAt(0); });
+
+        if (payload[0] !== 0x01) { alert("Unsupported key file version."); return; }
+
+        var salt       = payload.slice(1, 17);
+        var iv         = payload.slice(17, 29);
+        var ciphertext = payload.slice(29);
+
+        var password = prompt("Enter the password for this key file:");
+        if (password === null) return;
+
+        var pwKey = await window.crypto.subtle.importKey(
+            "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]
+        );
+        var aesKey = await window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+            pwKey,
+            { name: "AES-GCM", length: 256 },
+            false, ["decrypt"]
+        );
+
+        var plaintext;
+        try {
+            plaintext = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv }, aesKey, ciphertext
+            );
+        } catch(e) {
+            alert("Decryption failed. Wrong password or corrupted file.");
+            return;
+        }
+
+        var jwkStr = new TextDecoder().decode(plaintext);
+        var jwk    = JSON.parse(jwkStr);
+
+        // Validate by importing — throws if the JWK is malformed or not Ed25519
+        await window.crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, true, ["sign"]);
+
+        // Derive public key display values from the x field (base64url-encoded)
+        var pubKeyBytes = Uint8Array.from(
+            atob(jwk.x.replace(/-/g, "+").replace(/_/g, "/")),
+            function(c) { return c.charCodeAt(0); }
+        );
+        var hexArray  = Array.from(pubKeyBytes)
+            .map(function(b) { return "0x" + b.toString(16).padStart(2, "0"); })
+            .join(", ");
+        var base64Key = btoa(String.fromCharCode.apply(null, pubKeyBytes));
+
+        localStorage.setItem("commandPrivateKey",    jwkStr);
+        localStorage.setItem("commandPublicKeyHex",  hexArray);
+        localStorage.setItem("commandPublicKeyBase64", base64Key);
+
+        loadSecurityPanel();
+        alert("Key imported successfully.\n\nRemember to paste the public key into Config.h and re-flash the firmware.");
+    } catch(e) {
+        alert("Import failed: " + e.message);
     }
 }
 
@@ -694,8 +846,13 @@ function wireEventListeners() {
     document.getElementById("btSaveUISettings").addEventListener("click",       saveUISettings);
 
     // Security modal
-    document.getElementById("btGenerateKey").addEventListener("click",          generateKeyPair);
-    document.getElementById("btCopyPublicKey").addEventListener("click",        copyPublicKey);
+    document.getElementById("btGenerateKey").addEventListener("click",  generateKeyPair);
+    document.getElementById("btCopyPublicKey").addEventListener("click", copyPublicKey);
+    document.getElementById("btExportKey").addEventListener("click",     exportPrivateKey);
+    document.getElementById("btImportKey").addEventListener("click",     function() {
+        document.getElementById("importKeyFile").click();
+    });
+    document.getElementById("importKeyFile").addEventListener("change",  importPrivateKey);
 
     // Sessions offcanvas
     document.getElementById("btRenameSession").addEventListener("click",        renameCurrentSession);
