@@ -221,6 +221,11 @@
             font-size: 0.9em;
             touch-action: manipulation;
             white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btRcCmd:active {
+            background: #555;
+            border-color: #888;
         }
         .btRcCmd:disabled {
             opacity: 0.35;
@@ -379,6 +384,15 @@
         .btn-flex         { flex: 1; }
         .btn-flex-2       { flex: 2; }
         .btRcCmd.btn-danger { background: #722; }
+        .btRcCmd.btn-danger:active { background: #a33; border-color: #c55; }
+
+        /* Tap feedback for offcanvas nav items */
+        .offcanvas .nav-link {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .offcanvas .nav-link:active {
+            background: #333;
+        }
 
         /* ── Secondary aircraft popup table cells ────────────────────────────── */
         .pop-lbl   { color: #aaa; padding: 0.8vmin 0; width: 25%; font-size: 0.9em; }
