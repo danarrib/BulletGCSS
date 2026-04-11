@@ -333,6 +333,22 @@ function getNextCommandSeq() {
     return seq;
 }
 
+// Sync the local command sequence counter to the firmware's last accepted value.
+// Only acts when the UI's stored public key matches the firmware's reported key —
+// a monitoring-only client watching a different aircraft is left untouched.
+// Called from both the telemetry parser (lseq field) and the ack parser.
+function syncCommandSeqIfAuthorized(firmwareSeq) {
+    if (isNaN(firmwareSeq)) return;
+    var uiPubKey = localStorage.getItem("commandPublicKeyBase64");
+    if (!uiPubKey || !data.firmwarePublicKey || uiPubKey !== data.firmwarePublicKey) return;
+    var currentSeq = parseInt(localStorage.getItem("commandSeq") || "0", 10);
+    if (currentSeq <= firmwareSeq) {
+        // getNextCommandSeq() adds 1 before use, so storing firmwareSeq here
+        // means the next command will use firmwareSeq+1, which the firmware accepts.
+        localStorage.setItem("commandSeq", String(firmwareSeq));
+    }
+}
+
 async function signCanonical(canonical) {
     var privateKeyJwk = localStorage.getItem("commandPrivateKey");
     if (!privateKeyJwk) throw new Error("No private key in localStorage");
@@ -1239,21 +1255,8 @@ function parseStandardTelemetryMessage(payload)
                     data.firmwarePublicKey = arrData[1];
                 break;
             case "lseq":
-                // Last accepted command sequence number from firmware.
-                // Sync our local counter only if our public key matches the firmware's key —
-                // a monitoring-only client must not adopt the sequence of an aircraft it
-                // does not control.
-                var firmwareSeq = parseInt(arrData[1], 10);
-                if (!isNaN(firmwareSeq)) {
-                    var uiPubKey = localStorage.getItem("commandPublicKeyBase64");
-                    if (uiPubKey && data.firmwarePublicKey && uiPubKey === data.firmwarePublicKey) {
-                        var currentSeq = parseInt(localStorage.getItem("commandSeq") || "0", 10);
-                        if (currentSeq <= firmwareSeq) {
-                            // Set to firmwareSeq so getNextCommandSeq() returns firmwareSeq+1
-                            localStorage.setItem("commandSeq", String(firmwareSeq));
-                        }
-                    }
-                }
+                // Last accepted command sequence number — sync our counter if authorized.
+                syncCommandSeqIfAuthorized(parseInt(arrData[1], 10));
                 break;
             case "fcver":
                 if (/^\d+\.\d+\.\d+$/.test(arrData[1])) {
@@ -1312,15 +1315,21 @@ function parseCommandMessage(payload) {
     var arrPayload = payload.split(",");
     var cmd = null;
     var cid = null;
+    var lseq = NaN;
 
     for (var i = 0; i < arrPayload.length; i++) {
         var arrData = arrPayload[i].split(":");
         if (arrData.length < 2) continue;
-        if (arrData[0] === "cmd") cmd = arrData[1];
-        if (arrData[0] === "cid") cid = arrData[1];
+        if (arrData[0] === "cmd")  cmd  = arrData[1];
+        if (arrData[0] === "cid")  cid  = arrData[1];
+        if (arrData[0] === "lseq") lseq = parseInt(arrData[1], 10);
     }
 
-    if (cmd === "ack" && cid) resolveCommandAck(cid);
+    if (cmd === "ack" && cid) {
+        resolveCommandAck(cid);
+        // Ack carries the new lastSeq — sync all connected UIs immediately.
+        syncCommandSeqIfAuthorized(lseq);
+    }
     if (cmd === "nack" && cid) {
         var reason = '';
         for (var j = 0; j < arrPayload.length; j++) {
