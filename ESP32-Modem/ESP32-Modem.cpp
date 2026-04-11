@@ -2246,6 +2246,11 @@ void buildLowPriorityMessage(char* message) {
   char pkBase64[45];
   base64Encode32(commandPublicKey, pkBase64);
   sprintf(message, "%spk:%s,", message, pkBase64); // public key (Ed25519, base64)
+
+  // Last accepted command sequence number — UI uses this to sync its counter
+  // when a key is imported from another device (or after localStorage is cleared).
+  // Published after pk so the UI can check key match before acting on it.
+  sprintf(message, "%slseq:%lu,", message, lastSeq);
 }
 
 // Encode exactly 32 bytes as base64 (output must be at least 45 bytes: 44 chars + null).
