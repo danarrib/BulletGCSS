@@ -1238,6 +1238,23 @@ function parseStandardTelemetryMessage(payload)
                 if (/^[A-Za-z0-9+/]{43}=$/.test(arrData[1]))
                     data.firmwarePublicKey = arrData[1];
                 break;
+            case "lseq":
+                // Last accepted command sequence number from firmware.
+                // Sync our local counter only if our public key matches the firmware's key —
+                // a monitoring-only client must not adopt the sequence of an aircraft it
+                // does not control.
+                var firmwareSeq = parseInt(arrData[1], 10);
+                if (!isNaN(firmwareSeq)) {
+                    var uiPubKey = localStorage.getItem("commandPublicKeyBase64");
+                    if (uiPubKey && data.firmwarePublicKey && uiPubKey === data.firmwarePublicKey) {
+                        var currentSeq = parseInt(localStorage.getItem("commandSeq") || "0", 10);
+                        if (currentSeq <= firmwareSeq) {
+                            // Set to firmwareSeq so getNextCommandSeq() returns firmwareSeq+1
+                            localStorage.setItem("commandSeq", String(firmwareSeq));
+                        }
+                    }
+                }
+                break;
             case "fcver":
                 if (/^\d+\.\d+\.\d+$/.test(arrData[1])) {
                     data.fcVersion = arrData[1];
