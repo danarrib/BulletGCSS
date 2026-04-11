@@ -744,8 +744,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
   // setwp with f:165 (last WP) sends ACK or NACK conditionally in step 7
   if (!deferAck) {
-    char ack[32];
-    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,", cid);
+    char ack[64];
+    snprintf(ack, sizeof(ack), "cmd:ack,cid:%s,lseq:%lu,", cid, lastSeq);
     LOGLINE("Command verified and accepted. Sending ack: %s", ack);
     sendMessage(ack);
   }
@@ -849,8 +849,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       }
       free(wpSnapshot);
 
-      char ackMsg[32];
-      snprintf(ackMsg, sizeof(ackMsg), "cmd:ack,cid:%s,", cid);
+      char ackMsg[64];
+      snprintf(ackMsg, sizeof(ackMsg), "cmd:ack,cid:%s,lseq:%lu,", cid, lastSeq);
       sendMessage(ackMsg);
       LOGLINE("getmission: ACK sent");
 
@@ -982,8 +982,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       }
 
       // Send success ACK (deferred from step 6)
-      char ackWp[32];
-      snprintf(ackWp, sizeof(ackWp), "cmd:ack,cid:%s,", cid);
+      char ackWp[64];
+      snprintf(ackWp, sizeof(ackWp), "cmd:ack,cid:%s,lseq:%lu,", cid, lastSeq);
       sendMessage(ackWp);
       LOGLINE("setwp: upload complete, ACK sent");
 
@@ -2212,6 +2212,14 @@ void buildTelemetryMessage(char* message) {
 
   if(lastStatus.flightModeId != publishedStatus.flightModeId)
     sprintf(message, "%sftm:%d,", message, publishedStatus.flightModeId); // flightModeId
+
+  // Broadcast lseq whenever it changes so all connected UIs can sync their
+  // command sequence counters without waiting for the next low-priority message.
+  static uint32_t lastPublishedSeq = UINT32_MAX;
+  if (lastSeq != lastPublishedSeq || msgGroup == 0) {
+    sprintf(message, "%slseq:%lu,", message, lastSeq);
+    lastPublishedSeq = lastSeq;
+  }
 
   lastStatus = publishedStatus;
 }
