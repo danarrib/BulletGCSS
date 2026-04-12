@@ -221,7 +221,7 @@ function updatePlannerUserMarker() {
     if (!data.userLatitude && !data.userLongitude) return;
 
     if (!plannerUserMarker) {
-        var imgWH = 36 * window.devicePixelRatio;
+        var imgWH = 36;
         var el = document.createElement('img');
         el.src = 'img/user.png';
         el.style.width  = imgWH + 'px';
@@ -249,23 +249,12 @@ function updatePlannerHomeMarker() {
     }
 
     if (!plannerHomeMarker) {
-        var imgWH = Math.round(36 * window.devicePixelRatio);
-        var el = document.createElement('div');
-        el.style.cssText = 'position:relative;display:flex;align-items:center;';
-
+        var imgWH = 36;
         var img = document.createElement('img');
         img.src = 'img/home.png';
-        img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;';
+        img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;display:block;';
 
-        var label = document.createElement('div');
-        label.style.cssText = 'position:absolute;left:' + (imgWH + 4) + 'px;background:rgba(0,0,0,0.72);color:#fff;' +
-            'font-size:13px;white-space:nowrap;padding:3px 6px;border-radius:3px;font-family:Ubuntu,sans-serif;';
-        label.textContent = 'Home';
-
-        el.appendChild(img);
-        el.appendChild(label);
-
-        plannerHomeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        plannerHomeMarker = new maplibregl.Marker({ element: img, anchor: 'center' })
             .setLngLat([data.homeLongitude, data.homeLatitude])
             .addTo(plannerMap);
     } else {
