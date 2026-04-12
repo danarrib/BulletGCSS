@@ -90,11 +90,38 @@ function updateCommandsPanel() {
     var downlinkOk = mqttConnected && data.downlinkStatus === 1;
     var rcOk = downlinkOk && data.mspRcOverride === 1;
 
+    // Version warning: shown when version is known and < 9.0.0
+    var versionKnown = data.fcVersion !== "";
+    var versionOk = !versionKnown || (parseInt(data.fcVersion.split('.')[0], 10) >= 9);
+    document.getElementById("commandsVersionWarning").style.display = (!versionOk) ? "block" : "none";
+
+    // Key warnings: no private key, firmware key missing/all-zeros, or key mismatch
+    var hasKey   = localStorage.getItem("commandPrivateKey") !== null;
+    var uiPubKey = localStorage.getItem("commandPublicKeyBase64");
+    var fwPubKey = data.firmwarePublicKey;
+    var allZeros = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    var keyWarningEl = document.getElementById("commandsKeyWarning");
+    if (!hasKey) {
+        keyWarningEl.textContent = "\u26a0 No signing key configured. Generate a key pair in the Security panel.";
+        keyWarningEl.style.display = "block";
+    } else if (fwPubKey && fwPubKey === allZeros) {
+        keyWarningEl.textContent = "\u26a0 Firmware has no public key. Paste the public key into Config.h and re-flash.";
+        keyWarningEl.style.display = "block";
+    } else if (fwPubKey && uiPubKey !== fwPubKey) {
+        keyWarningEl.textContent = "\u26a0 Key mismatch. Re-flash firmware with the current public key.";
+        keyWarningEl.style.display = "block";
+    } else {
+        keyWarningEl.style.display = "none";
+    }
+
     document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
     document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
     var extOk = data.extCmdsSupported >= 1;
+    document.getElementById("rowSetAltitude").style.display = extOk ? "" : "none";
+    document.getElementById("rowSetCourse").style.display   = extOk ? "" : "none";
+    document.getElementById("rowJumpToWp").style.display    = extOk ? "" : "none";
     document.getElementById("btSendHeading").disabled  = !(downlinkOk && extOk && data.fmCruise === 1);
     document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && extOk && data.fmWp === 1);
     document.getElementById("btSendAltitude").disabled = !(downlinkOk && extOk && data.fmAltHold === 1);

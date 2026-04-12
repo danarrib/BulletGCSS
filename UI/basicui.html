@@ -837,6 +837,10 @@
                             data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <p id="commandsVersionWarning" class="text-warning small mb-2" style="display:none;">
+                        &#9888; Commands are only supported on INAV 9.0.0 or newer.
+                    </p>
+                    <p id="commandsKeyWarning" class="text-warning small mb-2" style="display:none;"></p>
                     <p id="commandsDownlinkWarning" class="text-warning small mb-2" style="display:none;">
                         &#9888; No command channel. Commands will not be received.
                     </p>
@@ -858,7 +862,7 @@
                                 <input type="button" class="btRcCmd" id="btAltHoldOff" value="OFF" />
                             </div>
                         </div>
-                        <div class="rc-cmd-row">
+                        <div class="rc-cmd-row" id="rowSetAltitude">
                             <span class="rc-cmd-label">Set Altitude</span>
                             <div class="rc-cmd-btns">
                                 <input type="number" class="cmd-number-input" id="inputAltitude"
@@ -880,7 +884,7 @@
                                 <input type="button" class="btRcCmd" id="btCruiseOff" value="OFF" />
                             </div>
                         </div>
-                        <div class="rc-cmd-row">
+                        <div class="rc-cmd-row" id="rowSetCourse">
                             <span class="rc-cmd-label">Set Course</span>
                             <div class="rc-cmd-btns">
                                 <input type="number" class="cmd-number-input" id="inputHeading"
@@ -895,7 +899,7 @@
                                 <input type="button" class="btRcCmd" id="btWpOff" value="OFF" />
                             </div>
                         </div>
-                        <div class="rc-cmd-row">
+                        <div class="rc-cmd-row" id="rowJumpToWp">
                             <span class="rc-cmd-label">Jump to WP</span>
                             <div class="rc-cmd-btns">
                                 <input type="number" class="cmd-number-input" id="inputWpIndex"
