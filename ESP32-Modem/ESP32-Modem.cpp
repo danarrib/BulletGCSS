@@ -844,6 +844,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
                    (int)wp->alt, (int)wp->action,
                    (int)wp->p1, (int)wp->p2, (int)wp->p3,
                    (int)wp->flag);
+          LOGLINE("%s", dlwpMsg);
           sendMessage(dlwpMsg);
           LOGLINE("getmission: sent dlwp %d", i + 1);
       }
