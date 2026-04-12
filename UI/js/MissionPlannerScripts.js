@@ -10,6 +10,7 @@ let plannerMapReady = false;
 let plannerMapInitialized = false;
 let plannerUpdateInterval = null;
 let plannerUserMarker = null;
+let plannerHomeMarker = null;
 
 // Array of mission waypoints.
 // Shape: { lat, lon, altM, action, speedMs, loiterSec }
@@ -237,6 +238,41 @@ function updatePlannerUserMarker() {
     }
 }
 
+function updatePlannerHomeMarker() {
+    if (!plannerMap || !plannerMapReady) return;
+
+    var hasHome = data.homeLongitude !== 0 || data.homeLatitude !== 0;
+
+    if (!hasHome) {
+        if (plannerHomeMarker) { plannerHomeMarker.remove(); plannerHomeMarker = null; }
+        return;
+    }
+
+    if (!plannerHomeMarker) {
+        var imgWH = Math.round(36 * window.devicePixelRatio);
+        var el = document.createElement('div');
+        el.style.cssText = 'position:relative;display:flex;align-items:center;';
+
+        var img = document.createElement('img');
+        img.src = 'img/home.png';
+        img.style.cssText = 'width:' + imgWH + 'px;height:' + imgWH + 'px;';
+
+        var label = document.createElement('div');
+        label.style.cssText = 'position:absolute;left:' + (imgWH + 4) + 'px;background:rgba(0,0,0,0.72);color:#fff;' +
+            'font-size:13px;white-space:nowrap;padding:3px 6px;border-radius:3px;font-family:Ubuntu,sans-serif;';
+        label.textContent = 'Home';
+
+        el.appendChild(img);
+        el.appendChild(label);
+
+        plannerHomeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([data.homeLongitude, data.homeLatitude])
+            .addTo(plannerMap);
+    } else {
+        plannerHomeMarker.setLngLat([data.homeLongitude, data.homeLatitude]);
+    }
+}
+
 // ── Terrain elevation ─────────────────────────────────────────────────────────
 
 // Returns the ground elevation of the first WP (used as the home/base elevation).
@@ -396,6 +432,7 @@ function initPlannerMap() {
         rebuildAllMarkers();
         updateRouteLine();
         updatePlannerUserMarker();
+        updatePlannerHomeMarker();
     });
 
     // Clicking the map closes any open modal, or adds a new waypoint
@@ -848,11 +885,13 @@ export function openMissionPlanner() {
         rebuildAllMarkers();
         updateRouteLine();
         updatePlannerUserMarker();
+        updatePlannerHomeMarker();
     }
     updateStats();
     updateMissionName();
     plannerUpdateInterval = setInterval(function() {
         updatePlannerUserMarker();
+        updatePlannerHomeMarker();
         updateStats();
         syncStatusIcons();
     }, 2000);

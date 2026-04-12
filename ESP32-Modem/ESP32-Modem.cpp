@@ -817,8 +817,8 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           return;
       }
 
-      // Heap-allocate the snapshot to avoid blowing the loopTask stack
-      msp_set_wp_t *wpSnapshot = (msp_set_wp_t *)malloc(wpCount * sizeof(msp_set_wp_t));
+      // Heap-allocate the snapshot to avoid blowing the modemTask stack
+      msp_set_wp_t *wpSnapshot = (msp_set_wp_t *)malloc((wpCount + 1) * sizeof(msp_set_wp_t));
       if (!wpSnapshot) {
           LOGLINE("getmission: malloc failed, sending NACK");
           char nack[64];
@@ -830,11 +830,11 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       xSemaphoreTake(dataMutex, portMAX_DELAY);
       // Clamp in case waypointCount changed between the two mutex acquisitions
       if (publishedStatus.waypointCount < wpCount) wpCount = publishedStatus.waypointCount;
-      memcpy(wpSnapshot, publishedMission, wpCount * sizeof(msp_set_wp_t));
+      memcpy(wpSnapshot, publishedMission, (wpCount + 1) * sizeof(msp_set_wp_t));
       xSemaphoreGive(dataMutex);
 
-      LOGLINE("getmission: sending %d WP(s)", wpCount);
-      for (uint8_t i = 0; i < wpCount; i++) {
+      LOGLINE("getmission: sending %d WP(s)", wpCount + 1);
+      for (uint8_t i = 0; i <= wpCount; i++) {
           msp_set_wp_t *wp = &wpSnapshot[i];
           char dlwpMsg[128];
           snprintf(dlwpMsg, sizeof(dlwpMsg),
@@ -1084,11 +1084,11 @@ void modemTask(void* param) {
     }
 
     // Escalate persistent publish failures to a modem restart.
-    // fcTask will handle the actual restart via the watchdog; here we just
-    // signal it by zeroing the heartbeat so the threshold fires immediately.
+    // Set heartbeat to 1 (non-zero so the watchdog condition fires, but ancient
+    // enough that modemSilenceMs >> LOOP_FREEZE_RESTART_MS immediately).
     if (failureCounter >= 10) {
       LOGLINE("Failure count too high (%d) — signalling modem restart", failureCounter);
-      modemLastAliveMs = 0;
+      modemLastAliveMs = 1;
       vTaskDelay(portMAX_DELAY); // block here; fcTask's watchdog will kill us
     }
 
@@ -2284,6 +2284,7 @@ void sendMessage(char* message) {
   if(client.publish(mqttUplinkTopic, message))
   {
       LOGNOTS("publish OK");
+      if (failureCounter > 0) failureCounter--;
   }
   else
   {

@@ -520,6 +520,7 @@ function onMessageArrived(message) {
             var line = new Date().getTime().toString() + '|' + payload;
             mqttlog.push(line);
             lastMessageDate = new Date();
+            console.log("msg: " + payload);
             parseTelemetryData(payload);  // may resolve a pending cid
             checkCommandTimeouts();
             if (onMessageCallback) onMessageCallback(line);
