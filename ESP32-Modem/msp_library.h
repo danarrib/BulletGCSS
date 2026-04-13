@@ -53,7 +53,7 @@
 #define MSP2_INAV_ANALOG      0x2002
 #define MSP2_INAV_MISC2       0x203A
 #define MSP2_INAV_SET_WP_INDEX      0x2221  // in: jump to WP N during active mission (U8 index, 0-based)
-#define MSP2_INAV_SET_ALT_TARGET    0x2222  // in: set target altitude (I32 cm, relative to home)
+#define MSP2_INAV_SET_ALT_TARGET    0x2215  // in: set target altitude (U8 datum + I32 cm); INAV 10+
 #define MSP2_INAV_SET_CRUISE_HEADING 0x2223 // in: set Cruise/Course Hold heading (I32 centidegrees)
 
 // Permanent IDs for flight modes (from INAV src/main/fc/fc_msp_box.c).

@@ -773,7 +773,8 @@ export function resetDataObject()
         fmPosHold: 0,  // 1 = Position Hold flight mode active (any source)
         maxWaypoints: 0, // max WPs supported by FC (from wpmax field); 0 = not yet received
         fcVersion: "",       // FC firmware version string, e.g. "9.0.1" (empty = not yet received)
-        extCmdsSupported: 0, // computed from fcVersion: 0 = none; >= 1 = extended MSP commands supported
+        extCmdsSupported: 0, // computed from fcVersion: 1 = INAV >= 9.0.2 (setheading, jumpwp)
+        altCmdSupported: 0,  // computed from fcVersion: 1 = INAV >= 10.0.0 (setalt)
         firmwarePublicKey: "", // base64-encoded Ed25519 public key from firmware (empty = not yet received)
         isCurrentMissionElevationSet: false,
         gpsGroundCourse: 0,
@@ -1264,10 +1265,12 @@ function parseStandardTelemetryMessage(payload)
                     data.fcVersion = arrData[1];
                     var parts = arrData[1].split('.').map(Number);
                     var major = parts[0], minor = parts[1], patch = parts[2];
-                    // Extended commands (setheading, setalt, jumpwp) require FC version > 9.0.1
+                    // setheading + jumpwp require INAV >= 9.0.2
                     data.extCmdsSupported = (major > 9 ||
                         (major === 9 && minor > 0) ||
                         (major === 9 && minor === 0 && patch > 1)) ? 1 : 0;
+                    // setalt requires INAV >= 10.0.0
+                    data.altCmdSupported = (major >= 10) ? 1 : 0;
                 }
                 break;
             case "wpmax":

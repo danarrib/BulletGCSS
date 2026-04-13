@@ -119,12 +119,13 @@ function updateCommandsPanel() {
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
     var extOk = data.extCmdsSupported >= 1;
-    document.getElementById("rowSetAltitude").style.display = extOk ? "" : "none";
+    var altOk = data.altCmdSupported >= 1;
+    document.getElementById("rowSetAltitude").style.display = altOk ? "" : "none";
     document.getElementById("rowSetCourse").style.display   = extOk ? "" : "none";
     document.getElementById("rowJumpToWp").style.display    = extOk ? "" : "none";
     document.getElementById("btSendHeading").disabled  = !(downlinkOk && extOk && data.fmCruise === 1);
     document.getElementById("btSendJumpWp").disabled   = !(downlinkOk && extOk && data.fmWp === 1);
-    document.getElementById("btSendAltitude").disabled = !(downlinkOk && extOk && data.fmAltHold === 1);
+    document.getElementById("btSendAltitude").disabled = !(downlinkOk && altOk && data.fmAltHold === 1);
 
     var wpInput = document.getElementById("inputWpIndex");
     var maxWp = data.waypointCount > 0 ? data.waypointCount : 255;

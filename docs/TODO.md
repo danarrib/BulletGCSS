@@ -6,63 +6,23 @@ This document tracks known issues, security concerns, and improvement opportunit
 
 ## New Commands
 
-### C1. Set Course command (Cruise Mode heading)
-Send a target heading to the aircraft while in Cruise Mode, so the operator can redirect the flight without using the RC transmitter.
-
-**INAV MSP command:** `MSP_SET_HEAD` (code **211**) — payload: one `U16` value in centidegrees (0–36000). Already implemented in INAV; no firmware changes needed on the INAV side.
-
-**What needs to be done:**
-- **Firmware (`ESP32-Modem.cpp`):** add a new `cmd:setheading` handler that reads the `heading` field from the downlink message and sends `MSP_SET_HEAD` to the FC.
-- **UI (`bsPageScripts.js` / commands panel):** add a heading input field (0–359°) and a Send button to the Commands panel.
-- **Protocol (`BulletGCSS_protocol.md`):** document the new `cmd:setheading,heading:<centidegrees>` downlink message.
-
----
-
-### C2. Jump to Waypoint (skip to WP N during active mission)
-
-No dedicated MSP command exists in INAV for this. The controlling variable is `posControl.activeWaypointIndex` (`int8_t` inside the global `posControl` struct, defined in `navigation_private.h:494`). It is managed entirely by the navigation state machine and is not directly writable via MSP.
-
-**Approach: contribute `MSP_SET_WP_INDEX` upstream to INAV**
-
-A mid-flight waypoint manipulation workaround (overwriting the current WP slot with a temporary JUMP action, then restoring) was investigated and is technically feasible — but it goes against a core premise of Bullet GCSS: **INAV should be the one flying the aircraft**. Manipulating mission data mid-flight from the ESP32 is fragile and puts mission-management logic in the wrong place.
-
-The right solution is a new `MSP_SET_WP_INDEX` command contributed to INAV that directly writes `posControl.activeWaypointIndex` and triggers the navigation state machine to activate the target waypoint cleanly. The INAV navigation code already has all the logic needed — it just needs an MSP entry point.
-
-**INAV contribution scope:**
-- Add a new MSP command (e.g. `MSP_SET_WP_INDEX`, code TBD) to `fc_msp.c` that accepts a `uint8_t` waypoint index, validates it against `posControl.waypointCount`, sets `posControl.activeWaypointIndex`, and fires the appropriate FSM event to activate the new waypoint.
-- Open a PR to the INAV repository.
-
-**Bullet GCSS scope (after INAV merges):**
-- **Firmware (`ESP32-Modem.cpp`):** add `cmd:jumpwp` handler that sends `MSP_SET_WP_INDEX` to the FC.
-- **UI:** add waypoint selector to the Commands panel.
-- **Protocol (`BulletGCSS_protocol.md`):** document `cmd:jumpwp,wp:<n>`.
-
----
-
 ### C3. Set Altitude (target altitude for Altitude Hold / Cruise mode)
 
 Allow the operator to command the aircraft to climb or descend to a specific altitude while Altitude Hold or Cruise mode is active.
 
-INAV does not expose the target altitude via MSP. Internally, the target is stored in `posControl.desiredState.pos.z` (float, centimetres, local frame relative to home). It is set exclusively by `updateClimbRateToAltitudeController(desiredClimbRate, targetAltitude, mode)` in `navigation.c`. The relevant mode is `ROC_TO_ALT_TARGET` — this is the same call already used by waypoint navigation at `navigation.c:3496`:
+**Status:** `MSP2_INAV_SET_ALT_TARGET` (code **0x2215 / 8725**) merged into INAV, available on **INAV 10.0.0 or newer**. Our current firmware handler sends the wrong payload and must be updated.
 
-```c
-updateClimbRateToAltitudeController(0, pos->z, ROC_TO_ALT_TARGET);
-```
+**Payload mismatch:** Our implementation sends a bare `int32_t` (4 bytes). The actual INAV command expects two fields:
+1. `altitudeDatum` — `uint8_t` — altitude reference (`NAV_WP_TAKEOFF_DATUM`, MSL, or terrain; MSL requires valid GPS origin, terrain is rejected)
+2. `altitudeTarget` — `int32_t` — target altitude in centimetres relative to the chosen datum
 
-This pattern works identically for both multicopters (throttle stick manages climb) and fixed-wing aircraft (pitch stick manages climb) — both share the same variable and function, just with different actuator outputs downstream.
+The command is rejected by INAV unless altitude control is active (NAV or ALTHOLD mode), not landing/emergency landing, altitude estimation is valid, and the datum is supported.
 
-**Approach: contribute `MSP_SET_ALTITUDE` upstream to INAV**
-
-A new MSP command that writes `posControl.desiredState.pos.z` and calls `updateClimbRateToAltitudeController(0, targetAlt, ROC_TO_ALT_TARGET)` would let the ground station command a target altitude cleanly. INAV then handles the climb or descent exactly as it would for a waypoint target — no mid-flight RC channel manipulation needed.
-
-**INAV contribution scope:**
-- Add a new MSP command (e.g. `MSP_SET_ALTITUDE`) to `fc_msp.c` that accepts a signed 32-bit integer payload (target altitude in centimetres, relative to home), validates that Altitude Hold or a dependent mode (Cruise, Waypoint) is active, and calls `updateClimbRateToAltitudeController(0, targetAlt, ROC_TO_ALT_TARGET)`.
-- Open a PR to the INAV repository.
-
-**Bullet GCSS scope (after INAV merges):**
-- **Firmware (`ESP32-Modem.cpp`):** add `cmd:setalt` handler that reads the `alt` field from the downlink message and sends the new MSP command to the FC.
-- **UI:** add an altitude input field and Send button to the Commands panel (visible when Altitude Hold or Cruise mode is active).
-- **Protocol (`BulletGCSS_protocol.md`):** document the new `cmd:setalt,alt:<centimetres>` downlink message.
+**What needs to be done:**
+- **Firmware (`ESP32-Modem.cpp`):** update `cmd:setalt` handler to send a 5-byte payload: `uint8_t datum` + `int32_t altCm`. Use takeoff datum (`NAV_WP_TAKEOFF_DATUM = 0`) as the default; optionally accept a `datum` field in the downlink message.
+- **Firmware (`msp_library.h`):** verify or add the `MSP2_INAV_SET_ALT_TARGET` constant (0x2215).
+- **UI:** gate the Set Altitude row behind INAV >= 10.0.0 (separate from the existing `extCmdsSupported` check which covers >= 9.0.2).
+- **Protocol (`BulletGCSS_protocol.md`):** document the updated `cmd:setalt,alt:<cm>` downlink message.
 
 ---
 
@@ -72,3 +32,5 @@ A new MSP command that writes `posControl.desiredState.pos.z` and calls `updateC
 - **U2** — Migrate UI to Bootstrap 5 ✅ — completed in v1.7; `basicui.html` now runs on Bootstrap 5.3.8.
 - **F1** — Multi-aircraft monitoring ✅ — completed in v1.6.
 - **F2** — Waypoint mission planner ✅ — completed in v1.6.
+- **C1** — Set Course (Cruise Mode heading) ✅ — uses `MSP2_INAV_SET_CRUISE_HEADING` (0x2223). Firmware and UI implemented.
+- **C2** — Jump to Waypoint ✅ — uses `MSP2_INAV_SET_WP_INDEX`. Firmware and UI implemented.

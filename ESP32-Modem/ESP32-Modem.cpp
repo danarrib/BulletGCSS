@@ -790,15 +790,17 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
 
   } else if (strcmp(cmd, "setalt") == 0) {
       // Set target altitude while altitude-hold / cruise / WP mode is active.
-      // Payload field: alt:<centimetres, signed, relative to home>
-      // MSP2_INAV_SET_ALT_TARGET expects I32.
+      // Payload field: alt:<centimetres, signed, relative to takeoff point>
+      // MSP2_INAV_SET_ALT_TARGET (INAV 10+) expects: U8 datum + I32 altCm.
+      // Datum 0 = NAV_WP_TAKEOFF_DATUM (relative to takeoff/home altitude).
       if (strlen(altStr) == 0) {
           LOGLINE("setalt: missing alt field");
           return;
       }
       int32_t altCm = (int32_t)atoi(altStr);
-      msp.send(MSP2_INAV_SET_ALT_TARGET, &altCm, sizeof(altCm));
-      LOGLINE("setalt: sent %d cm", altCm);
+      struct __attribute__((packed)) { uint8_t datum; int32_t alt; } payload = { 0, altCm };
+      msp.send(MSP2_INAV_SET_ALT_TARGET, &payload, sizeof(payload));
+      LOGLINE("setalt: sent %d cm (datum=0)", altCm);
 
   } else if (strcmp(cmd, "getmission") == 0) {
       // Fetch the full published mission and send each WP as a dlwp: telemetry message,
