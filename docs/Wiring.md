@@ -1,52 +1,68 @@
-The modem board must be connected to the Flight Controller on the aircraft in order to Bullet GCSS work.
+# Wiring
 
-## Choosing a Free UART on the Flight Controller
+The modem board must be connected to the flight controller in order for Bullet GCSS to work.
 
-Flight Controller must have a free UART to receive the modem module. This UART must be set to "MSP" on the Ports tab inside INAV configurator.
+---
 
-![image](https://user-images.githubusercontent.com/17026744/104481703-da46c280-55a4-11eb-88eb-b08b08228c7e.png)
+## Step 1 — Configure a UART on the Flight Controller
 
-On this example, the modem module will be wired to the UART1 (TX1 and RX1 pins on the Flight Controller).
+The flight controller needs a free UART configured for MSP. Open the INAV Configurator, go to the **Ports** tab, and set the desired UART to **MSP** at **115200 baud**.
 
-## Wiring the modem module to the Flight Controller
+![INAV Configurator — Ports tab](screenshots/wiring_inav_uart.png)
 
-Now you have to connect wires (by soldering or using pin headers) between the Flight Controller and the Modem board.
+In this example, the modem will be wired to UART1 (TX1 / RX1 pins on the flight controller).
 
-### TTGO T-Call Board (SIM800L)
-![MatekF405-Wing-Wiring-Diagram](https://user-images.githubusercontent.com/17026744/104481981-27c32f80-55a5-11eb-909c-f26be8403843.jpg)
+---
 
-### TTGO T-PCIE Board (SIM7600)
-![MatekF405-Wing-Wiring-Diagram2](https://user-images.githubusercontent.com/17026744/109437905-3f942d00-7a06-11eb-963f-795ed496e8ef.jpg)
+## Step 2 — Wire the Modem to the Flight Controller
 
-On this examples, modem boards are wired to a Matek F405-Wing Flight Controller using UART1.
+Connect four wires between the flight controller and the modem board. You can solder directly or use pin headers.
 
-- Pin 19 from module connects to the TX1 pin on the Flight controller
-- Pin 18 from module connects to the RX1 pin on the FC
-- GND pin from module connects to any GND pin on the FC
-- 5V pin from module connects to a 5V pin on the FC
+> **Important:** TX and RX must be **crossed** — the TX pin on the modem connects to the RX pin on the flight controller, and the RX pin on the modem connects to the TX pin on the flight controller. This is standard serial wiring and a very common mistake to get wrong.
 
-If you choose another UART instead the UART1, you need to change the pins to the corresponding number of the UART...
-- If you choose UART3, then the pins are RX3 and TX3
-- If you choose UART4, then pins are RX4 and TX4
-- And so on...
+The modem's default serial pins are **GPIO 18 (TX)** and **GPIO 19 (RX)** on the ESP32 (Serial2). If you need to use different pins, update the `MSP_TX_PIN` and `MSP_RX_PIN` values in `Config.h` before flashing.
 
-## Considerations about power
+### TTGO T-Call (SIM800L)
 
-Both TTGO T-Call and TTGO T-PCIE modules draws a considerable amount of power when transmitting thru the cellular network. It can draw up to 2 amps during the transmission. **It WILL NOT WORK if powered only by the USB connection**. So if it's not working on your bench tests, be aware of that.
+![TTGO T-Call wiring diagram](screenshots/wiring_tcall.jpg)
 
-WiFi works fine by USB power, so it's ok for bench tests. Only the cellular modem requires more power.
+### TTGO T-PCIE (SIM7600)
 
-That's why it's important to connect a good power source for it. Matek F405-Wing has a beefy 5V power regulator, so it will power the module without any problems as long as there isn't any other power-hungry device connected to this same 5V line.
+![TTGO T-PCIE wiring diagram](screenshots/wiring_tpcie.jpg)
 
-Other flight controllers may not be able to power the module. In this case, you have to add a dedicated power regulator for the module. It must be able to provide 5V and 2 Amps reliably.
+In these examples, both boards are wired to a Matek F405-Wing using UART1:
 
-![MatekF405-Std-Wiring-Diagram](https://user-images.githubusercontent.com/17026744/104489130-0c105700-55ae-11eb-9225-0a207110eb04.jpg)
+| Modem pin | Flight controller pin |
+|---|---|
+| Pin 19 (TX) | RX1 |
+| Pin 18 (RX) | TX1 |
+| GND | GND |
+| 5V | 5V |
 
-Another solution is to use another battery just for the module. It has a 1S battery connection on the back side. I don't like this solution too much because it adds another battery to manage. But if you prefer go this way, just don't wire the 5V connection (but keep the GND!!!) and you'll be fine. 
+If you use a different UART, replace RX1/TX1 with the corresponding pins for that UART (e.g. RX3/TX3 for UART3, RX4/TX4 for UART4, and so on).
 
-![Battery-power-TTGO-T-Call](https://user-images.githubusercontent.com/17026744/104490830-20555380-55b0-11eb-9d97-3cc9a9bb45a0.jpg)
+---
 
-Both TTGO boards has a power management circuit! So you can charge its battery using the USB-C connector. It also provides over-charge and over-discharge protection for the battery. 
+## Power Considerations
 
-But be advised: **Bullet GCSS DOES NOT HANDLE ANY BATTERY ASPECT**. There's no code that interacts with the IP5306 or AXP192 power management chips on Bullet GCSS. It may be added on the future, depending on user requests. But for now, the best way to power the board is by an external 5V voltage regulator.
+Both the TTGO T-Call and TTGO T-PCIE draw a significant amount of current when transmitting over the cellular network — up to **2 amps** during a transmission burst. **The board will not work reliably if powered only through its USB connector.** This is the most common reason for the modem appearing to work on the bench but failing to connect to the cellular network.
 
+> WiFi mode works fine over USB power. Only cellular operation requires a proper power supply.
+
+### Powering from the Flight Controller
+
+The simplest approach is to power the modem from the flight controller's 5V rail. Make sure the flight controller's 5V regulator can handle the extra load. The Matek F405-Wing has a robust 5V BEC and can power the modem without issue. Other flight controllers with smaller regulators may not be able to.
+
+### Powering from a Dedicated Regulator
+
+If the flight controller cannot supply enough current, add a dedicated 5V / 2A voltage regulator and power the modem from it directly.
+
+![External power supply wiring](screenshots/wiring_external_psu.jpg)
+
+### Powering from a 1S Battery
+
+Both TTGO boards have a 1S LiPo battery connector on the back. If you use this option, do **not** connect the 5V wire from the flight controller (but always keep the GND connection). The board includes a power management circuit that handles charging via the USB-C port and provides over-charge and over-discharge protection.
+
+![1S battery power connection](screenshots/wiring_battery.jpg)
+
+> **Note:** Bullet GCSS does not interact with the onboard power management chips (IP5306 on the T-Call, AXP192 on the T-PCIE). Powering from an external 5V regulator is the recommended approach for most builds.

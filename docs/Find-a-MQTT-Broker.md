@@ -1,67 +1,74 @@
-The MQTT Broker is the central point between the aircraft and the user. The modem module sends messages with the telemetry data to the Broker, and the user interface that runs on user's SmartPhone receives this messages immediately after they are received by the Broker.
+# Finding a MQTT Broker
 
-![Network-Diagram](https://user-images.githubusercontent.com/17026744/104266799-21329c00-546f-11eb-8683-f210ffe56ae3.png)
+The MQTT broker is the central relay between the aircraft and the user. The modem publishes telemetry messages to the broker, and the UI subscribes to the same broker and receives them in real time.
 
-## What is MQTT ?
+![MQTT network diagram](screenshots/mqtt_network_diagram.png)
 
-The MQTT is a lightweight messaging protocol designed for IoT devices (Internet of Things). It is designed as an extremely lightweight publish/subscribe messaging transport that is ideal for connecting remote devices with a small code footprint and minimal network bandwidth. If you want to know more about MQTT protocol, check it's [official website](https://mqtt.org/).
+---
 
-The MQTT Broker is a pre-requisite for Bullet GCSS, so you need to get access to one in order to use the system.
+## What is MQTT?
 
-## What is the MQTT Broker used by Bullet GCSS?
+MQTT is a lightweight publish/subscribe messaging protocol designed for IoT devices. It is optimised for low bandwidth, low code footprint, and unreliable networks — which makes it a natural fit for airborne telemetry over cellular. See the [official MQTT website](https://mqtt.org/) for more background.
 
-There are some free (public or private) MQTT Brokers provided by different companies, with different levels of reliability. There are also paid ones, with different price ranges and capabilities.
+---
 
-You can also host your own MQTT Broker if you have a server somewhere over the Internet, there are plenty of free and paid software that you can use for this. [Check out this list](https://mqtt.org/software/) if you're interested in host your own MQTT Broker.
+## Default Broker
 
-By default, Bullet GCSS uses the service provided for free by [EQM](https://www.emqx.io/), the EMQ X Cloud, which works fine most of the time. To connect to this Broker, just use the following details:
+By default, Bullet GCSS uses the free public broker provided by [EMQX](https://www.emqx.io/) at `broker.emqx.io`.
 
-### On the modem device:
+### Modem configuration
 
-To change the MQTT parameters on the modem, edit the `Config.h` file before [flashing the firmware](Setup-modem.md).
+Edit `Config.h` before [flashing the firmware](Setup-modem.md):
 
-* Host: `broker.emqx.io`
-* Port: `8883` (TLS encrypted port — the firmware encrypts the connection automatically)
-* Username: (any username will work)
-* Password: (any password will work)
-* Topic: (any topic that was at least 3 levels. Example: `bulletgcss/telem/myaircraftname`)
+| Setting | Value |
+|---|---|
+| Host | `broker.emqx.io` |
+| Port | `8883` (standard MQTT over TLS) |
+| Username | any value |
+| Password | any value |
+| Topic | `bulletgcss/telem/<your-aircraft-name>` |
 
-### On the User Interface:
+The topic must have at least 3 levels (e.g. `bulletgcss/telem/myplane`). The firmware uses this topic for uplink telemetry and a matching `bulletgcss/cmd/<your-aircraft-name>` topic for downlink commands.
 
-To change the MQTT parameters on the UI, click on the _gear_ icon on the top of the screen, and choose the _Broker settings_ option.
+### UI configuration
 
-![MQTT Broker settings walkthrough](screenshots/mqtt_settings.png)
+Open the Settings panel (gear icon) and choose **Broker settings**:
 
-Settings will be saved on your device, so next time you open Bullet GCSS, it'll connect using the same settings.
+![MQTT Broker settings](screenshots/mqtt_settings.png)
 
-* Host: `broker.emqx.io` (the same address used on the modem)
-* Port: `8084` (this is the "WebSockets" secure port for this Broker)
-* Username: (any username will work)
-* Password: (any password will work)
-* Topic: (The same topic used on the modem)
-* Use TLS: Yes (keep the checkbox checked)
+| Setting | Value |
+|---|---|
+| Host | `broker.emqx.io` |
+| Port | `8084` (EMQX WebSocket over TLS) |
+| Username | any value |
+| Password | any value |
+| Topic | same topic used on the modem |
+| Use TLS | Yes |
 
-As you may noticed, this is a public broker, which means that your aircraft will send the flight telemetry to a place where anyone can read. Also, other people can even send messages to this same topic. This messages will be sent to the UI running on your SmartPhone and may show you incorrect telemetry data.
+> The modem and UI use different ports because they connect differently: the modem uses a native MQTT/TLS socket (port 8883), while the browser uses a WebSocket connection (port 8084). Both are encrypted. This is standard MQTT broker behaviour, not specific to EMQX.
 
-**If privacy is a concern for you, then you should NOT use public brokers.**
+Settings are saved in your browser's localStorage and restored on every subsequent visit.
 
-> **Command security:** Bullet GCSS has a bidirectional command channel. All commands sent from the UI are signed with an Ed25519 private key; the firmware verifies the signature using the matching public key stored in `Config.h`. Commands with an invalid or missing signature are silently dropped — even on a public broker, nobody can forge or replay commands to your aircraft. However, the telemetry uplink is still unauthenticated: anyone subscribed to the topic can see your aircraft's GPS position and telemetry data. For full privacy, use a private broker.
+---
 
-## What if I want to use another MQTT broker provider?
+## Public Broker Privacy Warning
 
-You're highly encouraged to do so. You can subscribe to any service provider that offers you a MQTT broker service. Here are the requirements:
-* MQTT Broker hostname (or IP address)
-* Port for TLS-encrypted MQTT communication (used on the modem — port 8883 is standard)
-* Port for TLS-encrypted WebSockets communication (used on the UI — port 8084 is standard for emqx)
-* Username and Password for both modem and UI
-* Instructions on topic structure (if there are any constrains about that)
-* Being able to handle ~5000 messages per hour per aircraft (around 500KB per hour) *** 
+`broker.emqx.io` is a public broker. Anyone who knows your topic string can subscribe to it and read your aircraft's GPS position, altitude, battery state, and all other telemetry. Choose a topic name that is not easily guessable if this is a concern.
 
-> *** This numbers refers to the default settings of Bullet GCSS (1 message per second). This is an incredible low number of messages. MQTT protocol is designed to handle millions of messages per minute.
+> **Command security:** Even on a public broker, nobody can send commands to your aircraft. All downlink commands are signed with an Ed25519 private key; the firmware verifies the signature and silently drops anything with an invalid or missing signature. Replay attacks are also prevented — the firmware tracks the last accepted sequence number in NVS. However, the telemetry uplink is unauthenticated: anyone subscribed to your topic can read your flight data. For full privacy, use a private broker.
 
-Bullet GCSS doesn't sends your connection details outside the UI. So you don't need to worry about it sending your connection details to anyone.
+---
 
-## How to find MQTT providers?
+## Using a Different Broker
 
-Easiest way is just Google for "Hosted MQTT Broker". It'll give lots of results. I can't recommend any since I do not use any other than the one above.
+Any MQTT broker will work with Bullet GCSS. When evaluating a provider, check for:
 
+- MQTT over TLS (port 8883 or equivalent) for the modem
+- MQTT over WebSockets with TLS (port 8084 or equivalent) for the UI
+- Username and password authentication
+- No topic restrictions that would prevent a 3-level hierarchy
+- Capacity for approximately **5,000 messages per hour per aircraft** (~500 KB/h at default settings) — this is a very low bar; MQTT brokers are designed to handle far higher loads
+
+To self-host your own broker, see [Self-Hosting a MQTT Broker](Self-Hosting-a-MQTT-server--(broker).md).
+
+Searching for "hosted MQTT broker" will return many commercial and free options.

@@ -1,33 +1,35 @@
-The Bullet GCSS User Interface (UI) needs to be hosted somewhere on the Internet to be used, since it's a Web App.
+# Hosting the User Interface
 
-## How do I host the User Interface?
+The Bullet GCSS UI is a web app and needs to be served over HTTP/HTTPS to be used.
 
-### Short answer
+---
 
-**You don't have to**. It's already hosted by Outros.net: Just go to [https://bulletgcss.outros.net/](https://bulletgcss.outros.net/) and use it from there. It's free and safe.
+## Short Answer — You Don't Have To
 
-![Deploy BulletGCSS UI on Outros.net](https://github.com/danarrib/BulletGCSS/workflows/Deploy%20BulletGCSS%20UI%20on%20FPV%20Sampa/badge.svg)
+The UI is already hosted at **[https://bulletgcss.outros.net/](https://bulletgcss.outros.net/)** and is free to use. It is updated automatically every time the `master` branch is pushed.
 
-Every time the `master` branch is updated, GitHub publishes automatically on this address. Can't be easier, right?
+---
 
-### Long answer
+## Long Answer — Self-Hosting
 
-Bullet GCSS UI is a simple HTML page, with some Javascript files and libraries and some CSS files. It also has some images (mostly icons used on the UI).
+### What the UI is made of
 
-**There is only one server side program** on Bullet GCSS UI. It's a reverse proxy for API calls (`proxy.php`) to avoid [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) warnings on the Web Browser. It's used only for the "Terrain elevation" fetch feature of Waypoints mission. If no server-side processing is available, Bullet GCSS will work just fine, only this feature will be missing.
+The UI is a static web application: one HTML file, a handful of JavaScript modules, CSS, and image assets. There is no backend server required.
 
-So, basically, **any web hosting** will be able to host Bullet GCSS UI. There are lots of free and paid hosting companies out there for you to choose.
+The one exception is **`proxy.php`** — a small reverse proxy used for the terrain elevation feature in the Mission Planner. It forwards requests to `api.open-elevation.com` to avoid browser CORS restrictions. If your hosting environment does not support PHP, Bullet GCSS will work fully except for terrain elevation data on waypoints.
 
-To host it, just copy the entire "UI" directory from this repository to your web hosting environment. Then, open the "basicui.html" file from there.
+### Hosting options
 
-That's all. Simple, right?
+**GitHub Pages** is the simplest option if you want your own deployment. Fork the repository, enable GitHub Pages on the `master` branch, and point it at the `UI/` directory. No configuration needed.
 
-But wait, there's a catch: If you're using a MQTT Broker that uses TLS for WebSockets connection (and you really should use it), then you have to host the UI in a http**s** (secure) environment. Your hosting company probably knows how to do it.
+**Any static web host** (shared hosting, VPS, S3, Netlify, Cloudflare Pages, etc.) will work. Copy the contents of the `UI/` directory to your web root and open `basicui.html`. You may want to configure your web server to serve `basicui.html` as the default index page so you don't have to type the filename in the URL.
 
-### Configuring `proxy.php` for your hostname
+### HTTPS requirement
 
-The `proxy.php` file is a reverse proxy used for the terrain elevation feature. It has a security allowlist that restricts which external domains it will forward requests to. The default allowlist contains only `api.open-elevation.com`, which is correct and should not be changed.
+If your MQTT broker uses TLS for WebSocket connections (which it should), the UI **must** be served over HTTPS. Most modern hosting providers offer free TLS certificates. A plain HTTP host will cause the browser to block the secure WebSocket connection.
 
-> **Note:** Older versions of this file also contained the `bulletgcss.outros.net` hostname in the allowlist. If you copied `proxy.php` from an older version, remove that entry — it is not needed and should not be there.
+### Configuring `proxy.php`
 
-No other changes to `proxy.php` are needed regardless of where you host the UI.
+The `proxy.php` file has a security allowlist that restricts which external domains it will forward requests to. The default allowlist contains only `api.open-elevation.com` and should not be changed.
+
+> **Note:** Older versions of this file also contained `bulletgcss.outros.net` in the allowlist. If you copied `proxy.php` from an older version, remove that entry — it is not needed.
