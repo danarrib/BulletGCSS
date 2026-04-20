@@ -207,8 +207,6 @@ function getCommandChannelIcon()
 {
     if(!mqttConnected || data.downlinkStatus !== 1)
         return "img/command_error.png";
-    if(data.mspRcOverride !== 1)
-        return "img/command_warning.png";
     return "img/command_ok.png";
 }
 

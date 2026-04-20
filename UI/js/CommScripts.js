@@ -760,7 +760,6 @@ export function resetDataObject()
         mWhDraw: 0,
         protocolVersion: 1, // 1 = current/legacy; set from low-priority message (pv field)
         downlinkStatus: 0, // 0 = firmware not subscribed to command topic, 1 = subscribed ok
-        mspRcOverride: 0, // 0 = MSP RC Override flight mode not active, 1 = active (commands can be sent)
         cmdRth: 0,     // 1 = firmware actively overriding this channel, 0 = not overriding
         cmdAltHold: 0,
         cmdCruise: 0,
@@ -1133,11 +1132,6 @@ function parseStandardTelemetryMessage(payload)
                 raw = parseInt(arrData[1]);
                 if(raw === 0 || raw === 1)
                     data.downlinkStatus = raw;
-                break;
-            case "mro":
-                raw = parseInt(arrData[1]);
-                if(raw === 0 || raw === 1)
-                    data.mspRcOverride = raw;
                 break;
             case "cmdrth":
                 raw = parseInt(arrData[1]);

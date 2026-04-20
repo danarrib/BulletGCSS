@@ -472,10 +472,6 @@ async function uploadMission() {
         alert('Cannot upload: WP Mission mode is currently active on the aircraft.\nDeactivate it first.');
         return;
     }
-    if (data.mspRcOverride === 1) {
-        alert('Cannot upload: MSP RC Override mode is currently active on the aircraft.\nDeactivate it first.');
-        return;
-    }
     if (data.uavIsArmed === 1) {
         if (!confirm('The aircraft is currently armed.\nUploading a mission mid-flight is dangerous.\n\nAre you sure you want to continue?'))
             return;
@@ -546,10 +542,6 @@ async function downloadMission() {
     if (!mqttConnected) { alert('Not connected to MQTT broker.'); return; }
     if (data.fmWp === 1) {
         alert('Cannot download: WP Mission mode is currently active on the aircraft.\nDeactivate it first.');
-        return;
-    }
-    if (data.mspRcOverride === 1) {
-        alert('Cannot download: MSP RC Override mode is currently active on the aircraft.\nDeactivate it first.');
         return;
     }
     if (data.uavIsArmed === 1) {

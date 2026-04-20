@@ -115,7 +115,6 @@ function updateCommandsPanel() {
     }
 
     document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
-    document.getElementById("commandsMroWarning").style.display = "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
     var extOk = data.extCmdsSupported >= 1;
@@ -964,11 +963,11 @@ function wireEventListeners() {
         for (var i = 0; i < rcCommands.length; i++) {
             (function(entry) {
                 document.getElementById(entry.onId).addEventListener("click", function() {
-                    if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                    if (!mqttConnected || data.downlinkStatus !== 1) return;
                     publishCommand(entry.cmd, 1);
                 });
                 document.getElementById(entry.offId).addEventListener("click", function() {
-                    if (!mqttConnected || data.downlinkStatus !== 1 || data.mspRcOverride !== 1) return;
+                    if (!mqttConnected || data.downlinkStatus !== 1) return;
                     publishCommand(entry.cmd, 0);
                 });
             })(rcCommands[i]);

@@ -165,7 +165,6 @@ uint8_t boxIdFailsafe   = 0;
 uint8_t boxIdManual     = 0;
 uint8_t boxIdAngle      = 0;
 uint8_t boxIdHorizon    = 0;
-uint8_t boxIdMspOverride = 0;
 
 // Dedicated BulletGCSS aux channel — index into INAV's aux channel array (0-based, CH5=0).
 // Set by msp_setup_aux_channel() at startup; -1 until configured.
@@ -1502,7 +1501,6 @@ void msp_get_boxids() {
                 else if (permId == MSP_PERM_ID_MANUAL)      boxIdManual      = boxIndex;
                 else if (permId == MSP_PERM_ID_ANGLE)       boxIdAngle       = boxIndex;
                 else if (permId == MSP_PERM_ID_HORIZON)     boxIdHorizon     = boxIndex;
-                else if (permId == MSP_PERM_ID_MSPOVERRIDE) boxIdMspOverride = boxIndex;
             }
         }
         boxIdsFetched = 1;
@@ -1740,7 +1738,6 @@ void msp_get_activeboxes() {
       bool fmAltHold    = (boxes64 & (1LL << modeAltHold.boxId))  != 0;
       bool fmWaypoint   = (boxes64 & (1LL << modeWp.boxId))       != 0;
       bool fmHorizon    = (boxes64 & (1LL << boxIdHorizon))       != 0;
-      bool fmMspOverride = (boxes64 & (1LL << boxIdMspOverride))  != 0;
 
       /*
       MANU = 1
@@ -1786,13 +1783,6 @@ void msp_get_activeboxes() {
       uavstatus.fmWp      = fmWaypoint;
       uavstatus.fmPosHold = fmPosHold;
 
-      // Detect MSP RC Override going inactive — clear all command states so
-      // stale commands don't fire when the pilot switches the mode back on.
-      if (uavstatus.mspRcOverride && !fmMspOverride) {
-          LOGLINE("MSP RC Override deactivated — clearing all command states");
-          clearAllCommandStates();
-      }
-      uavstatus.mspRcOverride = fmMspOverride;
 
       lastMspCommunicationTs = millis();
     }
@@ -1966,8 +1956,6 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.downlinkStatus != publishedStatus.downlinkStatus || msgGroup == 7)
     sprintf(message, "%sdls:%d,", message, publishedStatus.downlinkStatus); // downlinkStatus
 
-  if(lastStatus.mspRcOverride != publishedStatus.mspRcOverride || msgGroup == 7)
-    sprintf(message, "%smro:%d,", message, publishedStatus.mspRcOverride); // mspRcOverride
 
   if(lastStatus.cmdRth != publishedStatus.cmdRth || msgGroup == 7)
     sprintf(message, "%scmdrth:%d,", message, publishedStatus.cmdRth);

@@ -71,7 +71,6 @@
 #define MSP_PERM_ID_FAILSAFE    27
 #define MSP_PERM_ID_WP          28
 #define MSP_PERM_ID_CRUISE      53
-#define MSP_PERM_ID_MSPOVERRIDE 50
 
 // One entry returned by MSP_MODE_RANGES (4 bytes each, up to 40 entries)
 struct modeRangeEntry_t {
