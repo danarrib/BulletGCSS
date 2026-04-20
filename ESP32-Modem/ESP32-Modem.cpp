@@ -1041,6 +1041,7 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
       xSemaphoreGive(cmdMutex);
 
       LOGLINE("%s %s", cmd, state == 1 ? "ON" : "OFF");
+      msp_send_aux_rc();
   }
 }
 
@@ -1146,9 +1147,20 @@ void getTelemetryData()
   msp_get_boxids();
   msp_setup_aux_channel();
 
-  // Always: send the dedicated aux channel value every cycle.
+  // Update cmd telemetry fields every cycle so the publish loop can report changes.
   uint32_t _cycleStart = millis();
-  MSP_TIME("msp_send_aux_rc", msp_send_aux_rc());
+  {
+      bool snap[CMD_MODE_COUNT];
+      xSemaphoreTake(cmdMutex, portMAX_DELAY);
+      for (int i = 0; i < CMD_MODE_COUNT; i++) snap[i] = cmdModes[i].mode->active;
+      xSemaphoreGive(cmdMutex);
+      uavstatus.cmdRth     = snap[0] ? 1 : 0;
+      uavstatus.cmdAltHold = snap[1] ? 1 : 0;
+      uavstatus.cmdCruise  = snap[2] ? 1 : 0;
+      uavstatus.cmdBeeper  = snap[3] ? 1 : 0;
+      uavstatus.cmdWp      = snap[4] ? 1 : 0;
+      uavstatus.cmdPosHold = snap[5] ? 1 : 0;
+  }
 
   // Round-robin: spread remaining telemetry across 6 cycles (one group per cycle)
   // so each cycle completes well within the 160 ms period.
@@ -1613,6 +1625,7 @@ void msp_setup_aux_channel() {
     auxChannelSetupDone = true;
     auxChannelReady     = true;
     lastMspCommunicationTs = millis();
+    msp_send_aux_rc();  // initialise channel to neutral immediately
 }
 
 // Clear all per-command active states. Called on FC disconnect — prevents stale
@@ -1626,33 +1639,20 @@ void clearAllCommandStates() {
         uavstatus.cmdBeeper = uavstatus.cmdWp = uavstatus.cmdPosHold = 0;
 }
 
-// Send MSP2_INAV_SET_AUX_RC every cycle to set the dedicated channel to the
-// active mode's PWM value, or to the neutral value when no mode is commanded.
-// Values persist on the FC until overwritten — no freshness window.
+// Send MSP2_INAV_SET_AUX_RC to set the dedicated channel to the active mode's
+// PWM value, or to the neutral value when no mode is commanded.
+// Called on command state change and once at channel setup. Values persist on
+// the FC until overwritten — no periodic refresh needed.
 void msp_send_aux_rc() {
     if (!auxChannelReady) return;
 
-    // Snapshot active states under cmdMutex.
-    // cmdModes[] order: 0=rth, 1=althold, 2=cruise, 3=beeper, 4=wp, 5=poshold
-    bool activeSnapshot[CMD_MODE_COUNT];
-    xSemaphoreTake(cmdMutex, portMAX_DELAY);
-    for (int i = 0; i < CMD_MODE_COUNT; i++)
-        activeSnapshot[i] = cmdModes[i].mode->active;
-    xSemaphoreGive(cmdMutex);
-
-    // Update telemetry cmd fields from snapshot.
-    uavstatus.cmdRth     = activeSnapshot[0] ? 1 : 0;
-    uavstatus.cmdAltHold = activeSnapshot[1] ? 1 : 0;
-    uavstatus.cmdCruise  = activeSnapshot[2] ? 1 : 0;
-    uavstatus.cmdBeeper  = activeSnapshot[3] ? 1 : 0;
-    uavstatus.cmdWp      = activeSnapshot[4] ? 1 : 0;
-    uavstatus.cmdPosHold = activeSnapshot[5] ? 1 : 0;
-
     // Find the active mode's center PWM, or use the neutral value.
     uint16_t pwm = BGCSS_NEUTRAL_PWM;
+    xSemaphoreTake(cmdMutex, portMAX_DELAY);
     for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        if (activeSnapshot[i]) { pwm = cmdModes[i].centerPwm; break; }
+        if (cmdModes[i].mode->active) { pwm = cmdModes[i].centerPwm; break; }
     }
+    xSemaphoreGive(cmdMutex);
 
     // MSP2_INAV_SET_AUX_RC payload: 16-bit mode, single channel.
     // defByte bits 7-3: 0-based RC channel index (auxChannelIndex + 4).
