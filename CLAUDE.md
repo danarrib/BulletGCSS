@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Bullet GCSS** (Ground Control Station System) is a web-based UAV ground control station that operates over cellular networks with no range limit. It is a PWA (no app installation required) that works cross-platform.
 
+## Local Resources
+
+- **INAV firmware repository** is available at `~/dev/inav` — useful for cross-referencing MSP protocol definitions, box IDs, and flight controller behavior.
+
 ## Two-Component Architecture
 
 ### 1. ESP32-Modem (Embedded Firmware — [ESP32-Modem/](ESP32-Modem/))
