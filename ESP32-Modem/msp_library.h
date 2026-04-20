@@ -49,7 +49,8 @@
 #define MSP_NAV_STATUS        121
 #define MSP_SENSOR_STATUS     151
 #define MSP_SET_WP            209
-#define MSP_SET_RAW_RC        200
+#define MSP_SET_MODE_RANGE    35
+#define MSP2_INAV_SET_AUX_RC  0x2230
 #define MSP2_INAV_ANALOG      0x2002
 #define MSP2_INAV_MISC2       0x203A
 #define MSP2_INAV_SET_WP_INDEX      0x2221  // in: jump to WP N during active mission (U8 index, 0-based)
@@ -72,7 +73,7 @@
 #define MSP_PERM_ID_CRUISE      53
 #define MSP_PERM_ID_MSPOVERRIDE 50
 
-// One entry returned by MSP_MODE_RANGES (4 bytes each, up to 20 entries)
+// One entry returned by MSP_MODE_RANGES (4 bytes each, up to 40 entries)
 struct modeRangeEntry_t {
     uint8_t permanentId;      // mode identifier (see MSP_PERM_ID_* above)
     uint8_t auxChannelIndex;  // AUX channel (0 = AUX1); RC channel index = auxChannelIndex + 4
@@ -80,25 +81,12 @@ struct modeRangeEntry_t {
     uint8_t endStep;          // activation range end
 } __attribute__((packed));
 
-// Computed activation info for a single flight mode (populated from MSP_MODE_RANGES at startup)
-struct modeRangeInfo_t {
-    uint8_t  rcChannelIndex; // 0-based RC channel index (auxChannelIndex + 4)
-    uint16_t onValue;        // PWM midpoint of the activation range
-    uint16_t startPWM;       // lower bound of the activation range (900 + startStep * 25)
-    uint16_t endPWM;         // upper bound of the activation range (900 + endStep   * 25)
-    bool     found;          // true once a valid range was found for this mode
-};
-
-// All per-mode state bundled into one struct.
-// range:     RC channel assignment and activation PWM (from MSP_MODE_RANGES)
-// available: channel is enabled in msp_override_channels (set at startup)
-// active:    a sustained RC override for this mode is currently commanded
-// boxId:     index in the MSP_ACTIVEBOXES bitmask (from MSP_BOXNAMES)
+// Per-mode runtime state.
+// active: a sustained RC override for this mode is currently commanded
+// boxId:  index in the MSP_ACTIVEBOXES bitmask (from MSP_BOXNAMES)
 struct FlightMode {
-    modeRangeInfo_t range;
-    bool            available;
-    bool            active;
-    uint8_t         boxId;
+    bool    active;
+    uint8_t boxId;
 };
 
 // This enum is a copy from INAV one in "src/main/fc/rc_modes.h"

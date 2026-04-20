@@ -88,7 +88,7 @@ function openCommandsModal() {
 
 function updateCommandsPanel() {
     var downlinkOk = mqttConnected && data.downlinkStatus === 1;
-    var rcOk = downlinkOk && data.mspRcOverride === 1;
+    var rcOk = downlinkOk;
 
     // Version warning: shown when version is known and < 9.0.0
     var versionKnown = data.fcVersion !== "";
@@ -115,7 +115,7 @@ function updateCommandsPanel() {
     }
 
     document.getElementById("commandsDownlinkWarning").style.display = downlinkOk ? "none" : "block";
-    document.getElementById("commandsMroWarning").style.display = (downlinkOk && !rcOk) ? "block" : "none";
+    document.getElementById("commandsMroWarning").style.display = "none";
 
     document.getElementById("btSendPing").disabled = !downlinkOk;
     var extOk = data.extCmdsSupported >= 1;
