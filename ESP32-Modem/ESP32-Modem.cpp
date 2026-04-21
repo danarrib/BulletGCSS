@@ -208,11 +208,11 @@ struct FlightModeEntry {
 };
 static FlightModeEntry cmdModes[] = {
     { "rth",     MSP_PERM_ID_RTH,     &modeRth,      8, 12, 1150 },
-    { "althold", MSP_PERM_ID_ALTHOLD, &modeAltHold, 12, 16, 1250 },
-    { "cruise",  MSP_PERM_ID_CRUISE,  &modeCruise,  16, 20, 1350 },
-    { "beeper",  MSP_PERM_ID_BEEPER,  &modeBeeper,  24, 28, 1550 },
-    { "wp",      MSP_PERM_ID_WP,      &modeWp,      20, 24, 1450 },
-    { "poshold", MSP_PERM_ID_POSHOLD, &modePosHold, 28, 32, 1650 },
+    { "althold", MSP_PERM_ID_ALTHOLD, &modeAltHold, 12, 24, 1250 }, // wide range: also active when poshold/cruise are selected
+    { "poshold", MSP_PERM_ID_POSHOLD, &modePosHold, 16, 20, 1350 }, // inside althold range → co-activates althold
+    { "cruise",  MSP_PERM_ID_CRUISE,  &modeCruise,  20, 24, 1450 }, // inside althold range → co-activates althold
+    { "wp",      MSP_PERM_ID_WP,      &modeWp,      24, 28, 1550 },
+    { "beeper",  MSP_PERM_ID_BEEPER,  &modeBeeper,  28, 32, 1650 },
 };
 static const int CMD_MODE_COUNT = sizeof(cmdModes) / sizeof(cmdModes[0]);
 // ─────────────────────────────────────────────────────────────────────────────
