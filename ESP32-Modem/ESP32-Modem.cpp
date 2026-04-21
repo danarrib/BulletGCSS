@@ -165,16 +165,15 @@ uint8_t boxIdFailsafe   = 0;
 uint8_t boxIdManual     = 0;
 uint8_t boxIdAngle      = 0;
 uint8_t boxIdHorizon    = 0;
-uint8_t boxIdMspOverride = 0;
 
-// Current RC channel values — updated every telemetry cycle from MSP_RC, used when building MSP_SET_RAW_RC
-#define RC_CHANNEL_MAX 34
-uint16_t rcChannels[RC_CHANNEL_MAX] = {0};
-uint8_t  rcChannelCount = 0;
+// Dedicated BulletGCSS aux channel — index into INAV's aux channel array (0-based, CH5=0).
+// Set by msp_setup_aux_channel() at startup; -1 until configured.
+int8_t dedicatedAuxChannel = -1;
+bool   auxChannelReady     = false;
 
-// MSP RC Override configuration — populated once from MSP2_COMMON_SETTING
-uint32_t mspOverrideChannelsMask = 0;
-bool mspOverrideFetched = false;
+// Neutral PWM sent on the dedicated channel when no mode is commanded.
+// Range 0 in the layout: 1000-1100 µs, center 1050 µs.
+#define BGCSS_NEUTRAL_PWM 1050
 
 // ── Remotely commandable flight modes ────────────────────────────────────────
 // Each FlightMode bundles what were previously four separate per-mode variables:
@@ -188,20 +187,32 @@ FlightMode modeCruise   = {};
 FlightMode modePosHold  = {};
 
 // Table of all commandable flight modes.
-// Drives mode-range parsing, override-channel setup, RC override sending,
-// command dispatch, and conflict resolution — eliminating per-mode repetition.
+// startStep/endStep: the fixed activation range written to INAV's mode conditions.
+// centerPwm: the PWM value sent on the dedicated channel to activate this mode.
+// Layout (10 ranges of 100 µs, 1000-2000 µs; step = 25 µs, step 0 = 900 µs):
+//   Range 0: 1000-1100 (steps  4- 8) neutral — no entry written
+//   Range 1: 1100-1200 (steps  8-12) RTH
+//   Range 2: 1200-1300 (steps 12-16) AltHold
+//   Range 3: 1300-1400 (steps 16-20) Cruise
+//   Range 4: 1400-1500 (steps 20-24) WP Mission
+//   Range 5: 1500-1600 (steps 24-28) Beeper
+//   Range 6: 1600-1700 (steps 28-32) PosHold
+//   Ranges 7-9: 1700-2000 — spare, reserved
 struct FlightModeEntry {
-    const char* cmdName;  // MQTT command string (e.g. "rth")
-    uint8_t     permId;   // MSP_PERM_ID_* constant for MSP_BOXIDS / MSP_MODE_RANGES matching
+    const char* cmdName;    // MQTT command string (e.g. "rth")
+    uint8_t     permId;     // MSP_PERM_ID_* constant
     FlightMode* mode;
+    uint8_t     startStep;  // range start written to INAV condition slot
+    uint8_t     endStep;    // range end written to INAV condition slot
+    uint16_t    centerPwm;  // PWM sent on dedicated channel to activate this mode
 };
 static FlightModeEntry cmdModes[] = {
-    { "rth",     MSP_PERM_ID_RTH,     &modeRth     },
-    { "althold", MSP_PERM_ID_ALTHOLD, &modeAltHold },
-    { "cruise",  MSP_PERM_ID_CRUISE,  &modeCruise  },
-    { "beeper",  MSP_PERM_ID_BEEPER,  &modeBeeper  },
-    { "wp",      MSP_PERM_ID_WP,      &modeWp      },
-    { "poshold", MSP_PERM_ID_POSHOLD, &modePosHold },
+    { "rth",     MSP_PERM_ID_RTH,     &modeRth,      8, 12, 1150 },
+    { "althold", MSP_PERM_ID_ALTHOLD, &modeAltHold, 12, 24, 1250 }, // wide range: also active when poshold/cruise are selected
+    { "poshold", MSP_PERM_ID_POSHOLD, &modePosHold, 16, 20, 1350 }, // inside althold range → co-activates althold
+    { "cruise",  MSP_PERM_ID_CRUISE,  &modeCruise,  20, 24, 1450 }, // inside althold range → co-activates althold
+    { "wp",      MSP_PERM_ID_WP,      &modeWp,      24, 28, 1550 },
+    { "beeper",  MSP_PERM_ID_BEEPER,  &modeBeeper,  28, 32, 1650 },
 };
 static const int CMD_MODE_COUNT = sizeof(cmdModes) / sizeof(cmdModes[0]);
 // ─────────────────────────────────────────────────────────────────────────────
@@ -212,7 +223,7 @@ uint32_t lastFcProbeTs = 0;
 
  // Flags that prevents some routines to run more than one time
 bool boxIdsFetched = 0;
-bool modeRangesFetched = false;
+bool auxChannelSetupDone = false;  // true once msp_setup_aux_channel() has been called and succeeded
 bool fcVersionFetched = false;
 bool callsignFetched = 0;
 uint8_t  waypointMessageCounter = 0;
@@ -284,14 +295,9 @@ void msp2_get_misc2();
 void msp_get_wp(uint8_t wp_no);
 void msp_get_fc_version();
 void msp_get_boxids();
-void msp_get_mode_ranges();
-void msp_get_override_channels();
-bool msp_get_setting_u32(const char* name, uint32_t &value);
-bool msp_set_setting_u32(const char* name, uint32_t value);
-void msp_get_rc();
-void msp_send_rc_override();
+void msp_setup_aux_channel();
+void msp_send_aux_rc();
 void clearAllCommandStates();
-void resolveChannelConflicts(uint8_t channelIndex);
 void msp_get_callsign();
 void msp_get_activeboxes();
 void sendMessageTask();
@@ -1018,27 +1024,24 @@ void mqttCommandCallback(char* topic, byte* payload, unsigned int length) {
           LOGLINE("RC command '%s': invalid state '%s'", cmd, stateStr);
           return;
       }
-      if (!entry->mode->available) {
-          LOGLINE("RC command '%s': unavailable (mode not found or channel not overrideable)", cmd);
+      if (!auxChannelReady) {
+          LOGLINE("RC command '%s': aux channel not yet configured", cmd);
           return;
       }
 
       xSemaphoreTake(cmdMutex, portMAX_DELAY);
       if (state == 1) {
-          // New command wins — clear any other active command on the same channel first.
-          resolveChannelConflicts(entry->mode->range.rcChannelIndex);
+          // All modes share one dedicated channel — deactivate all others first.
+          for (int i = 0; i < CMD_MODE_COUNT; i++)
+              cmdModes[i].mode->active = false;
           entry->mode->active = true;
       } else {
           entry->mode->active = false;
       }
       xSemaphoreGive(cmdMutex);
 
-      if (state == 1)
-          LOGLINE("%s ON -> RC_CH%d will be held at %d", cmd,
-                           entry->mode->range.rcChannelIndex + 1, entry->mode->range.onValue);
-      else
-          LOGLINE("%s OFF -> RC_CH%d released to radio", cmd,
-                           entry->mode->range.rcChannelIndex + 1);
+      LOGLINE("%s %s", cmd, state == 1 ? "ON" : "OFF");
+      msp_send_aux_rc();
   }
 }
 
@@ -1142,14 +1145,22 @@ void getTelemetryData()
   // Startup-only — each has an internal flag and returns immediately once done.
   msp_get_fc_version();
   msp_get_boxids();
-  msp_get_mode_ranges();
-  msp_get_override_channels();
+  msp_setup_aux_channel();
 
-  // Always: keep RC values fresh and send any active channel overrides.
-  // These two must run every cycle to stay within INAV's 200 ms freshness window.
+  // Update cmd telemetry fields every cycle so the publish loop can report changes.
   uint32_t _cycleStart = millis();
-  MSP_TIME("msp_get_rc",          msp_get_rc());
-  MSP_TIME("msp_send_rc_override", msp_send_rc_override());
+  {
+      bool snap[CMD_MODE_COUNT];
+      xSemaphoreTake(cmdMutex, portMAX_DELAY);
+      for (int i = 0; i < CMD_MODE_COUNT; i++) snap[i] = cmdModes[i].mode->active;
+      xSemaphoreGive(cmdMutex);
+      uavstatus.cmdRth     = snap[0] ? 1 : 0;
+      uavstatus.cmdAltHold = snap[1] ? 1 : 0;
+      uavstatus.cmdCruise  = snap[2] ? 1 : 0;
+      uavstatus.cmdBeeper  = snap[3] ? 1 : 0;
+      uavstatus.cmdWp      = snap[4] ? 1 : 0;
+      uavstatus.cmdPosHold = snap[5] ? 1 : 0;
+  }
 
   // Round-robin: spread remaining telemetry across 6 cycles (one group per cycle)
   // so each cycle completes well within the 160 ms period.
@@ -1217,15 +1228,13 @@ void getTelemetryData()
   {
       LOGLINE("MSP connection lost - resetting...");
       msp.reset();
-      fcReady           = false;
-      boxIdsFetched     = false;
-      modeRangesFetched = false;
-      fcVersionFetched  = false;
-      mspOverrideFetched = false;
-      callsignFetched   = false;
-      rcChannelCount    = 0;
-      for (int i = 0; i < CMD_MODE_COUNT; i++)
-          cmdModes[i].mode->available = false;
+      fcReady              = false;
+      boxIdsFetched        = false;
+      auxChannelSetupDone  = false;
+      auxChannelReady      = false;
+      dedicatedAuxChannel  = -1;
+      fcVersionFetched     = false;
+      callsignFetched      = false;
       // FC disconnect — pilot must regain manual control; clear all active overrides.
       clearAllCommandStates();
   }
@@ -1504,7 +1513,6 @@ void msp_get_boxids() {
                 else if (permId == MSP_PERM_ID_MANUAL)      boxIdManual      = boxIndex;
                 else if (permId == MSP_PERM_ID_ANGLE)       boxIdAngle       = boxIndex;
                 else if (permId == MSP_PERM_ID_HORIZON)     boxIdHorizon     = boxIndex;
-                else if (permId == MSP_PERM_ID_MSPOVERRIDE) boxIdMspOverride = boxIndex;
             }
         }
         boxIdsFetched = 1;
@@ -1514,188 +1522,114 @@ void msp_get_boxids() {
     }
 }
 
-void msp_get_mode_ranges() {
-    // Only needs to run once at startup
-    if (modeRangesFetched)
-        return;
+// Configure the dedicated BulletGCSS aux channel on the FC.
+// Runs once at startup. Scans all 40 INAV mode condition slots, reuses the
+// existing BulletGCSS channel if found (ESP32 reboot case), otherwise claims
+// a free aux channel at CH25+ and writes 6 condition entries via MSP_SET_MODE_RANGE.
+void msp_setup_aux_channel() {
+    if (auxChannelSetupDone) return;
 
-    // INAV supports up to 20 mode activation conditions; each entry is 4 bytes
-    const int MAX_ENTRIES = 20;
-    modeRangeEntry_t entries[MAX_ENTRIES];
+    const int MAX_CONDITIONS = 40;
+    modeRangeEntry_t entries[MAX_CONDITIONS];
     uint16_t dataLen = 0;
 
-    if (msp.request(MSP_MODE_RANGES, entries, sizeof(entries), &dataLen)) {
-        int entryCount = dataLen / sizeof(modeRangeEntry_t);
-        LOGLINE("MSP_MODE_RANGES: %d entries received", entryCount);
+    if (!msp.request(MSP_MODE_RANGES, entries, sizeof(entries), &dataLen)) {
+        LOGLINE("msp_setup_aux_channel: MSP_MODE_RANGES request failed");
+        return;
+    }
 
+    int entryCount = dataLen / sizeof(modeRangeEntry_t);
+    LOGLINE("msp_setup_aux_channel: %d condition slots read", entryCount);
+
+    // Step 1: scan for an existing BulletGCSS channel (all 6 modes on the same
+    // aux channel with exactly the expected step values).
+    for (int8_t auxCh = 20; auxCh <= 27; auxCh++) {
+        int matched = 0;
         for (int i = 0; i < entryCount; i++) {
             modeRangeEntry_t &e = entries[i];
-            // Skip empty/invalid entries (no activation range, or garbage auxChannel value)
-            if (e.startStep >= e.endStep || e.auxChannelIndex > 17)
-                continue;
-
-            uint8_t rcCh    = e.auxChannelIndex + 4; // 0-based; CH1-CH4 are sticks
-            uint16_t onVal  = 900 + ((e.startStep + e.endStep) / 2) * 25;
-            uint16_t pwmLo  = 900 + e.startStep * 25;
-            uint16_t pwmHi  = 900 + e.endStep   * 25;
-
-            LOGLINE("  id=%d auxCh=%d steps=%d-%d => RC_CH%d (%d-%d) onVal=%d",
-                e.permanentId, e.auxChannelIndex,
-                e.startStep, e.endStep,
-                rcCh + 1, pwmLo, pwmHi, onVal);
-
-            modeRangeInfo_t info = {rcCh, onVal, pwmLo, pwmHi, true};
-
+            if (e.auxChannelIndex != auxCh) continue;
             for (int j = 0; j < CMD_MODE_COUNT; j++) {
-                if (e.permanentId == cmdModes[j].permId) {
-                    cmdModes[j].mode->range = info;
+                if (e.permanentId == cmdModes[j].permId &&
+                    e.startStep   == cmdModes[j].startStep &&
+                    e.endStep     == cmdModes[j].endStep) {
+                    matched++;
                     break;
                 }
             }
         }
-
-        LOGLINE("Mode ranges summary:");
-        for (int j = 0; j < CMD_MODE_COUNT; j++) {
-            FlightMode* m = cmdModes[j].mode;
-            if (m->range.found)
-                LOGLINE("  %-8s RC_CH%d onValue=%d", cmdModes[j].cmdName,
-                                 m->range.rcChannelIndex + 1, m->range.onValue);
-            else
-                LOGLINE("  %-8s not found", cmdModes[j].cmdName);
-        }
-
-        modeRangesFetched = true;
-        lastMspCommunicationTs = millis();
-    } else {
-        LOGLINE("MSP_MODE_RANGES request failed!");
-    }
-}
-
-// Read a uint32_t setting by name via MSP2_COMMON_SETTING (0x1003).
-// Request payload: null-terminated setting name.
-// Response payload: raw value bytes (4 bytes for uint32_t).
-bool msp_get_setting_u32(const char* name, uint32_t &value) {
-    uint8_t reqBuf[64];
-    uint8_t nameLen = strlen(name) + 1; // include null terminator
-    if (nameLen > sizeof(reqBuf))
-        return false;
-    memcpy(reqBuf, name, nameLen);
-
-    uint32_t resp = 0;
-    uint16_t recvSize = 0;
-    if (msp.requestWithResponse(MSP2_COMMON_SETTING, reqBuf, nameLen, &resp, sizeof(resp), &recvSize)) {
-        value = resp;
-        return true;
-    }
-    return false;
-}
-
-// Write a uint32_t setting by name via MSP2_COMMON_SET_SETTING (0x1004).
-// Request payload: null-terminated setting name immediately followed by the raw value bytes.
-bool msp_set_setting_u32(const char* name, uint32_t value) {
-    uint8_t buf[64 + sizeof(uint32_t)];
-    uint8_t nameLen = strlen(name) + 1;
-    if (nameLen > 64)
-        return false;
-    memcpy(buf, name, nameLen);
-    memcpy(buf + nameLen, &value, sizeof(uint32_t));
-    return msp.command(MSP2_COMMON_SET_SETTING, buf, nameLen + sizeof(uint32_t));
-}
-
-// Helper: update cmdAvailable* flags from the current mspOverrideChannelsMask and print a summary.
-static void updateCommandAvailability() {
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        FlightMode* m = cmdModes[i].mode;
-        if (!m->range.found) {
-            LOGLINE("  %-8s UNAVAILABLE (no mode range)", cmdModes[i].cmdName);
-            m->available = false;
-        } else {
-            bool enabled = (mspOverrideChannelsMask & (1UL << m->range.rcChannelIndex)) != 0;
-            m->available = enabled;
-            LOGLINE("  %-8s RC_CH%-2d %s", cmdModes[i].cmdName,
-                             m->range.rcChannelIndex + 1, enabled ? "OK" : "BLOCKED");
-        }
-    }
-}
-
-void msp_get_override_channels() {
-    // Only needs to run once, and only after mode ranges are known
-    if (mspOverrideFetched || !modeRangesFetched)
-        return;
-
-    // Step 1: read the current override mask from the FC
-    if (!msp_get_setting_u32("msp_override_channels", mspOverrideChannelsMask)) {
-        LOGLINE("msp_override_channels read failed!");
-        return;
-    }
-    LOGLINE("msp_override_channels (current): 0x%08X", mspOverrideChannelsMask);
-
-    // Step 2: build a mask of every channel we need to control
-    uint32_t neededMask = 0;
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        if (cmdModes[i].mode->range.found)
-            neededMask |= (1UL << cmdModes[i].mode->range.rcChannelIndex);
-    }
-
-    // Step 3: if any needed channels are missing, OR them in and write back
-    uint32_t missingMask = neededMask & ~mspOverrideChannelsMask;
-    if (missingMask != 0) {
-        uint32_t newMask = mspOverrideChannelsMask | missingMask;
-        LOGLINE("Adding channels to msp_override_channels: 0x%08X -> 0x%08X",
-                         mspOverrideChannelsMask, newMask);
-
-        if (!msp_set_setting_u32("msp_override_channels", newMask)) {
-            LOGLINE("msp_override_channels write failed!");
+        if (matched == CMD_MODE_COUNT) {
+            dedicatedAuxChannel = auxCh;
+            auxChannelSetupDone = true;
+            auxChannelReady     = true;
+            lastMspCommunicationTs = millis();
+            LOGLINE("msp_setup_aux_channel: reusing existing channel AUX%d (CH%d)",
+                    auxCh + 1, auxCh + 5);
             return;
         }
-
-        // Step 4: read back to confirm the FC accepted the new value
-        uint32_t confirmedMask = 0;
-        if (!msp_get_setting_u32("msp_override_channels", confirmedMask)) {
-            LOGLINE("msp_override_channels confirm-read failed!");
-            return;
-        }
-        mspOverrideChannelsMask = confirmedMask;
-        LOGLINE("msp_override_channels (confirmed): 0x%08X", mspOverrideChannelsMask);
     }
 
-    // Step 5: update per-command availability from the final confirmed mask
-    LOGLINE("Command availability:");
-    updateCommandAvailability();
+    // Step 2: find a free aux channel at CH25+ (aux index 20+).
+    int8_t freeChannel = -1;
+    for (int8_t auxCh = 20; auxCh <= 27; auxCh++) {
+        bool inUse = false;
+        for (int i = 0; i < entryCount; i++) {
+            if (entries[i].auxChannelIndex == auxCh &&
+                entries[i].startStep < entries[i].endStep) {
+                inUse = true;
+                break;
+            }
+        }
+        if (!inUse) { freeChannel = auxCh; break; }
+    }
 
-    mspOverrideFetched = true;
+    if (freeChannel < 0) {
+        LOGLINE("msp_setup_aux_channel: no free aux channel available at CH25+");
+        return;
+    }
+
+    // Step 3: find CMD_MODE_COUNT free condition slots (startStep >= endStep = empty).
+    int freeSlots[CMD_MODE_COUNT];
+    int slotsFound = 0;
+    for (int i = 0; i < entryCount && slotsFound < CMD_MODE_COUNT; i++) {
+        if (entries[i].startStep >= entries[i].endStep)
+            freeSlots[slotsFound++] = i;
+    }
+
+    if (slotsFound < CMD_MODE_COUNT) {
+        LOGLINE("msp_setup_aux_channel: not enough free slots (%d/%d)", slotsFound, CMD_MODE_COUNT);
+        return;
+    }
+
+    // Step 4: write one condition entry per commandable mode.
+    LOGLINE("msp_setup_aux_channel: claiming AUX%d (CH%d), writing %d conditions",
+            freeChannel + 1, freeChannel + 5, CMD_MODE_COUNT);
+
+    for (int j = 0; j < CMD_MODE_COUNT; j++) {
+        uint8_t payload[5] = {
+            (uint8_t)freeSlots[j],
+            cmdModes[j].permId,
+            (uint8_t)freeChannel,
+            cmdModes[j].startStep,
+            cmdModes[j].endStep
+        };
+        if (!msp.command(MSP_SET_MODE_RANGE, payload, sizeof(payload), true)) {
+            LOGLINE("msp_setup_aux_channel: MSP_SET_MODE_RANGE failed for %s", cmdModes[j].cmdName);
+            return;
+        }
+        LOGLINE("  slot %d: %-8s steps %d-%d -> %d µs",
+                freeSlots[j], cmdModes[j].cmdName,
+                cmdModes[j].startStep, cmdModes[j].endStep, cmdModes[j].centerPwm);
+    }
+
+    dedicatedAuxChannel = freeChannel;
+    auxChannelSetupDone = true;
+    auxChannelReady     = true;
     lastMspCommunicationTs = millis();
+    msp_send_aux_rc();  // initialise channel to neutral immediately
 }
 
-void msp_get_rc() {
-    uint16_t buf[RC_CHANNEL_MAX];
-    uint16_t dataLen = 0;
-
-    if (msp.request(MSP_RC, buf, sizeof(buf), &dataLen)) {
-        uint8_t count = dataLen / sizeof(uint16_t);
-        if (count > RC_CHANNEL_MAX)
-            count = RC_CHANNEL_MAX;
-
-        bool firstRead = (rcChannelCount == 0);
-        rcChannelCount = count;
-        for (uint8_t i = 0; i < count; i++)
-            rcChannels[i] = buf[i];
-
-        if (firstRead) {
-            LOGLINE("MSP_RC: %d channels", count);
-            for (uint8_t i = 0; i < count; i++)
-                LOGLINE("  CH%d: %d", i + 1, rcChannels[i]);
-        }
-
-        lastMspCommunicationTs = millis();
-    } else {
-        LOGLINE("MSP_RC request failed!");
-    }
-}
-
-// Clear all per-command active states. Called when MSP RC Override goes inactive
-// mid-flight, or when the FC disconnects — prevents stale commands from firing
-// when the pilot regains control or the FC reconnects.
+// Clear all per-command active states. Called on FC disconnect — prevents stale
+// commands from firing when the FC reconnects.
 void clearAllCommandStates() {
     xSemaphoreTake(cmdMutex, portMAX_DELAY);
     for (int i = 0; i < CMD_MODE_COUNT; i++)
@@ -1705,150 +1639,30 @@ void clearAllCommandStates() {
         uavstatus.cmdBeeper = uavstatus.cmdWp = uavstatus.cmdPosHold = 0;
 }
 
-// Clear any active commands that share the same RC channel as a new incoming
-// command. Called before setting a new command state to ON so that the latest
-// command always wins on a shared channel.
-void resolveChannelConflicts(uint8_t channelIndex) {
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        FlightMode* m = cmdModes[i].mode;
-        if (m->active && m->range.found && m->range.rcChannelIndex == channelIndex)
-            m->active = false;
-    }
-}
+// Send MSP2_INAV_SET_AUX_RC to set the dedicated channel to the active mode's
+// PWM value, or to the neutral value when no mode is commanded.
+// Called on command state change and once at channel setup. Values persist on
+// the FC until overwritten — no periodic refresh needed.
+void msp_send_aux_rc() {
+    if (!auxChannelReady) return;
 
-// Return a safe neutral PWM value for a channel that has known mode ranges but
-// no active mode. Strategy: scan [900, 2100] for the largest contiguous gap not
-// covered by any mode on this channel, then return the midpoint of that gap.
-// Falls back to 1000 if no gap is found (shouldn't happen in practice).
-static uint16_t findSafeOffValue(uint8_t ch) {
-    // Collect all [startPWM, endPWM] intervals for modes on this channel.
-    const uint16_t PWM_MIN = 900;
-    const uint16_t PWM_MAX = 2100;
-
-    // Max entries: CMD_MODE_COUNT intervals.
-    uint16_t starts[CMD_MODE_COUNT];
-    uint16_t ends[CMD_MODE_COUNT];
-    int count = 0;
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        modeRangeInfo_t& r = cmdModes[i].mode->range;
-        if (!r.found || r.rcChannelIndex != ch) continue;
-        starts[count] = r.startPWM;
-        ends[count]   = r.endPWM;
-        count++;
-    }
-
-    if (count == 0) return 1000; // no ranges — shouldn't reach here
-
-    // Insertion sort by startPWM.
-    for (int i = 1; i < count; i++) {
-        uint16_t ks = starts[i], ke = ends[i];
-        int j = i - 1;
-        while (j >= 0 && starts[j] > ks) {
-            starts[j+1] = starts[j];
-            ends[j+1]   = ends[j];
-            j--;
-        }
-        starts[j+1] = ks;
-        ends[j+1]   = ke;
-    }
-
-    // Scan for the largest gap: check [PWM_MIN, first start], each [end_i, start_{i+1}], [last end, PWM_MAX].
-    uint16_t bestMid = 1000;
-    uint16_t bestGap = 0;
-
-    auto checkGap = [&](uint16_t lo, uint16_t hi) {
-        if (hi <= lo) return;
-        uint16_t gap = hi - lo;
-        if (gap > bestGap) {
-            bestGap = gap;
-            bestMid = lo + gap / 2;
-        }
-    };
-
-    checkGap(PWM_MIN, starts[0]);
-    for (int i = 0; i < count - 1; i++)
-        checkGap(ends[i], starts[i+1]);
-    checkGap(ends[count-1], PWM_MAX);
-
-    return bestMid;
-}
-
-// Send MSP_SET_RAW_RC to the FC when any sustained RC channel command is active.
-// Called every telemetry cycle (~200 ms) after msp_get_rc() refreshes rcChannels[].
-// Starts from the real radio values so untouched channels pass through unmodified.
-void msp_send_rc_override() {
-    if (rcChannelCount == 0) return;
-    if (!uavstatus.mspRcOverride) return;
-
-    // Snapshot active states under cmdMutex so we don't race with mqttCommandCallback.
-    bool activeSnapshot[CMD_MODE_COUNT];
-    bool anyActive = false;
+    // Find the active mode's center PWM, or use the neutral value.
+    uint16_t pwm = BGCSS_NEUTRAL_PWM;
     xSemaphoreTake(cmdMutex, portMAX_DELAY);
     for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        activeSnapshot[i] = cmdModes[i].mode->active;
-        if (activeSnapshot[i]) anyActive = true;
+        if (cmdModes[i].mode->active) { pwm = cmdModes[i].centerPwm; break; }
     }
     xSemaphoreGive(cmdMutex);
 
-    // Update telemetry command state fields from the snapshot (always, even when nothing active).
-    // cmdModes[] order: 0=rth, 1=althold, 2=cruise, 3=beeper, 4=wp, 5=poshold
-    uavstatus.cmdRth     = activeSnapshot[0] ? 1 : 0;
-    uavstatus.cmdAltHold = activeSnapshot[1] ? 1 : 0;
-    uavstatus.cmdCruise  = activeSnapshot[2] ? 1 : 0;
-    uavstatus.cmdBeeper  = activeSnapshot[3] ? 1 : 0;
-    uavstatus.cmdWp      = activeSnapshot[4] ? 1 : 0;
-    uavstatus.cmdPosHold = activeSnapshot[5] ? 1 : 0;
-
-    if (!anyActive) return;
-
-    // Start from the current radio values read by msp_get_rc().
-    // NOTE: when MSP RC Override is active, MSP_RC returns our own previously
-    // sent values, not the real radio values. We must therefore explicitly
-    // neutralise any channel that has known mode ranges but no active mode,
-    // otherwise deactivated channels keep the last overridden value.
-    uint16_t channels[RC_CHANNEL_MAX];
-    memcpy(channels, rcChannels, rcChannelCount * sizeof(uint16_t));
-
-    // For each RC channel that has at least one known range but no active mode,
-    // find the largest gap in [900, 2100] not covered by any mode on that channel
-    // and place the channel at the midpoint of that gap.
-    for (uint8_t ch = 0; ch < rcChannelCount; ch++) {
-        bool chHasMode       = false;
-        bool chHasActiveMode = false;
-
-        for (int i = 0; i < CMD_MODE_COUNT; i++) {
-            modeRangeInfo_t& r = cmdModes[i].mode->range;
-            if (!r.found || r.rcChannelIndex != ch) continue;
-            chHasMode = true;
-            if (activeSnapshot[i]) chHasActiveMode = true;
-        }
-
-        if (chHasMode && !chHasActiveMode)
-            channels[ch] = findSafeOffValue(ch);
-    }
-
-    // Apply active mode overrides (always wins over the neutral value above).
-    //static uint32_t lastRcOverrideTs = 0;
-    //uint32_t now = millis();
-    //if (lastRcOverrideTs != 0)
-    //    SerialMon.printf("MSP_SET_RAW_RC: %lu ms since last call\n", now - lastRcOverrideTs);
-    //lastRcOverrideTs = now;
-    //SerialMon.printf("MSP_SET_RAW_RC: sending %d channels\n", rcChannelCount);
-    for (int i = 0; i < CMD_MODE_COUNT; i++) {
-        if (activeSnapshot[i] && cmdModes[i].mode->range.found) {
-            uint8_t ch = cmdModes[i].mode->range.rcChannelIndex;
-            uint16_t val = cmdModes[i].mode->range.onValue;
-            //SerialMon.printf("  %s: CH%d %d -> %d\n", cmdModes[i].cmdName, ch + 1, channels[ch], val);
-            channels[ch] = val;
-        }
-    }
-    //SerialMon.printf("  Full channel dump:");
-    //for (int i = 0; i < rcChannelCount; i++)
-    //    SerialMon.printf(" CH%d=%d", i + 1, channels[i]);
-    //SerialMon.println();
-
-    msp.send(MSP_SET_RAW_RC, channels, rcChannelCount * sizeof(uint16_t));
-    //SerialMon.println("  MSP_SET_RAW_RC sent.");
+    // MSP2_INAV_SET_AUX_RC payload: 16-bit mode, single channel.
+    // defByte bits 7-3: 0-based RC channel index (auxChannelIndex + 4).
+    // defByte bits 2-0: resolution = 3 (16-bit direct PWM).
+    uint8_t rcIndex = (uint8_t)dedicatedAuxChannel + 4;
+    uint8_t payload[3];
+    payload[0] = (rcIndex << 3) | 3;
+    payload[1] = pwm & 0xFF;
+    payload[2] = pwm >> 8;
+    msp.send(MSP2_INAV_SET_AUX_RC, payload, sizeof(payload));
 }
 
 void msp_get_callsign() {
@@ -1924,7 +1738,6 @@ void msp_get_activeboxes() {
       bool fmAltHold    = (boxes64 & (1LL << modeAltHold.boxId))  != 0;
       bool fmWaypoint   = (boxes64 & (1LL << modeWp.boxId))       != 0;
       bool fmHorizon    = (boxes64 & (1LL << boxIdHorizon))       != 0;
-      bool fmMspOverride = (boxes64 & (1LL << boxIdMspOverride))  != 0;
 
       /*
       MANU = 1
@@ -1970,13 +1783,6 @@ void msp_get_activeboxes() {
       uavstatus.fmWp      = fmWaypoint;
       uavstatus.fmPosHold = fmPosHold;
 
-      // Detect MSP RC Override going inactive — clear all command states so
-      // stale commands don't fire when the pilot switches the mode back on.
-      if (uavstatus.mspRcOverride && !fmMspOverride) {
-          LOGLINE("MSP RC Override deactivated — clearing all command states");
-          clearAllCommandStates();
-      }
-      uavstatus.mspRcOverride = fmMspOverride;
 
       lastMspCommunicationTs = millis();
     }
@@ -2150,8 +1956,6 @@ void buildTelemetryMessage(char* message) {
   if(lastStatus.downlinkStatus != publishedStatus.downlinkStatus || msgGroup == 7)
     sprintf(message, "%sdls:%d,", message, publishedStatus.downlinkStatus); // downlinkStatus
 
-  if(lastStatus.mspRcOverride != publishedStatus.mspRcOverride || msgGroup == 7)
-    sprintf(message, "%smro:%d,", message, publishedStatus.mspRcOverride); // mspRcOverride
 
   if(lastStatus.cmdRth != publishedStatus.cmdRth || msgGroup == 7)
     sprintf(message, "%scmdrth:%d,", message, publishedStatus.cmdRth);
