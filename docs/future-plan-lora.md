@@ -231,13 +231,64 @@ Web Bluetooth support matrix for reference:
 
 ---
 
+## Meshtastic as an Alternative to Raw LoRa
+
+[Meshtastic](https://meshtastic.org/) is an open-source protocol that runs on the same ESP32+LoRa hardware already considered here (Heltec WiFi LoRa 32, LilyGo T3-S3, etc.). Rather than raw LoRa frames, it adds a full mesh networking stack on top:
+
+- **Mesh routing** — any node in range relays packets for other nodes, extending effective range beyond a single LoRa hop
+- **AES-256 encryption** — per-channel, built in, solves the telemetry privacy open question entirely
+- **Protobuf serialisation** — compact binary framing with versioning
+- **Multiple host APIs** — Serial (UART), TCP (WiFi), BLE for talking to a Meshtastic node from external firmware
+- **Native MQTT gateway** — a Meshtastic node with internet access can bridge the mesh to/from an MQTT broker
+
+### The MQTT bridging advantage
+
+Meshtastic's MQTT gateway feature is particularly relevant to Bullet GCSS. A node with WiFi or cellular can relay all mesh traffic to a standard MQTT broker. This means the existing Bullet GCSS UI and MQTT transport layer could be reused without modification:
+
+```
+FC → ESP32 (BulletGCSS firmware) → UART Serial API → Meshtastic node (aircraft)
+  → LoRa mesh → internet-connected Meshtastic node (anywhere in range)
+    → MQTT broker → Bullet GCSS UI (unchanged)
+```
+
+The operator's phone stays on cellular. No local WebSocket server, no mixed-content TLS problem, no phone hotspot required. If existing Meshtastic infrastructure is present in the area (community nodes, relay stations), the aircraft is reachable even beyond direct LoRa range.
+
+### Practical integration model
+
+A dedicated private two-node setup on a private Meshtastic channel (separate PSK, invisible to the public mesh):
+
+- **Aircraft side:** The BulletGCSS ESP32 firmware talks to a Meshtastic node over UART using the Serial API, sending telemetry as custom payload packets (private portnum 512–1023). The BulletGCSS firmware does not need to run Meshtastic itself — it treats the node as a radio pipe.
+- **Ground side:** A second Meshtastic node with WiFi bridges received packets to the MQTT broker. This node can be fixed at the launch site (mains powered) or battery-powered.
+
+### Limitations
+
+**Update rate** is the main constraint. Meshtastic enforces rate limiting to be a good mesh citizen. Telemetry every 5–10 seconds is achievable; 1-second updates are not realistic and would be antisocial on shared infrastructure. A private two-node setup relaxes the social constraint but the radio duty cycle limits still apply.
+
+**Command latency** in a multi-hop mesh scenario could reach 10–30 seconds round-trip. Acceptable for situational awareness and non-urgent commands; not suitable for anything time-critical.
+
+### Comparison with raw LoRa
+
+| | Raw LoRa (custom firmware) | Meshtastic |
+|---|---|---|
+| Range | 10–40 km direct | Same + mesh relay extends further |
+| Encryption | Manual (AES-128, extra work) | AES-256, built in |
+| Update rate | ~5 s at SF10 | ~5–10 s (rate limited) |
+| Command latency | ~5 s | 5–30 s (mesh dependent) |
+| UI changes | Transport layer adaptation needed | None if MQTT bridging used |
+| Infrastructure dependency | None | Optional (works standalone, better with nodes nearby) |
+| Implementation complexity | Higher (custom binary protocol) | Lower (Serial API to existing firmware) |
+
+Meshtastic is the better starting point for a monitoring-focused LoRa variant. The lower implementation complexity and MQTT compatibility are significant advantages. The update rate and command latency trade-offs are acceptable for most beyond-cellular-range monitoring use cases.
+
+---
+
 ## Summary
 
 A LoRa variant of Bullet GCSS is technically feasible and would offer compelling range (10–40 km open field) without cellular infrastructure. The main design decisions are:
 
-- Binary protocol redesign (required for bandwidth)
-- Phone-as-hotspot architecture (preserves internet on the phone)
-- UI served from ESP32 over plain HTTP (avoids TLS complexity)
+- Binary protocol redesign (required for bandwidth) — or use Meshtastic's Serial API to avoid this entirely
+- Phone-as-hotspot architecture (preserves internet on the phone) — or use Meshtastic MQTT bridging via a fixed ground node
+- UI served from ESP32 over plain HTTP (avoids TLS complexity) — not needed if MQTT bridging is used
 - SF10/SF11 for 10 km range at 5-second update rates (EU duty cycle compliant)
 
-The UI, mission planner, command signing, and all application logic can be reused without modification. The new work is entirely in the two ESP32 firmwares and a thin transport adaptation in `CommScripts.js`.
+**Recommended starting point:** a Meshtastic-based implementation using a private two-node channel with MQTT bridging. This reuses the existing UI and MQTT architecture unchanged, avoids the binary protocol design work, and provides built-in encryption. Raw LoRa with custom firmware remains an option if sub-5-second update rates or lower latency commands are required.
