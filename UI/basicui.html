@@ -134,9 +134,17 @@
         }
 
         /* ── Status icons ────────────────────────────────────────────────── */
+        /* Scales with viewport like the rest of the UI (cf. 1.5vmax telemetry
+           text below); navbar's actual rendered height is fed back into
+           --navbar-height by bsPageScripts.js so #main's offset always
+           matches regardless of how large these icons get. */
+        :root {
+            --status-icon-size: clamp(24px, 3.75vmax, 96px);
+        }
+
         .statusIcon {
-            height: 2em;
-            width: 2em;
+            height: var(--status-icon-size);
+            width: var(--status-icon-size);
             cursor: pointer;
         }
 
@@ -477,14 +485,14 @@
     <!-- ── Navbar ─────────────────────────────────────────────────────────── -->
     <nav class="navbar navbar-dark bg-black fixed-top px-3">
         <button id="gearIcon" class="navbar-toggler border-0 p-1"
-                style="font-size:1.4em; color:#fff; position:relative;"
+                style="font-size:calc(var(--status-icon-size) * 0.7); color:#fff; position:relative;"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#sideMenu"
                 aria-controls="sideMenu"
                 aria-label="Open menu">
             <i class="bi bi-gear-fill"></i>
-            <span id="gearIconBadge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;background:#f00;border-radius:50%;"></span>
+            <span id="gearIconBadge" style="display:none;position:absolute;top:0.18em;right:0.18em;width:0.45em;height:0.45em;background:#f00;border-radius:50%;"></span>
         </button>
 
         <!-- Status icons — src updated by InfoPanelScripts.js via element IDs -->

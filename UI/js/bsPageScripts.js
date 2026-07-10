@@ -30,6 +30,21 @@ var currentSessionId = null;
 var currentPopupTopic = null;
 var noSleep = new NoSleep();
 
+// ── Navbar height sync ────────────────────────────────────────────────────────
+// Status icons scale with the viewport (see --status-icon-size in basicui.html),
+// so the navbar's rendered height isn't a fixed constant. Keep --navbar-height
+// (used by #main and #missionPlannerView to offset below the navbar) in sync
+// via ResizeObserver, which fires on any box-size change — window resize,
+// orientation change, or icon size changes — not just the 'resize' event.
+(function() {
+    var navbarEl = document.querySelector('nav.navbar');
+    function syncNavbarHeight() {
+        document.documentElement.style.setProperty('--navbar-height', navbarEl.offsetHeight + 'px');
+    }
+    new ResizeObserver(syncNavbarHeight).observe(navbarEl);
+    syncNavbarHeight();
+})();
+
 // ── Default settings ──────────────────────────────────────────────────────────
 
 function checkForDefaultSettings() {
